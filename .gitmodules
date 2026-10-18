@@ -1,0 +1,3 @@
+[submodule "extern/FunshiEngine"]
+	path = extern/FunshiEngine
+	url = https://github.com/FunshiEngine/FunshiEngineOpenGL.git
