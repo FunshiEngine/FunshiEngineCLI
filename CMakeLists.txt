@@ -24,17 +24,15 @@ endif()
 find_package(Bullet QUIET)
 if(Bullet_FOUND)
     include_directories(${BULLET_INCLUDE_DIRS})
-    # BulletConfig suele dar las libs
 else()
     if(EXISTS "/mingw64/include/bullet")
         include_directories("/mingw64/include/bullet")
-    elseif(EXISTS "C:/msys64/mingw64/include/bullet")
-        include_directories("C:/msys64/mingw64/include/bullet")
     endif()
 endif()
 
 find_package(OpenGL REQUIRED)
 find_package(GLFW3 QUIET)
+find_package(assimp QUIET)
 
 add_executable(FunshiCLI
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
@@ -71,12 +69,16 @@ if(GLFW3_FOUND)
 endif()
 target_link_libraries(FunshiCLI PRIVATE OpenGL::GL)
 
-# Bullet libs en MSYS2
 target_link_libraries(FunshiCLI PRIVATE
     BulletDynamics
     BulletCollision
     LinearMath
 )
+if(assimp_FOUND)
+    target_link_libraries(FunshiCLI PRIVATE assimp::assimp)
+else()
+    target_link_libraries(FunshiCLI PRIVATE assimp)
+endif()
 
 enable_testing()
 add_executable(cli-tests
