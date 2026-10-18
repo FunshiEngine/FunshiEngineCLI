@@ -34,6 +34,19 @@ find_package(OpenGL REQUIRED)
 find_package(GLFW3 QUIET)
 find_package(assimp QUIET)
 
+# FTXUI: librería TUI (C++17, MIT) para la interfaz interactiva de terminal.
+# Tag fijo para builds reproducibles; solo se construyen los targets que la
+# CLI consume.
+include(FetchContent)
+FetchContent_Declare(ftxui
+    GIT_REPOSITORY https://github.com/ArthurSonzogni/FTXUI.git
+    GIT_TAG v7.0.3
+)
+set(FTXUI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(FTXUI_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(FTXUI_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(ftxui)
+
 add_executable(FunshiCLI
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Nucleo/Respuesta.cpp
@@ -50,6 +63,7 @@ add_executable(FunshiCLI
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosScripts.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosDiagnosticos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosArchivos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/InterfazTui.cpp
 )
 
 target_include_directories(FunshiCLI PRIVATE
@@ -65,6 +79,9 @@ target_compile_definitions(FunshiCLI PRIVATE
 target_link_libraries(FunshiCLI PRIVATE
     funshi_project_core
     funshi_diagnostics_core
+    ftxui::screen
+    ftxui::dom
+    ftxui::component
 )
 
 find_library(FUNSHI_ENGINE_LIB NAMES funshi_engine

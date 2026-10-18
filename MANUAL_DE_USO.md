@@ -38,6 +38,35 @@ FunshiCLI version  # solo la versión, una por línea
 Ambos también existen como solicitud JSON (`{"command":"help"}` y
 `{"command":"version"}`), que devuelven la respuesta estructurada.
 
+## Interfaz TUI
+
+`FunshiCLI --tui` abre una interfaz interactiva a pantalla completa que se
+ajusta al tamaño de la terminal. No admite `--request` ni `--request-file`:
+construye sus propias solicitudes contra el mismo núcleo que la CLI JSON.
+
+La pantalla tiene cuatro piezas:
+
+- **Barra superior**: versión de la CLI, directorio de trabajo y proyecto
+  activo.
+- **Panel lateral**: los dominios — Proyectos, Escena, Scripts y
+  Diagnósticos.
+- **Panel central**: los datos reales de la sección, pedidos al núcleo
+  (`project.list`, `scene.list`, `script.list`, `diagnostics.list`).
+- **Barra inferior**: el resultado de la última operación y los atajos.
+
+Teclas:
+
+| Tecla              | Acción                                              |
+|--------------------|-----------------------------------------------------|
+| `↑` / `↓`          | navegar la lista de la sección actual               |
+| `←` / `→` / `Tab`  | cambiar de sección (recarga sus datos)              |
+| `Enter`            | en Proyectos: fija el proyecto activo               |
+| `r`                | recargar la sección actual                          |
+| `q`, `Esc`, `Ctrl+C` | salir                                            |
+
+Sin proyecto activo, las secciones Escena y Scripts piden elegir uno en
+Proyectos (`Enter` sobre la fila).
+
 ## Solicitudes JSON
 
 Cada solicitud contiene un `command` y, si el comando necesita parámetros, un

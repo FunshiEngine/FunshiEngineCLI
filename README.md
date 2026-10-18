@@ -26,9 +26,13 @@ El ejecutable queda en `build/FunshiCLI` (Linux) o `build/FunshiCLI.exe`
 ```bash
 FunshiCLI help
 FunshiCLI version
+FunshiCLI --tui
 FunshiCLI --request < solicitud.json
 FunshiCLI --request-file solicitud.json
 ```
+
+`--tui` abre una interfaz interactiva de terminal (proyectos, escena, scripts
+y diagnósticos) que no admite solicitud adjunta.
 
 Ejemplo — crear un proyecto 2D:
 
