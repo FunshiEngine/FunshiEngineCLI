@@ -21,7 +21,6 @@ else()
     FetchContent_MakeAvailable(funshi_engine)
 endif()
 
-# Añadir include de Bullet si existe
 find_package(Bullet QUIET)
 if(Bullet_FOUND)
     include_directories(${BULLET_INCLUDE_DIRS})
@@ -38,6 +37,10 @@ add_executable(FunshiCLI
 target_include_directories(FunshiCLI PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/src
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/External
+)
+
+target_compile_definitions(FunshiCLI PRIVATE
+    FUNSHI_VERSION="0.5.4"
 )
 
 target_link_libraries(FunshiCLI PRIVATE
