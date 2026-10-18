@@ -35,6 +35,10 @@
 #include <array>
 #include <memory>
 
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
+
 #include "TempPruebas.h"
 
 namespace fs = std::filesystem;
@@ -43,6 +47,17 @@ namespace {
 int total = 0;
 int fallos = 0;
 #define CHECK(cond, msg) do { ++total; if (!(cond)) { ++fallos; std::cout << "FALLO: " << msg << " (linea " << __LINE__ << ")\\n"; } } while (0)
+
+// Extrae el codigo de salida de std::system de forma multiplataforma. En
+// Windows el valor devuelto ya es el exit code; en POSIX hay que desempaquetar
+// el estado de espera.
+int codigoSalidaSistema(int rc) {
+#ifdef _WIN32
+    return rc;
+#else
+    return WIFEXITED(rc) ? WEXITSTATUS(rc) : -1;
+#endif
+}
 
 std::string ejecutarSistema(const std::string& cmd) {
     std::array<char, 4096> buffer;
@@ -87,7 +102,7 @@ int main(int argc, char** argv) {
         }
         std::string cmd = bin.string() + " --request-file " + f.string();
         int rc = std::system(cmd.c_str());
-        CHECK(WIFEXITED(rc) && WEXITSTATUS(rc) == 0,
+        CHECK(codigoSalidaSistema(rc) == 0,
               "help: codigo de salida " + std::to_string(rc));
     }
 
@@ -100,7 +115,7 @@ int main(int argc, char** argv) {
         }
         std::string cmd = bin.string() + " --request-file " + f.string();
         int rc = std::system(cmd.c_str());
-        CHECK(WIFEXITED(rc) && WEXITSTATUS(rc) == 0,
+        CHECK(codigoSalidaSistema(rc) == 0,
               "version: codigo de salida " + std::to_string(rc));
     }
 

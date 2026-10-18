@@ -36,9 +36,24 @@ find_package(assimp QUIET)
 
 add_executable(FunshiCLI
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Nucleo/Respuesta.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Nucleo/Registro.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Nucleo/CatalogoComandos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Nucleo/NucleoCLI.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Validacion/ValidacionArgs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Proyectos/ResolucionProyectos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Escena/ContextoEscena.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Escena/SerializacionEscena.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosProyecto.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosEscena.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosAssets.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosScripts.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosDiagnosticos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosArchivos.cpp
 )
 
 target_include_directories(FunshiCLI PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/src
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/External
 )
@@ -86,5 +101,6 @@ add_executable(cli-tests
 )
 target_include_directories(cli-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/tests
 )
 add_test(NAME cli-tests COMMAND cli-tests)
