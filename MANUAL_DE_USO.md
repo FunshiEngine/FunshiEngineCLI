@@ -60,9 +60,25 @@ FunshiCLI --request-file crear-proyecto.json       # por archivo
 
 - `--request` lee la solicitud por stdin; `--request-file ARCHIVO` la lee de un
   archivo. Hay que indicar **exactamente uno** de los dos.
-- `--project RUTA` se reconoce en la línea de comandos pero hoy no selecciona
-  proyecto: los comandos que lo necesitan lo fijan con `args.project` (nombre).
-  El flag está reservado para fijar el proyecto por ruta.
+- `--project RUTA` hoy no tiene efecto: el proyecto se elige con `args.project`
+  (nombre). Ver «Selección del proyecto».
+
+### Selección del proyecto
+
+Los comandos que trabajan sobre un proyecto lo identifican **por nombre**, en
+`args.project` (por ejemplo `"project": "MiProyecto"`). El motor resuelve ese
+nombre contra la raíz de proyectos que calcula en cada arranque, y esa raíz no
+es fija: vive junto al ejecutable y, si esa carpeta no es escribible (por
+ejemplo el exe en `C:\Program Files\`), cae a la carpeta de datos del usuario
+(`%APPDATA%\FunshiEngineGL` o `~/.local/share/FunshiEngineGL`). Por eso el
+mismo `args.project` funciona en cualquier dispositivo e instalación: el motor
+ubica el nombre donde corresponda en cada máquina.
+
+El flag `--project RUTA` existe a medias y hoy no hace nada. No conviene
+llenarlo con una ruta absoluta: una ruta clavaría la ubicación específica de un
+dispositivo y dejaría de funcionar donde la raíz cae en otro lado. Si se llega
+a implementar, debería tomar un nombre igual que `args.project` para mantenerse
+portátil.
 
 ### Forma de la respuesta
 
