@@ -6,15 +6,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# No definir targets del motor aquí; usaremos solo lo necesario
-option(FUNSHI_ENGINE_SUBMODULE "Usar submódulo extern/FunshiEngine" ON)
+set(BUILD_ENGINE OFF CACHE BOOL "" FORCE)
+set(BUILD_FUNSHI_CLI OFF CACHE BOOL "" FORCE)
+set(BUILD_RUNTIME OFF CACHE BOOL "" FORCE)
 
-if(FUNSHI_ENGINE_SUBMODULE)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/CMakeLists.txt")
-        add_subdirectory(extern/FunshiEngine/FunshiEngineGL EXCLUDE_FROM_ALL)
-    else()
-        message(FATAL_ERROR "Submódulo extern/FunshiEngine no encontrado")
-    endif()
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/CMakeLists.txt")
+    add_subdirectory(extern/FunshiEngine/FunshiEngineGL EXCLUDE_FROM_ALL)
 else()
     include(FetchContent)
     FetchContent_Declare(funshi_engine
@@ -22,6 +19,16 @@ else()
         GIT_TAG develop
     )
     FetchContent_MakeAvailable(funshi_engine)
+endif()
+
+# Añadir include de Bullet si existe
+find_package(Bullet QUIET)
+if(Bullet_FOUND)
+    include_directories(${BULLET_INCLUDE_DIRS})
+elseif(EXISTS "/mingw64/include/bullet")
+    include_directories("/mingw64/include/bullet")
+elseif(EXISTS "C:/msys64/mingw64/include/bullet")
+    include_directories("C:/msys64/mingw64/include/bullet")
 endif()
 
 add_executable(FunshiCLI
