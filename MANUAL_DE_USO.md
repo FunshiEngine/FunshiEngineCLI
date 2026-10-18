@@ -89,11 +89,11 @@ para correlación:
 
 ```json
 {
-  "ok": true,
-  "result": { "name": "MiProyecto", "path": ".../MotorGrafico/Proyects/MiProyecto", "dimension": 2 },
-  "error": null,
   "apiVersion": 1,
-  "id": "abc123"
+  "error": null,
+  "id": "abc123",
+  "ok": true,
+  "result": { "name": "MiProyecto", "path": ".../MotorGrafico/Proyects/MiProyecto", "dimension": 2 }
 }
 ```
 
@@ -102,10 +102,10 @@ contiene un código estable y un mensaje:
 
 ```json
 {
-  "ok": false,
-  "result": null,
+  "apiVersion": 1,
   "error": { "code": "invalid_project", "message": "El proyecto no existe o no tiene estructura valida" },
-  "apiVersion": 1
+  "ok": false,
+  "result": null
 }
 ```
 
@@ -117,7 +117,7 @@ agregar funcionalidad; los campos nuevos se agregan al final.
 | `command` | Argumentos | Resultado |
 |---|---|---|
 | `help` | ninguno | Lista los comandos disponibles. |
-| `version` | ninguno | Devuelve la versión del motor. |
+| `version` | ninguno | Devuelve la versión de la CLI. |
 | `project.create` | `args.name` (string), `args.dimension` (opcional: entero `2`/`3` o string `"2d"`/`"3d"`/`"DosD"`/`"TresD"`; default `3`) | Crea el proyecto y devuelve su nombre, ruta y dimensión. |
 | `project.list` | ninguno | Lista todos los proyectos descubiertos con su dimensión y validez. |
 | `project.config.get` | `args.project` (string, requerido) | Devuelve la configuración persistida del proyecto (dimensión, versión, gizmo, ventanas, cámara activa). |
@@ -129,7 +129,7 @@ agregar funcionalidad; los campos nuevos se agregan al final.
 | `scene.objects` | `args.project` (string, requerido) | Devuelve la jerarquía completa de objetos de la escena con sus componentes. |
 | `scene.object.get` | `args.project` (string, requerido), `args.id` (int) **o** `args.tag` (string) | Obtiene un objeto específico por id o tag (búsqueda recursiva). |
 | `scene.hierarchy` | `args.project` (string, requerido) | Devuelve la jerarquía completa de objetos (mismo contenido que `scene.objects`). |
-| `asset.import` | `args.project` (string), `args.source` (string, ruta absoluta al archivo) | Importa un modelo/textura/audio al proyecto y devuelve su ruta relativa y tipo. |
+| `asset.import` | `args.project` (string, requerido), `args.source` (string, requerido, ruta absoluta al archivo) | Importa un modelo/textura/audio al proyecto y devuelve su ruta relativa y tipo. |
 | `script.list` | `args.project` (string, requerido) | Lista los scripts del proyecto (`.cpp` y `.java` en `src<proyecto>/Scripts/`). |
 | `script.compile` | `args.project` (string, requerido) | Compila **todos** los scripts (C++ y Java) del proyecto vía `ScriptRuntime`. |
 | `diagnostics.list` | `args.limit` (opcional, máx 1000, default 100) | Devuelve los últimos eventos del registro de diagnósticos. |
