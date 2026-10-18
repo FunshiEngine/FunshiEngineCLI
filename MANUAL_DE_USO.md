@@ -74,11 +74,12 @@ ejemplo el exe en `C:\Program Files\`), cae a la carpeta de datos del usuario
 mismo `args.project` funciona en cualquier dispositivo e instalación: el motor
 ubica el nombre donde corresponda en cada máquina.
 
-El flag `--project RUTA` existe a medias y hoy no hace nada. No conviene
-llenarlo con una ruta absoluta: una ruta clavaría la ubicación específica de un
-dispositivo y dejaría de funcionar donde la raíz cae en otro lado. Si se llega
-a implementar, debería tomar un nombre igual que `args.project` para mantenerse
-portátil.
+El flag `--project RUTA` existe a medias y hoy no hace nada —la selección por
+nombre ya cubre el caso—. No conviene llenarlo con una ruta absoluta: una ruta
+clavaría la ubicación específica de un dispositivo y dejaría de funcionar donde
+la raíz cae en otro lado. Su destino no está definido: si se implementa,
+tomaría un nombre igual que `args.project` para mantenerse portátil, y si no se
+le encuentra uso puede eliminarse. Mejor no depender de él.
 
 ### Forma de la respuesta
 
