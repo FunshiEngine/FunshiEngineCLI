@@ -24,10 +24,13 @@ endif()
 find_package(Bullet QUIET)
 if(Bullet_FOUND)
     include_directories(${BULLET_INCLUDE_DIRS})
-elseif(EXISTS "/mingw64/include/bullet")
-    include_directories("/mingw64/include/bullet")
-elseif(EXISTS "C:/msys64/mingw64/include/bullet")
-    include_directories("C:/msys64/mingw64/include/bullet")
+    # BulletConfig suele dar las libs
+else()
+    if(EXISTS "/mingw64/include/bullet")
+        include_directories("/mingw64/include/bullet")
+    elseif(EXISTS "C:/msys64/mingw64/include/bullet")
+        include_directories("C:/msys64/mingw64/include/bullet")
+    endif()
 endif()
 
 find_package(OpenGL REQUIRED)
@@ -67,6 +70,13 @@ if(GLFW3_FOUND)
     target_link_libraries(FunshiCLI PRIVATE glfw)
 endif()
 target_link_libraries(FunshiCLI PRIVATE OpenGL::GL)
+
+# Bullet libs en MSYS2
+target_link_libraries(FunshiCLI PRIVATE
+    BulletDynamics
+    BulletCollision
+    LinearMath
+)
 
 enable_testing()
 add_executable(cli-tests
