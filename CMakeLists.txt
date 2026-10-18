@@ -44,13 +44,25 @@ target_compile_definitions(FunshiCLI PRIVATE
 )
 
 target_link_libraries(FunshiCLI PRIVATE
-    funshi_engine
     funshi_project_core
     funshi_diagnostics_core
 )
 
+# Intentar linkear funshi_engine si existe como target o buscar .a
+if(TARGET funshi_engine)
+    target_link_libraries(FunshiCLI PRIVATE funshi_engine)
+else()
+    find_library(FUNSHI_ENGINE_LIB NAMES funshi_engine PATHS ${CMAKE_BINARY_DIR}/extern/FunshiEngine/FunshiEngineGL ${CMAKE_BINARY_DIR}/lib NO_DEFAULT_PATH)
+    if(FUNSHI_ENGINE_LIB)
+        target_link_libraries(FunshiCLI PRIVATE ${FUNSHI_ENGINE_LIB})
+    endif()
+endif()
+
 enable_testing()
 add_executable(cli-tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/CliTests.cpp
+)
+target_include_directories(cli-tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL
 )
 add_test(NAME cli-tests COMMAND cli-tests)
