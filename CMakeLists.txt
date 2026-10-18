@@ -48,14 +48,17 @@ target_link_libraries(FunshiCLI PRIVATE
     funshi_diagnostics_core
 )
 
-# Intentar linkear funshi_engine si existe como target o buscar .a
-if(TARGET funshi_engine)
+# Link explícito con funshi_engine
+find_library(FUNSHI_ENGINE_LIB NAMES funshi_engine
+    PATHS
+    ${CMAKE_BINARY_DIR}/extern/FunshiEngine/FunshiEngineGL
+    ${CMAKE_BINARY_DIR}/lib
+    C:/Users/gianf/Desktop/Projects/FunshiEngineOpenGL/FunshiEngineGL/build
+    NO_DEFAULT_PATH)
+if(FUNSHI_ENGINE_LIB)
+    target_link_libraries(FunshiCLI PRIVATE ${FUNSHI_ENGINE_LIB})
+elseif(TARGET funshi_engine)
     target_link_libraries(FunshiCLI PRIVATE funshi_engine)
-else()
-    find_library(FUNSHI_ENGINE_LIB NAMES funshi_engine PATHS ${CMAKE_BINARY_DIR}/extern/FunshiEngine/FunshiEngineGL ${CMAKE_BINARY_DIR}/lib NO_DEFAULT_PATH)
-    if(FUNSHI_ENGINE_LIB)
-        target_link_libraries(FunshiCLI PRIVATE ${FUNSHI_ENGINE_LIB})
-    endif()
 endif()
 
 enable_testing()
