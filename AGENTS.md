@@ -55,6 +55,11 @@ cd build && ctest --output-on-failure
   y comparar la respuesta y el exit code. La TUI (`FunshiCLI --tui`) es la
   única interfaz visual: sus cambios se validan lanzándola a mano en una
   terminal; el núcleo que consume se valida igual que el resto de la CLI.
+- **Los tests del motor no son responsabilidad de este repo.** El motor
+  registra sus pruebas en su `CMakeLists.txt` y, mientras se consuma como
+  submódulo, pueden heredarse al `ctest` de la CLI. La validación de la CLI
+  es `cli-tests` (`ctest -R cli-tests`); las pruebas del motor se arreglan
+  en FunshiEngineOpenGL.
 
 ## Arquitectura del CLI
 
