@@ -30,6 +30,9 @@ elseif(EXISTS "C:/msys64/mingw64/include/bullet")
     include_directories("C:/msys64/mingw64/include/bullet")
 endif()
 
+find_package(OpenGL REQUIRED)
+find_package(GLFW3 QUIET)
+
 add_executable(FunshiCLI
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
 )
@@ -48,7 +51,6 @@ target_link_libraries(FunshiCLI PRIVATE
     funshi_diagnostics_core
 )
 
-# Link explícito con funshi_engine
 find_library(FUNSHI_ENGINE_LIB NAMES funshi_engine
     PATHS
     ${CMAKE_BINARY_DIR}/extern/FunshiEngine/FunshiEngineGL
@@ -60,6 +62,11 @@ if(FUNSHI_ENGINE_LIB)
 elseif(TARGET funshi_engine)
     target_link_libraries(FunshiCLI PRIVATE funshi_engine)
 endif()
+
+if(GLFW3_FOUND)
+    target_link_libraries(FunshiCLI PRIVATE glfw)
+endif()
+target_link_libraries(FunshiCLI PRIVATE OpenGL::GL)
 
 enable_testing()
 add_executable(cli-tests
