@@ -119,8 +119,9 @@ std::string textoAyuda() {
            "la interfaz interactiva de terminal.\n" +
            "Comandos: help, version, project.create, project.list, "
            "project.config.get, project.src.create, project.dir.import, "
-           "scene.list, scene.objects, scene.object.get, asset.import, "
-           "script.list, script.compile, diagnostics.list, diagnostics.clear\n";
+           "project.fs.create, file.create, scene.list, scene.objects, "
+           "scene.object.get, scene.hierarchy, asset.import, script.list, "
+           "script.compile, diagnostics.list, diagnostics.clear\n";
 }
 
 }  // namespace funshi
