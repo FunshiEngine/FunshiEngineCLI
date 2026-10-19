@@ -28,17 +28,16 @@ El ejecutable queda en `build/FunshiCLI` (Linux) o `build/FunshiCLI.exe`
 > del motor. Si cambia la API del motor, reconstruí el motor en su repositorio
 > y volvé a enlazar (ver `AGENTS.md`).
 
-> Nota (Windows): el ejecutable carga al arrancar DLLs de runtime que no se
-> copian a `build/`: las del toolchain MinGW-w64 (`libstdc++-6`,
-> `libgcc_s_seh-1`, `libwinpthread-1`) y las del motor (`libassimp-6`,
-> `glfw3`, las de Bullet), que en una instalación MSYS2 viven en
-> `C:\msys64\mingw64\bin`. Ese directorio debe estar en el PATH: la terminal
-> MINGW64 de MSYS2 ya lo trae; en UCRT64 o PowerShell hay que agregarlo
-> antes de ejecutar (`export PATH=/mingw64/bin:$PATH` o
-> `$env:Path += ";C:\msys64\mingw64\bin"`). Sin esas DLLs el proceso termina
-> en el arranque sin imprimir nada —en shells MSYS2 se ve `error while
-> loading shared libraries: libassimp-6.dll: ...`— y el prompt vuelve de
-> inmediato.
+> Nota (Windows): el build copia junto al ejecutable las DLLs de runtime que
+> necesita al arrancar, tomadas del directorio del compilador (en MSYS2,
+> `C:\msys64\mingw64\bin`): toolchain MinGW-w64 (`libstdc++-6`,
+> `libgcc_s_seh-1`, `libwinpthread-1`), motor (`libassimp-6`, `glfw3`, las de
+> Bullet) y dependencias de assimp (`libminizip-1`, `zlib1`, `libbz2-1`). En
+> `build/` la CLI funciona así desde cualquier terminal (MINGW64, UCRT64,
+> PowerShell, cmd) sin preparar el PATH. Si copiás el ejecutable a otra
+> carpeta, llevate también esas DLLs: sin ellas el proceso termina en el
+> arranque sin imprimir nada —en shells MSYS2 se ve `error while loading
+> shared libraries: libassimp-6.dll: ...` y el exit code es `0xC0000135`.
 
 ## Ayuda y versión
 
@@ -87,9 +86,10 @@ consola. En un pty de MSYS2 o Git Bash sin ConPTY esa API no está disponible,
 así que la CLI lee las teclas directamente de la entrada y aplica el modo
 crudo con `stty` (que debe estar en el PATH, como en cualquier instalación de
 MSYS2). En POSIX la entrada la resuelve el propio FTXUI. Además, en Windows
-el ejecutable necesita las DLLs de MinGW-w64 y del motor en el PATH (ver
-«Compilar»): si faltan, el proceso termina en el arranque y la TUI ni siquiera
-llega a abrirse.
+la TUI necesita que el ejecutable arranque con sus DLLs de runtime (ver
+«Compilar»): el build las copia junto a él, de modo que desde `build/` no hay
+que preparar nada; si el ejecutable se mueve a otra carpeta, hay que
+llevarse las DLLs con él.
 
 Sin una terminal interactiva —stdin redirigido desde un archivo o una
 tubería, o lanzado desde un programa sin terminal— la TUI no tendría forma de

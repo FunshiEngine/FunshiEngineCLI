@@ -118,6 +118,41 @@ else()
     target_link_libraries(FunshiCLI PRIVATE assimp)
 endif()
 
+# En Windows con MinGW, las DLLs de runtime no llegan al directorio de salida
+# por sí solas: las del toolchain (libstdc++, gcc, pthread) y las del motor
+# (assimp, glfw, bullet) viven en el directorio del compilador y sin ellas el
+# proceso termina al arrancar, antes de imprimir nada. Se copian junto al
+# ejecutable en cada compilación para que funcione desde cualquier terminal
+# sin preparar el PATH. Cada una se copia solo si existe en ese directorio
+# (una instalación incompleta no rompe la configuración).
+if(WIN32 AND MINGW)
+    get_filename_component(FUNSHI_MINGW_BIN "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    foreach(FUNSHI_DLL IN ITEMS
+            libstdc++-6.dll
+            libgcc_s_seh-1.dll
+            libwinpthread-1.dll
+            libassimp-6.dll
+            # Dependencias transitivas de assimp (minizip descomprime con
+            # zlib y bzip2); sin ellas el arranque falla con 0xC0000135.
+            libminizip-1.dll
+            zlib1.dll
+            libbz2-1.dll
+            glfw3.dll
+            libBulletCollision.dll
+            libBulletDynamics.dll
+            libLinearMath.dll
+    )
+        if(EXISTS "${FUNSHI_MINGW_BIN}/${FUNSHI_DLL}")
+            add_custom_command(TARGET FunshiCLI POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${FUNSHI_MINGW_BIN}/${FUNSHI_DLL}"
+                        "$<TARGET_FILE_DIR:FunshiCLI>"
+                COMMENT "Copiando ${FUNSHI_DLL} junto a FunshiCLI"
+            )
+        endif()
+    endforeach()
+endif()
+
 enable_testing()
 add_executable(cli-tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/CliTests.cpp

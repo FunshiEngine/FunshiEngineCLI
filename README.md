@@ -21,24 +21,18 @@ cmake --build build -j$(nproc)
 El ejecutable queda en `build/FunshiCLI` (Linux) o `build/FunshiCLI.exe`
 (Windows).
 
-En Windows, `FunshiCLI.exe` al arrancar carga DLLs de runtime que no se copian
-a `build/`: las del toolchain MinGW-w64 (`libstdc++-6`, `libgcc_s_seh-1`,
-`libwinpthread-1`) y las del motor (`libassimp-6`, `glfw3`, las de Bullet),
-que en una instalación MSYS2 viven en `C:\msys64\mingw64\bin`. Ese directorio
-tiene que estar en el PATH; la terminal **MINGW64** de MSYS2 ya lo trae, y en
-**UCRT64** o **PowerShell** se agrega antes de ejecutar:
+En Windows, el build copia junto al ejecutable las DLLs de runtime que necesita
+al arrancar: las del toolchain MinGW-w64 (`libstdc++-6`, `libgcc_s_seh-1`,
+`libwinpthread-1`), las del motor (`libassimp-6`, `glfw3`, las de Bullet) y las
+dependencias de assimp (`libminizip-1`, `zlib1`, `libbz2-1`), tomadas del
+directorio del compilador (en MSYS2, `C:\msys64\mingw64\bin`). Así
+`build/FunshiCLI.exe` funciona desde cualquier terminal —MINGW64, UCRT64,
+PowerShell o cmd— sin preparar el PATH.
 
-```bash
-export PATH=/mingw64/bin:$PATH          # MSYS2 (UCRT64, MSYS, …)
-```
-
-```powershell
-$env:Path += ";C:\msys64\mingw64\bin"  # PowerShell
-```
-
-Sin esas DLLs el proceso termina en el arranque sin imprimir nada (en shells
-MSYS2 se ve `error while loading shared libraries: libassimp-6.dll: ...`) y
-el prompt vuelve de inmediato.
+Si copiás el ejecutable a otra carpeta, llevate también esas DLLs: sin ellas
+el proceso termina en el arranque sin imprimir nada (en shells MSYS2 se ve
+`error while loading shared libraries: libassimp-6.dll: ...`, y el exit code
+es `0xC0000135`).
 
 ## Uso rápido
 
