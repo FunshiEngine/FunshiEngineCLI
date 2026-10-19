@@ -64,12 +64,18 @@ add_executable(FunshiCLI
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosDiagnosticos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosArchivos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/InterfazTui.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/EntradaRespaldo.cpp
 )
 
 target_include_directories(FunshiCLI PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/src
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/External
+    # El parser de secuencias de terminal de FTXUI es interno (vive en su
+    # árbol de fuentes, no en include/) y es el que traduce las teclas a
+    # eventos; la TUI lo reutiliza para su lectura de respaldo en
+    # terminales sin consola de Windows.
+    ${ftxui_SOURCE_DIR}/src
 )
 
 target_compile_definitions(FunshiCLI PRIVATE

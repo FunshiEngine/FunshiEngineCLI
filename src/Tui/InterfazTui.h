@@ -19,7 +19,14 @@
 #ifndef FUNSHI_TUI_INTERFAZ_TUI_H
 #define FUNSHI_TUI_INTERFAZ_TUI_H
 
+#include <string>
+
 namespace funshi {
+
+// Motivo por el que la TUI no puede abrirse en la terminal actual, o cadena
+// vacía si puede abrirse. Quien la invoca reporta el motivo como error de uso
+// antes de llamar a ejecutarTui().
+std::string errorDeEntradaTui();
 
 // Lanza la TUI de la CLI a pantalla completa en la terminal actual. Toma el
 // control de la terminal hasta que el usuario sale (q, Esc o Ctrl+C) y

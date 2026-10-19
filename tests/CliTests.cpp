@@ -135,6 +135,20 @@ int main(int argc, char** argv) {
               "respuesta debe incluir id:123");
     }
 
+    // 4. --tui sin terminal interactiva. En Windows la TUI detecta que stdin
+    // no es una terminal y se niega a arrancar con error de uso (codigo 2).
+    // Se fuerza stdin desde NUL para que el resultado no dependa de la sesion
+    // que lance el test. En POSIX la entrada la resuelve el propio FTXUI
+    // (/dev/tty), asi que ahi no hay deteccion que comprobar.
+#ifdef _WIN32
+    {
+        std::string cmd = bin.string() + " --tui < NUL";
+        int rc = std::system(cmd.c_str());
+        CHECK(codigoSalidaSistema(rc) == 2,
+              "tui sin terminal: codigo de salida " + std::to_string(rc));
+    }
+#endif
+
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": "
               << total << " comprobaciones, " << fallos << " fallos\n";
     return fallos == 0 ? 0 : 1;

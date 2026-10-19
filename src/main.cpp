@@ -92,6 +92,12 @@ int main(int argc, char* argv[]) {
             return errorUso("invalid_arguments",
                             "--tui no puede combinarse con --request o --request-file", 2);
         }
+        // Sin terminal interactiva la TUI no tendría ninguna entrada: se
+        // informa en vez de abrir una pantalla que no se puede manejar.
+        const std::string errorEntrada = funshi::errorDeEntradaTui();
+        if (!errorEntrada.empty()) {
+            return errorUso("tui_terminal_unavailable", errorEntrada, 2);
+        }
         return funshi::ejecutarTui();
     }
     if (stdinSolicitud == !archivoSolicitud.empty()) {

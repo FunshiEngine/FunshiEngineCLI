@@ -24,6 +24,8 @@
 // lógica de comandos, solo la presenta.
 #include "Tui/InterfazTui.h"
 
+#include "Tui/EntradaRespaldo.h"
+
 #include "Nucleo/NucleoCLI.h"
 #include "Nucleo/Respuesta.h"
 #include "Nucleo/Solicitud.h"
@@ -441,9 +443,31 @@ class AplicacionTui : public ftxui::ComponentBase {
 
 }  // namespace
 
+std::string errorDeEntradaTui() {
+    if (clasificarEntradaTui() != EntradaTui::SinTerminal) {
+        return {};
+    }
+    return "La TUI necesita una terminal interactiva y stdin no lo es "
+           "(¿redirigido desde un archivo o una tubería, o lanzado por un "
+           "programa sin terminal?). Ejecuta `FunshiCLI --tui` directamente en "
+           "una terminal.";
+}
+
 int ejecutarTui() {
+    const EntradaTui entrada = clasificarEntradaTui();
+    if (entrada == EntradaTui::SinTerminal) {
+        // El motivo ya lo informó quien invocó la TUI; aquí solo se devuelve
+        // el código de salida.
+        return codigosSalida::kErrorUso;
+    }
     ftxui::ScreenInteractive pantalla = ftxui::ScreenInteractive::Fullscreen();
     auto aplicacion = std::make_shared<AplicacionTui>(&pantalla);
+    // En un pty sin consola FTXUI no lee teclas: se las entrega este lector,
+    // que además detecta el tamaño de la terminal para el dibujo.
+    EntradaRespaldo respaldo;
+    if (entrada == EntradaTui::LecturaRespaldo) {
+        respaldo.iniciar(&pantalla);
+    }
     pantalla.Loop(aplicacion);
     return codigosSalida::kExito;
 }
