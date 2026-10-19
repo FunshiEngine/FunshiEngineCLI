@@ -24,3 +24,6 @@ compile_commands.json
 .vscode/
 .idea/
 *.user
+
+# Memoria de trabajo de agentes (no versionada)
+.agentes/

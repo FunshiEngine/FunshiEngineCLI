@@ -28,6 +28,17 @@ El ejecutable queda en `build/FunshiCLI` (Linux) o `build/FunshiCLI.exe`
 > del motor. Si cambia la API del motor, reconstruí el motor en su repositorio
 > y volvé a enlazar (ver `AGENTS.md`).
 
+> Nota (Windows): el build copia junto al ejecutable las DLLs de runtime que
+> necesita al arrancar, tomadas del directorio del compilador (en MSYS2,
+> `C:\msys64\mingw64\bin`): toolchain MinGW-w64 (`libstdc++-6`,
+> `libgcc_s_seh-1`, `libwinpthread-1`), motor (`libassimp-6`, `glfw3`, las de
+> Bullet) y dependencias de assimp (`libminizip-1`, `zlib1`, `libbz2-1`). En
+> `build/` la CLI funciona así desde cualquier terminal (MINGW64, UCRT64,
+> PowerShell, cmd) sin preparar el PATH. Si copiás el ejecutable a otra
+> carpeta, llevate también esas DLLs: sin ellas el proceso termina en el
+> arranque sin imprimir nada —en shells MSYS2 se ve `error while loading
+> shared libraries: libassimp-6.dll: ...` y el exit code es `0xC0000135`.
+
 ## Ayuda y versión
 
 ```bash
@@ -37,6 +48,66 @@ FunshiCLI version  # solo la versión, una por línea
 
 Ambos también existen como solicitud JSON (`{"command":"help"}` y
 `{"command":"version"}`), que devuelven la respuesta estructurada.
+
+## Interfaz TUI
+
+`FunshiCLI --tui` abre una interfaz interactiva a pantalla completa que se
+ajusta al tamaño de la terminal. No admite `--request` ni `--request-file`:
+construye sus propias solicitudes contra el mismo núcleo que la CLI JSON.
+
+La pantalla tiene cuatro piezas:
+
+- **Barra superior**: versión de la CLI, directorio de trabajo y proyecto
+  activo.
+- **Panel lateral**: los dominios — Proyectos, Escena, Scripts y
+  Diagnósticos.
+- **Panel central**: los datos reales de la sección, pedidos al núcleo
+  (`project.list`, `scene.list`, `script.list`, `diagnostics.list`).
+- **Barra inferior**: el resultado de la última operación y los atajos.
+
+Teclas:
+
+| Tecla              | Acción                                              |
+|--------------------|-----------------------------------------------------|
+| `↑` / `↓`          | navegar la lista de la sección actual               |
+| `←` / `→` / `Tab`  | cambiar de sección (recarga sus datos)              |
+| `Enter`            | en Proyectos: fija el proyecto activo               |
+| `r`                | recargar la sección actual                          |
+| `q`, `Esc`, `Ctrl+C` | salir                                            |
+
+Sin proyecto activo, las secciones Escena y Scripts piden elegir uno en
+Proyectos (`Enter` sobre la fila).
+
+### Requisitos de la terminal
+
+En Windows, la TUI funciona en cualquier consola nativa (cmd, PowerShell,
+Windows Terminal o mintty con ConPTY), donde las teclas se leen con la API de
+consola. En un pty de MSYS2 o Git Bash sin ConPTY esa API no está disponible,
+así que la CLI lee las teclas directamente de la entrada y aplica el modo
+crudo con `stty` (que debe estar en el PATH, como en cualquier instalación de
+MSYS2). En POSIX la entrada la resuelve el propio FTXUI. Además, en Windows
+la TUI necesita que el ejecutable arranque con sus DLLs de runtime (ver
+«Compilar»): el build las copia junto a él, de modo que desde `build/` no hay
+que preparar nada; si el ejecutable se mueve a otra carpeta, hay que
+llevarse las DLLs con él.
+
+Sin una terminal interactiva —stdin redirigido desde un archivo o una
+tubería, o lanzado desde un programa sin terminal— la TUI no tendría forma de
+recibir teclas y se niega a arrancar:
+
+```console
+$ FunshiCLI --tui < archivo.json
+{"apiVersion":1,"error":{"code":"tui_terminal_unavailable", ...}, ...}
+$ echo $?
+2
+```
+
+Limitaciones de la vía sin consola de Windows: el tamaño de la terminal se
+detecta una sola vez al arrancar (un cambio posterior no se refleja), el
+ratón queda fuera y las teclas pulsadas durante el primeros segundos de
+arranque pueden perderse, porque las órdenes `stty` de la puesta en marcha
+corren como procesos que heredan la entrada. Conviene esperar a que la
+pantalla se pinte antes de navegar.
 
 ## Solicitudes JSON
 
@@ -89,11 +160,11 @@ para correlación:
 
 ```json
 {
-  "ok": true,
-  "result": { "name": "MiProyecto", "path": ".../MotorGrafico/Proyects/MiProyecto", "dimension": 2 },
-  "error": null,
   "apiVersion": 1,
-  "id": "abc123"
+  "error": null,
+  "id": "abc123",
+  "ok": true,
+  "result": { "name": "MiProyecto", "path": ".../MotorGrafico/Proyects/MiProyecto", "dimension": 2 }
 }
 ```
 
@@ -102,10 +173,10 @@ contiene un código estable y un mensaje:
 
 ```json
 {
-  "ok": false,
-  "result": null,
+  "apiVersion": 1,
   "error": { "code": "invalid_project", "message": "El proyecto no existe o no tiene estructura valida" },
-  "apiVersion": 1
+  "ok": false,
+  "result": null
 }
 ```
 
@@ -117,7 +188,7 @@ agregar funcionalidad; los campos nuevos se agregan al final.
 | `command` | Argumentos | Resultado |
 |---|---|---|
 | `help` | ninguno | Lista los comandos disponibles. |
-| `version` | ninguno | Devuelve la versión del motor. |
+| `version` | ninguno | Devuelve la versión de la CLI. |
 | `project.create` | `args.name` (string), `args.dimension` (opcional: entero `2`/`3` o string `"2d"`/`"3d"`/`"DosD"`/`"TresD"`; default `3`) | Crea el proyecto y devuelve su nombre, ruta y dimensión. |
 | `project.list` | ninguno | Lista todos los proyectos descubiertos con su dimensión y validez. |
 | `project.config.get` | `args.project` (string, requerido) | Devuelve la configuración persistida del proyecto (dimensión, versión, gizmo, ventanas, cámara activa). |
@@ -129,7 +200,7 @@ agregar funcionalidad; los campos nuevos se agregan al final.
 | `scene.objects` | `args.project` (string, requerido) | Devuelve la jerarquía completa de objetos de la escena con sus componentes. |
 | `scene.object.get` | `args.project` (string, requerido), `args.id` (int) **o** `args.tag` (string) | Obtiene un objeto específico por id o tag (búsqueda recursiva). |
 | `scene.hierarchy` | `args.project` (string, requerido) | Devuelve la jerarquía completa de objetos (mismo contenido que `scene.objects`). |
-| `asset.import` | `args.project` (string), `args.source` (string, ruta absoluta al archivo) | Importa un modelo/textura/audio al proyecto y devuelve su ruta relativa y tipo. |
+| `asset.import` | `args.project` (string, requerido), `args.source` (string, requerido, ruta absoluta al archivo) | Importa un modelo/textura/audio al proyecto y devuelve su ruta relativa y tipo. |
 | `script.list` | `args.project` (string, requerido) | Lista los scripts del proyecto (`.cpp` y `.java` en `src<proyecto>/Scripts/`). |
 | `script.compile` | `args.project` (string, requerido) | Compila **todos** los scripts (C++ y Java) del proyecto vía `ScriptRuntime`. |
 | `diagnostics.list` | `args.limit` (opcional, máx 1000, default 100) | Devuelve los últimos eventos del registro de diagnósticos. |

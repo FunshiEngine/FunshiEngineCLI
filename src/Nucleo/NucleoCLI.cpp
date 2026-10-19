@@ -112,13 +112,16 @@ std::string textoAyuda() {
     return std::string("Funshi CLI ") + FUNSHI_VERSION + "\n" +
            "Uso:\n" +
            "  FunshiCLI help | version\n" +
+           "  FunshiCLI --tui\n" +
            "  FunshiCLI [--project RUTA] --request\n" +
            "  FunshiCLI [--project RUTA] --request-file ARCHIVO.json\n" +
-           "La solicitud JSON se envia por stdin o desde un archivo.\n" +
+           "La solicitud JSON se envia por stdin o desde un archivo. --tui abre\n" +
+           "la interfaz interactiva de terminal.\n" +
            "Comandos: help, version, project.create, project.list, "
            "project.config.get, project.src.create, project.dir.import, "
-           "scene.list, scene.objects, scene.object.get, asset.import, "
-           "script.list, script.compile, diagnostics.list, diagnostics.clear\n";
+           "project.fs.create, file.create, scene.list, scene.objects, "
+           "scene.object.get, scene.hierarchy, asset.import, script.list, "
+           "script.compile, diagnostics.list, diagnostics.clear\n";
 }
 
 }  // namespace funshi

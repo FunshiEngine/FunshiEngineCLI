@@ -29,19 +29,24 @@ src/
 ├── Escena/                   # Contexto de escena (RAII) y serialización a JSON
 │   ├── ContextoEscena.h/.cpp
 │   └── SerializacionEscena.h/.cpp
-└── Comandos/                 # Un módulo por dominio de comando
-    ├── ComandosProyecto.*    #   project.create / project.list / project.config.get
-    ├── ComandosEscena.*      #   scene.list / objects / object.get / hierarchy
-    ├── ComandosAssets.*      #   asset.import
-    ├── ComandosScripts.*     #   script.list / script.compile
-    ├── ComandosDiagnosticos.*#   diagnostics.list / diagnostics.clear
-    └── ComandosArchivos.*    #   project.src.create / dir.import / fs.create / file.create
+├── Comandos/                 # Un módulo por dominio de comando
+│   ├── ComandosProyecto.*    #   project.create / project.list / project.config.get
+│   ├── ComandosEscena.*      #   scene.list / objects / object.get / hierarchy
+│   ├── ComandosAssets.*      #   asset.import
+│   ├── ComandosScripts.*     #   script.list / script.compile
+│   ├── ComandosDiagnosticos.*#   diagnostics.list / diagnostics.clear
+│   └── ComandosArchivos.*    #   project.src.create / dir.import / fs.create / file.create
+└── Tui/                      # Interfaz interactiva de terminal (flag --tui)
+    ├── InterfazTui.h/.cpp    #   ejecutarTui(): pantalla completa con FTXUI sobre el núcleo
+    └── EntradaRespaldo.h/.cpp#   teclas en terminales sin consola de Windows (stty + parser FTXUI)
 ```
 
 ## Flujo de una solicitud
 
-1. **`main.cpp`** parsea `argv` (`--request`, `--request-file`, `--project`),
-   lee el JSON de la solicitud (stdin o archivo) y construye un `Solicitud`.
+1. **`main.cpp`** parsea `argv` (`--request`, `--request-file`, `--project`,
+   `--tui`), lee el JSON de la solicitud (stdin o archivo) y construye un
+   `Solicitud`. Con `--tui` en vez de solicitar JSON, llama a
+   `funshi::ejecutarTui()` (`Tui/InterfazTui.cpp`).
 2. Llama a **`funshi::ejecutarSolicitud(solicitud)`** (`Nucleo/NucleoCLI.cpp`).
 3. El dispatcher hace un `switch` exhaustivo sobre el `enum class ComandoCLI`
    y delega al handler del dominio correspondiente (`src/Comandos/...`).
@@ -50,9 +55,9 @@ src/
    `ResultadoComando` (respuesta + código de salida).
 5. **`main.cpp`** escribe la respuesta a stdout y devuelve el código de salida.
 
-Una UI de escritorio futura daría el paso 1 construyendo la `Solicitud` desde
-su propia interfaz, y el paso 5 presentando el `ResultadoComando` en pantalla;
-los pasos 2 a 4 son idénticos.
+La TUI da los mismos pasos 2 a 4 construyendo la `Solicitud` desde su
+interfaz y presentando cada `ResultadoComando` en pantalla; el camino JSON de
+stdin/stdout es un front-end más sobre el mismo núcleo.
 
 ## Decisiones de diseño
 
@@ -74,6 +79,18 @@ los pasos 2 a 4 son idénticos.
 - **Política de registro centralizada.** `Nucleo/Registro.h` distingue entre
    error de uso (solo se comunica al cliente) y error operacional (también se
    registra en el historial compartido que consulta la GUI del motor).
+- **La TUI consume el núcleo, no stdout.** `funshi::ejecutarTui()`
+   (`Tui/InterfazTui.cpp`) construye sus `Solicitud` y presenta sus
+   `ResultadoComando` sin pasar por stdin/stdout. FTXUI (v7.0.3, MIT) llega
+   como dependencia con `FetchContent` y tag fijo en `CMakeLists.txt`.
+- **La TUI lee teclas aun sin consola de Windows.** `EntradaRespaldo`
+   (`Tui/EntradaRespaldo.cpp`) clasifica la entrada con
+   `clasificarEntradaTui()`: en consola nativa las teclas las lee FTXUI con la
+   API de consola; en un pty de MSYS2 o Git Bash, donde esa API no está
+   disponible, el módulo aplica modo crudo con `stty` y traduce los bytes con
+   el parser interno de FTXUI, de modo que ambas rutas producen los mismos
+   eventos. Sin terminal interactiva, la TUI no arranca y `main.cpp` responde
+   `tui_terminal_unavailable` (código de salida 2).
 
 ## Relación con el motor
 

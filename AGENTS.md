@@ -51,9 +51,15 @@ cd build && ctest --output-on-failure
 - **Código de salida 77 = *skipped*, no fallo**. El test binario espera encontrar
   el ejecutable `FunshiCLI` junto a sí mismo; si no está, se salta en lugar de
   fallar. `ctest` lo reporta aparte; no es un test roto.
-- **La CLI es headless**: no hay UI que probar a mano todavía. El criterio de
-  aceptación de un cambio de comportamiento se valida invocando la CLI con una
-  solicitud JSON y comparando la respuesta y el exit code.
+- **Criterio de aceptación del núcleo**: invocar la CLI con una solicitud JSON
+  y comparar la respuesta y el exit code. La TUI (`FunshiCLI --tui`) es la
+  única interfaz visual: sus cambios se validan lanzándola a mano en una
+  terminal; el núcleo que consume se valida igual que el resto de la CLI.
+- **Los tests del motor no son responsabilidad de este repo.** El motor
+  registra sus pruebas en su `CMakeLists.txt` y, mientras se consuma como
+  submódulo, pueden heredarse al `ctest` de la CLI. La validación de la CLI
+  es `cli-tests` (`ctest -R cli-tests`); las pruebas del motor se arreglan
+  en FunshiEngineOpenGL.
 
 ## Arquitectura del CLI
 
@@ -72,13 +78,15 @@ src/
 ├── Validacion/             # Validación de argumentos por tabla de requisitos
 ├── Proyectos/              # Resolución/validación de rutas de proyecto
 ├── Escena/                 # Contexto de escena (RAII) + serialización a JSON
-└── Comandos/               # Un módulo por dominio de comando
-    ├── ComandosProyecto.*  #   project.create/list/config.get
-    ├── ComandosEscena.*    #   scene.list/objects/object.get/hierarchy
-    ├── ComandosAssets.*    #   asset.import
-    ├── ComandosScripts.*   #   script.list/compile
-    ├── ComandosDiagnosticos.*  # diagnostics.list/clear
-    └── ComandosArchivos.*  #   project.src.create/dir.import/fs.create, file.create
+├── Comandos/               # Un módulo por dominio de comando
+│   ├── ComandosProyecto.*  #   project.create/list/config.get
+│   ├── ComandosEscena.*    #   scene.list/objects/object.get/hierarchy
+│   ├── ComandosAssets.*    #   asset.import
+│   ├── ComandosScripts.*   #   script.list/compile
+│   ├── ComandosDiagnosticos.*  # diagnostics.list/clear
+│   └── ComandosArchivos.*  #   project.src.create/dir.import/fs.create, file.create
+└── Tui/                    # Interfaz interactiva de terminal (FTXUI), flag --tui
+    └── InterfazTui.h/.cpp  #   ejecutarTui(): consume ejecutarSolicitud() directamente
 ```
 
 Reglas que sostienen esta arquitectura:

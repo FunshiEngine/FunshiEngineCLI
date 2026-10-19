@@ -26,6 +26,7 @@
 #include "Nucleo/Registro.h"
 #include "Nucleo/Respuesta.h"
 #include "Nucleo/Solicitud.h"
+#include "Tui/InterfazTui.h"
 
 #include <nlohmann/json.hpp>
 
@@ -69,6 +70,7 @@ int main(int argc, char* argv[]) {
     // Parseo de argumentos de línea de comandos.
     std::string archivoSolicitud;
     bool stdinSolicitud = false;
+    bool modoTui = false;
     for (int i = 1; i < argc; ++i) {
         const std::string argumento(argv[i]);
         if (argumento == "--project" && i + 1 < argc) {
@@ -77,10 +79,26 @@ int main(int argc, char* argv[]) {
             stdinSolicitud = true;
         } else if (argumento == "--request-file" && i + 1 < argc) {
             archivoSolicitud = argv[++i];
+        } else if (argumento == "--tui") {
+            modoTui = true;
         } else {
             return errorUso("invalid_arguments",
                             "Argumento no reconocido o incompleto: " + argumento, 2);
         }
+    }
+    // La TUI toma la terminal completa y no admite solicitud adjunta.
+    if (modoTui) {
+        if (stdinSolicitud || !archivoSolicitud.empty()) {
+            return errorUso("invalid_arguments",
+                            "--tui no puede combinarse con --request o --request-file", 2);
+        }
+        // Sin terminal interactiva la TUI no tendría ninguna entrada: se
+        // informa en vez de abrir una pantalla que no se puede manejar.
+        const std::string errorEntrada = funshi::errorDeEntradaTui();
+        if (!errorEntrada.empty()) {
+            return errorUso("tui_terminal_unavailable", errorEntrada, 2);
+        }
+        return funshi::ejecutarTui();
     }
     if (stdinSolicitud == !archivoSolicitud.empty()) {
         return errorUso("invalid_arguments",
