@@ -32,7 +32,9 @@ FunshiCLI --request-file solicitud.json
 ```
 
 `--tui` abre una interfaz interactiva de terminal (proyectos, escena, scripts
-y diagnósticos) que no admite solicitud adjunta.
+y diagnósticos) que no admite solicitud adjunta. Necesita una terminal
+interactiva: sin ella responde `tui_terminal_unavailable` y sale con código 2
+(ver «Interfaz TUI» del manual para los detalles por plataforma).
 
 Ejemplo — crear un proyecto 2D:
 

@@ -67,6 +67,33 @@ Teclas:
 Sin proyecto activo, las secciones Escena y Scripts piden elegir uno en
 Proyectos (`Enter` sobre la fila).
 
+### Requisitos de la terminal
+
+En Windows, la TUI funciona en cualquier consola nativa (cmd, PowerShell,
+Windows Terminal o mintty con ConPTY), donde las teclas se leen con la API de
+consola. En un pty de MSYS2 o Git Bash sin ConPTY esa API no está disponible,
+así que la CLI lee las teclas directamente de la entrada y aplica el modo
+crudo con `stty` (que debe estar en el PATH, como en cualquier instalación de
+MSYS2). En POSIX la entrada la resuelve el propio FTXUI.
+
+Sin una terminal interactiva —stdin redirigido desde un archivo o una
+tubería, o lanzado desde un programa sin terminal— la TUI no tendría forma de
+recibir teclas y se niega a arrancar:
+
+```console
+$ FunshiCLI --tui < archivo.json
+{"apiVersion":1,"error":{"code":"tui_terminal_unavailable", ...}, ...}
+$ echo $?
+2
+```
+
+Limitaciones de la vía sin consola de Windows: el tamaño de la terminal se
+detecta una sola vez al arrancar (un cambio posterior no se refleja), el
+ratón queda fuera y las teclas pulsadas durante el primeros segundos de
+arranque pueden perderse, porque las órdenes `stty` de la puesta en marcha
+corren como procesos que heredan la entrada. Conviene esperar a que la
+pantalla se pinte antes de navegar.
+
 ## Solicitudes JSON
 
 Cada solicitud contiene un `command` y, si el comando necesita parámetros, un
