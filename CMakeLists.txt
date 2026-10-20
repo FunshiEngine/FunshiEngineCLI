@@ -162,6 +162,8 @@ add_executable(cli-tests
 )
 target_include_directories(cli-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL
+    # JSON vendoriado del motor: el test parsea las respuestas del CLI.
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/External
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/tests
 )
 add_test(NAME cli-tests COMMAND cli-tests)

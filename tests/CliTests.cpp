@@ -18,8 +18,9 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-// Prueba headless del CLI (FunshiCLI): verifica respuesta JSON, eco de id y
-// apiVersion en help, version y project.config.get.
+// Prueba headless del CLI (FunshiCLI): verifica respuesta JSON, eco de id,
+// apiVersion en help, version y el recorrido de proyecto sobre un proyecto
+// real.
 //
 // El binario del CLI se resuelve junto a este ejecutable (mismo directorio de
 // build), con la extension .exe en Windows. Asi el test funciona en local y en
@@ -30,6 +31,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 #include <array>
@@ -38,6 +40,8 @@
 #ifndef _WIN32
 #include <sys/wait.h>
 #endif
+
+#include <nlohmann/json.hpp>
 
 #include "TempPruebas.h"
 
@@ -70,6 +74,40 @@ std::string ejecutarSistema(const std::string& cmd) {
         resultado += buffer.data();
     }
     return resultado;
+}
+
+// Lee un archivo de texto completo.
+std::string leerArchivo(const fs::path& ruta) {
+    std::ifstream fh(ruta, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(fh)),
+                       std::istreambuf_iterator<char>());
+}
+
+// Parsea un JSON sin lanzar excepcion: si el contenido no es JSON valido
+// devuelve un valor nulo, que los comprobadores tratan como respuesta
+// ausente.
+nlohmann::json leerJson(const fs::path& ruta) {
+    const std::string contenido = leerArchivo(ruta);
+    if (contenido.empty()) {
+        return nlohmann::json();
+    }
+    return nlohmann::json::parse(contenido, nullptr, false);
+}
+
+// Indica si una respuesta del CLI es satisfactoria.
+bool esRespuestaOk(const nlohmann::json& j) {
+    return j.is_object() && j.contains("ok") && j["ok"].is_boolean() &&
+           j["ok"].get<bool>();
+}
+
+// Ejecuta el CLI con una peticion y deja la respuesta en un archivo. Devuelve
+// el codigo de salida. La redireccion se escribe entre comillas porque la
+// carpeta temporal puede estar en una ruta con espacios.
+int ejecutarPeticion(const fs::path& bin, const fs::path& peticion,
+                     const fs::path& salida) {
+    const std::string cmd = bin.string() + " --request-file \"" + peticion.string() +
+                            "\" > \"" + salida.string() + "\"";
+    return codigoSalidaSistema(std::system(cmd.c_str()));
 }
 
 // Ruta del binario del CLI: mismo directorio que este ejecutable.
@@ -148,6 +186,107 @@ int main(int argc, char** argv) {
               "tui sin terminal: codigo de salida " + std::to_string(rc));
     }
 #endif
+
+    // 5. Recorrido de proyecto sobre un proyecto real: project.list carga la
+    // configuracion de cada proyecto encontrado y project.config.get carga la
+    // de uno concreto. Ambas pasan por ConfigPersistence::cargarProyecto(),
+    // que devuelve un struct por valor: si las cabeceras con las que compila
+    // la CLI y la biblioteca que enlaza no coinciden, ese valor se libera
+    // con un layout distinto del reservado y el proceso se corrompe. Por eso
+    // el recorrido necesita un proyecto de verdad en la lista: con la lista
+    // vacia el camino no se ejecuta.
+    {
+        const std::string nombre = "CliTestProyectoTemporal";
+        const fs::path fCreate = tmpDir.ruta() / "create.json";
+        const fs::path fList = tmpDir.ruta() / "list.json";
+        const fs::path fConfig = tmpDir.ruta() / "config.json";
+        const fs::path fSalida = tmpDir.ruta() / "salida.json";
+        std::string rutaProyecto;
+
+        {
+            std::ofstream fh(fCreate);
+            fh << R"({"command":"project.create","args":{"name":"CliTestProyectoTemporal"}})";
+        }
+        {
+            std::ofstream fh(fList);
+            fh << R"({"command":"project.list"})";
+        }
+        {
+            std::ofstream fh(fConfig);
+            fh << R"({"command":"project.config.get","args":{"project":"CliTestProyectoTemporal"}})";
+        }
+
+        // project.list: comprueba que responde y que el proyecto temporal
+        // aparece en la lista. Si una corrida anterior dejo el proyecto
+        // creado, se borra antes para que el recorrido sea repetible.
+        int rc = ejecutarPeticion(bin, fList, fSalida);
+        CHECK(rc == 0, "project.list: codigo de salida " + std::to_string(rc));
+        nlohmann::json jList = leerJson(fSalida);
+        CHECK(esRespuestaOk(jList), "project.list: la respuesta debe ser satisfactoria");
+        if (jList.is_object() && jList.contains("result") &&
+            jList["result"].is_object() && jList["result"].contains("projects") &&
+            jList["result"]["projects"].is_array()) {
+            for (const auto& p : jList["result"]["projects"]) {
+                if (p.is_object() && p.value("name", std::string()) == nombre &&
+                    p.contains("path") && p["path"].is_string()) {
+                    rutaProyecto = p["path"].get<std::string>();
+                }
+            }
+        }
+        if (!rutaProyecto.empty()) {
+            std::error_code ec;
+            fs::remove_all(fs::path(rutaProyecto), ec);
+        }
+
+        // project.create: deja el proyecto disponible para el resto del
+        // recorrido.
+        rc = ejecutarPeticion(bin, fCreate, fSalida);
+        CHECK(rc == 0, "project.create: codigo de salida " + std::to_string(rc));
+        nlohmann::json jCreate = leerJson(fSalida);
+        CHECK(esRespuestaOk(jCreate), "project.create: la respuesta debe ser satisfactoria");
+        if (jCreate.is_object() && jCreate.contains("result") &&
+            jCreate["result"].is_object() && jCreate["result"].contains("path") &&
+            jCreate["result"]["path"].is_string()) {
+            rutaProyecto = jCreate["result"]["path"].get<std::string>();
+        }
+
+        // project.list: el proyecto recien creado tiene que aparecer.
+        rc = ejecutarPeticion(bin, fList, fSalida);
+        CHECK(rc == 0, "project.list: codigo de salida " + std::to_string(rc));
+        jList = leerJson(fSalida);
+        CHECK(esRespuestaOk(jList), "project.list: la respuesta debe ser satisfactoria");
+        bool encontrado = false;
+        if (jList.is_object() && jList.contains("result") &&
+            jList["result"].is_object() && jList["result"].contains("projects") &&
+            jList["result"]["projects"].is_array()) {
+            for (const auto& p : jList["result"]["projects"]) {
+                if (p.is_object() && p.value("name", std::string()) == nombre) {
+                    encontrado = true;
+                }
+            }
+        }
+        CHECK(encontrado, "project.list: debe listar el proyecto creado");
+
+        // project.config.get: lee la configuracion del proyecto creado.
+        rc = ejecutarPeticion(bin, fConfig, fSalida);
+        CHECK(rc == 0, "project.config.get: codigo de salida " + std::to_string(rc));
+        nlohmann::json jConfig = leerJson(fSalida);
+        CHECK(esRespuestaOk(jConfig), "project.config.get: la respuesta debe ser satisfactoria");
+        if (jConfig.is_object() && jConfig.contains("result") &&
+            jConfig["result"].is_object()) {
+            CHECK(jConfig["result"].value("name", std::string()) == nombre,
+                  "project.config.get: debe devolver el proyecto pedido");
+        }
+
+        // Limpieza: el proyecto temporal no debe quedar en el directorio de
+        // proyectos del motor.
+        if (!rutaProyecto.empty()) {
+            std::error_code ec;
+            fs::remove_all(fs::path(rutaProyecto), ec);
+            CHECK(!fs::exists(fs::path(rutaProyecto)),
+                  "el proyecto temporal debe quedar borrado");
+        }
+    }
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": "
               << total << " comprobaciones, " << fallos << " fallos\n";
