@@ -83,6 +83,20 @@ stdin/stdout es un front-end más sobre el mismo núcleo.
    (`Tui/InterfazTui.cpp`) construye sus `Solicitud` y presenta sus
    `ResultadoComando` sin pasar por stdin/stdout. FTXUI (v7.0.3, MIT) llega
    como dependencia con `FetchContent` y tag fijo en `CMakeLists.txt`.
+- **La TUI se organiza en cinco piezas.** Barra superior, panel lateral de
+   dominios, panel central con los datos de la sección, caja de comandos y
+   barra de estado. La caja de comandos es un `ftxui::Input` que la propia
+   interfaz enfoca y desenfoca (`ActiveChild()` decide cuál tiene el foco), de
+   modo que el panel y la entrada nunca compiten por las teclas.
+- **El comando se ejecuta de forma síncrona.** `Enter` se atiende dentro de
+   `OnEvent` en vez de apoyarse en `on_enter` del input: FTXUI difiere ese
+   callback a la cola de tareas, con lo que el comando se ejecutaría con el
+   texto ya modificado si más teclas llegaran en el mismo lote.
+- **El texto se mide en columnas, no en bytes.** `recortar()` y la línea de
+   atajos usan `ftxui::string_width`, que cuenta celdas de pantalla, para que
+   un texto con acentos o flechas no se corte a media palabra. La línea de
+   atajos tiene tres variantes y se usa la primera que cabe en el ancho de la
+   terminal.
 - **La TUI lee teclas aun sin consola de Windows.** `EntradaRespaldo`
    (`Tui/EntradaRespaldo.cpp`) clasifica la entrada con
    `clasificarEntradaTui()`: en consola nativa las teclas las lee FTXUI con la
@@ -96,16 +110,21 @@ stdin/stdout es un front-end más sobre el mismo núcleo.
 
 - **`extern/FunshiEngine`** es un submódulo apuntando al motor
   (`FunshiEngine/FunshiEngineOpenGL`, rama `develop`).
-- El CMake del CLI fija `BUILD_ENGINE=OFF`, `BUILD_FUNSHI_CLI=OFF` y
-  `BUILD_RUNTIME=OFF` antes de `add_subdirectory` para no duplicar targets con
-  los que el motor define dentro del submódulo.
-- La librería estática `funshi_engine` se enlaza desde un build preexistente
-  del motor (ver `find_library` en `CMakeLists.txt`). Los targets
-  `funshi_project_core` y `funshi_diagnostics_core` se compilan desde el
-  submódulo.
+- El CMake del CLI fija `BUILD_ENGINE=ON`, `BUILD_FUNSHI_CLI=OFF`,
+  `BUILD_RUNTIME=ON` y `ENABLE_ASAN=OFF` antes de `add_subdirectory`: el motor
+  se compila desde el submódulo y aporta los targets `funshi_engine`,
+  `funshi_project_core` y `funshi_diagnostics_core`. Con `BUILD_RUNTIME=ON`
+  el motor construye solo su biblioteca: el ejecutable del editor y las
+  pruebas headless del motor pertenecen a su propio repositorio.
+- La CLI enlaza contra ese mismo `funshi_engine` del submódulo, de modo que
+  las cabeceras con las que compila y la biblioteca que enlaza salen siempre
+  del mismo commit. Enlazarlas desde builds distintos rompe el proceso: los
+  structs que cruzan la frontera (por ejemplo `ConfigPersistence::Proyecto`,
+  que se devuelve por valor) tienen layouts distintos y corrompen la memoria
+  al liberarse.
 - La CLI consume la API interna del motor (proyectos, escenas, assets, scripts,
-  diagnósticos). Si esa API cambia, hay que reconstruir el motor y volver a
-  enlazar.
+  diagnósticos). Si esa API cambia, hay que actualizar el submódulo y
+  reconstruir la CLI.
 
 ## Compatibilidad multiplataforma
 

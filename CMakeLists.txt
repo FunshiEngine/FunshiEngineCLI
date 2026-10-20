@@ -6,9 +6,20 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(BUILD_ENGINE OFF CACHE BOOL "" FORCE)
+# El motor se construye desde el submódulo y no desde un build suelto de otro
+# checkout: las cabeceras que compila la CLI y la biblioteca que enlaza tienen
+# que salir del MISMO commit. Si divergen, los structs que cruzan la frontera
+# (por ejemplo ConfigPersistence::Proyecto, que se devuelve por valor) tienen
+# layouts distintos y el proceso se corrompe al liberar la memoria.
+# BUILD_RUNTIME=ON construye solo la biblioteca del motor: la CLI no necesita
+# el ejecutable del editor ni las pruebas headless del motor (esas viven en su
+# propio repo).
+set(BUILD_ENGINE ON CACHE BOOL "" FORCE)
 set(BUILD_FUNSHI_CLI OFF CACHE BOOL "" FORCE)
-set(BUILD_RUNTIME OFF CACHE BOOL "" FORCE)
+set(BUILD_RUNTIME ON CACHE BOOL "" FORCE)
+# El motor activa ASan/UBSan en cualquier build con GCC/Clang. Con el GCC de
+# MSYS2 esos runtimes no linkean, así que aquí se desactivan.
+set(ENABLE_ASAN OFF CACHE BOOL "" FORCE)
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/CMakeLists.txt")
     add_subdirectory(extern/FunshiEngine/FunshiEngineGL EXCLUDE_FROM_ALL)
@@ -90,17 +101,9 @@ target_link_libraries(FunshiCLI PRIVATE
     ftxui::component
 )
 
-find_library(FUNSHI_ENGINE_LIB NAMES funshi_engine
-    PATHS
-    ${CMAKE_BINARY_DIR}/extern/FunshiEngine/FunshiEngineGL
-    ${CMAKE_BINARY_DIR}/lib
-    C:/Users/gianf/Desktop/Projects/FunshiEngineOpenGL/FunshiEngineGL/build
-    NO_DEFAULT_PATH)
-if(FUNSHI_ENGINE_LIB)
-    target_link_libraries(FunshiCLI PRIVATE ${FUNSHI_ENGINE_LIB})
-elseif(TARGET funshi_engine)
-    target_link_libraries(FunshiCLI PRIVATE funshi_engine)
-endif()
+# El motor llega como target `funshi_engine` que construye el submódulo: es
+# la única forma de que las cabeceras y la biblioteca sean del mismo commit.
+target_link_libraries(FunshiCLI PRIVATE funshi_engine)
 
 if(GLFW3_FOUND)
     target_link_libraries(FunshiCLI PRIVATE glfw)
@@ -159,6 +162,8 @@ add_executable(cli-tests
 )
 target_include_directories(cli-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL
+    # JSON vendoriado del motor: el test parsea las respuestas del CLI.
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/External
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/tests
 )
 add_test(NAME cli-tests COMMAND cli-tests)

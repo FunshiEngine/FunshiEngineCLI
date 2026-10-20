@@ -24,13 +24,17 @@ cd build && ctest --output-on-failure
 
 - **Submódulo `extern/FunshiEngine`**: el CLI compila contra la API del motor
   (headers y librerías estáticas). El CMake del CLI fija
-  `BUILD_ENGINE=OFF`, `BUILD_FUNSHI_CLI=OFF` y `BUILD_RUNTIME=OFF` antes de
+  `BUILD_ENGINE=ON`, `BUILD_FUNSHI_CLI=OFF` y `BUILD_RUNTIME=ON` antes de
   `add_subdirectory` para evitar colisión de targets con los que el motor
   define dentro del submódulo (`FunshiCLI`/`cli-tests` siguen existiendo ahí,
   pero no se generan en este build).
-- **Librería `funshi_engine`**: se enlaza desde un build preexistente del motor
-  (ver `find_library` en `CMakeLists.txt`). Si cambia la API del motor, hay que
-  reconstruir el motor en su repo y volver a enlazar.
+- **Librería `funshi_engine`**: la construye este mismo build a partir del
+  submódulo (`add_subdirectory` de `extern/FunshiEngine/FunshiEngineGL`) y se
+  enlaza como target `funshi_engine`. Si cambia la API del motor, basta con
+  actualizar el puntero del submódulo y recompilar. Enlazarla con una
+  biblioteca de otro checkout rompe el ABI: los tipos que el motor devuelve
+  por valor (por ejemplo `ConfigPersistence::General`) se compilan con
+  layouts distintos y corrompen el heap al liberarse.
 - **`cmake` puede no estar en el PATH**: en Windows/MSYS2 usar
   `C:/msys64/mingw64/bin/cmake.exe` con `PATH=/mingw64/bin:$PATH`, y el resto
   del toolchain de `mingw64` (`ninja`, `g++`).
