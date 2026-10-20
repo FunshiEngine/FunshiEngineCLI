@@ -21,6 +21,11 @@ cmake --build build -j$(nproc)
 El ejecutable queda en `build/FunshiCLI` (Linux) o `build/FunshiCLI.exe`
 (Windows).
 
+El motor se compila desde el submódulo `extern/FunshiEngine` (el CMake lo
+incluye con `add_subdirectory`), así que las cabeceras con las que compila la
+CLI y la biblioteca que enlaza salen siempre del mismo commit: no hace falta
+un build aparte del motor.
+
 En Windows, el build copia junto al ejecutable las DLLs de runtime que necesita
 al arrancar: las del toolchain MinGW-w64 (`libstdc++-6`, `libgcc_s_seh-1`,
 `libwinpthread-1`), las del motor (`libassimp-6`, `glfw3`, las de Bullet) y las

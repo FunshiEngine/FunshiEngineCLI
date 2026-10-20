@@ -24,9 +24,12 @@ cmake --build build -j$(nproc)
 El ejecutable queda en `build/FunshiCLI` (Linux) o `build/FunshiCLI.exe`
 (Windows).
 
-> Nota: la CLI enlaza contra la librería estática `funshi_engine` de un build
-> del motor. Si cambia la API del motor, reconstruí el motor en su repositorio
-> y volvé a enlazar (ver `AGENTS.md`).
+> Nota: el motor se compila desde el submódulo `extern/FunshiEngine`, que el
+> CMake incluye con `add_subdirectory`; la CLI enlaza contra esa misma
+> biblioteca. Cabeceras y biblioteca salen siempre del mismo commit del
+> submódulo, así que no hace falta mantener un build aparte del motor para
+> poder compilar la CLI. Si actualizás el submódulo
+> (`git submodule update --init --recursive`), reconstruí la CLI entera.
 
 > Nota (Windows): el build copia junto al ejecutable las DLLs de runtime que
 > necesita al arrancar, tomadas del directorio del compilador (en MSYS2,
@@ -102,12 +105,13 @@ $ echo $?
 2
 ```
 
-Limitaciones de la vía sin consola de Windows: el tamaño de la terminal se
-detecta una sola vez al arrancar (un cambio posterior no se refleja), el
-ratón queda fuera y las teclas pulsadas durante el primeros segundos de
-arranque pueden perderse, porque las órdenes `stty` de la puesta en marcha
-corren como procesos que heredan la entrada. Conviene esperar a que la
-pantalla se pinte antes de navegar.
+En la consola nativa el tamaño de la terminal se toma del estado de la
+consola y el ratón está disponible. Limitaciones de la vía sin consola de
+Windows: el tamaño de la terminal se detecta una sola vez al arrancar (un
+cambio posterior no se refleja), el ratón queda fuera y las teclas pulsadas
+durante los primeros segundos de arranque pueden perderse, porque las órdenes
+`stty` de la puesta en marcha corren como procesos que heredan la entrada.
+Conviene esperar a que la pantalla se pinte antes de navegar.
 
 ## Solicitudes JSON
 

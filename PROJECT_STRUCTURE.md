@@ -96,16 +96,21 @@ stdin/stdout es un front-end más sobre el mismo núcleo.
 
 - **`extern/FunshiEngine`** es un submódulo apuntando al motor
   (`FunshiEngine/FunshiEngineOpenGL`, rama `develop`).
-- El CMake del CLI fija `BUILD_ENGINE=OFF`, `BUILD_FUNSHI_CLI=OFF` y
-  `BUILD_RUNTIME=OFF` antes de `add_subdirectory` para no duplicar targets con
-  los que el motor define dentro del submódulo.
-- La librería estática `funshi_engine` se enlaza desde un build preexistente
-  del motor (ver `find_library` en `CMakeLists.txt`). Los targets
-  `funshi_project_core` y `funshi_diagnostics_core` se compilan desde el
-  submódulo.
+- El CMake del CLI fija `BUILD_ENGINE=ON`, `BUILD_FUNSHI_CLI=OFF`,
+  `BUILD_RUNTIME=ON` y `ENABLE_ASAN=OFF` antes de `add_subdirectory`: el motor
+  se compila desde el submódulo y aporta los targets `funshi_engine`,
+  `funshi_project_core` y `funshi_diagnostics_core`. Con `BUILD_RUNTIME=ON`
+  el motor construye solo su biblioteca: el ejecutable del editor y las
+  pruebas headless del motor pertenecen a su propio repositorio.
+- La CLI enlaza contra ese mismo `funshi_engine` del submódulo, de modo que
+  las cabeceras con las que compila y la biblioteca que enlaza salen siempre
+  del mismo commit. Enlazarlas desde builds distintos rompe el proceso: los
+  structs que cruzan la frontera (por ejemplo `ConfigPersistence::Proyecto`,
+  que se devuelve por valor) tienen layouts distintos y corrompen la memoria
+  al liberarse.
 - La CLI consume la API interna del motor (proyectos, escenas, assets, scripts,
-  diagnósticos). Si esa API cambia, hay que reconstruir el motor y volver a
-  enlazar.
+  diagnósticos). Si esa API cambia, hay que actualizar el submódulo y
+  reconstruir la CLI.
 
 ## Compatibilidad multiplataforma
 
