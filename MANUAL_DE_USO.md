@@ -58,25 +58,69 @@ Ambos también existen como solicitud JSON (`{"command":"help"}` y
 ajusta al tamaño de la terminal. No admite `--request` ni `--request-file`:
 construye sus propias solicitudes contra el mismo núcleo que la CLI JSON.
 
-La pantalla tiene cuatro piezas:
+La pantalla tiene cinco piezas:
 
 - **Barra superior**: versión de la CLI, directorio de trabajo y proyecto
   activo.
 - **Panel lateral**: los dominios — Proyectos, Escena, Scripts y
-  Diagnósticos.
+  Diagnósticos — y, debajo, el proyecto activo.
 - **Panel central**: los datos reales de la sección, pedidos al núcleo
-  (`project.list`, `scene.list`, `script.list`, `diagnostics.list`).
-- **Barra inferior**: el resultado de la última operación y los atajos.
+  (`project.list`, `scene.list`, `script.list`, `diagnostics.list`). Su
+  cabecera lleva el número de elementos y, si no caben todos, el rango
+  visible (`12-30 de 87`).
+- **Caja de comandos**: una línea de entrada donde se escriben comandos del
+  catálogo.
+- **Barra de estado**: el desenlace de la última operación y, en la línea
+  siguiente, los atajos. La línea de atajos se acorta sola cuando la terminal
+  es estrecha, de modo que nunca queda cortada a media palabra.
 
-Teclas:
+Teclas, con el foco en el panel:
 
-| Tecla              | Acción                                              |
-|--------------------|-----------------------------------------------------|
-| `↑` / `↓`          | navegar la lista de la sección actual               |
-| `←` / `→` / `Tab`  | cambiar de sección (recarga sus datos)              |
-| `Enter`            | en Proyectos: fija el proyecto activo               |
-| `r`                | recargar la sección actual                          |
-| `q`, `Esc`, `Ctrl+C` | salir                                            |
+| Tecla                | Acción                                   |
+|----------------------|------------------------------------------|
+| `↑` / `↓`            | navegar la lista de la sección actual    |
+| `RePág` / `AvPág`    | recorrer la lista de una página           |
+| `Inicio` / `Fin`     | ir al primer o al último elemento        |
+| `←` / `→` / `Tab`    | cambiar de sección (recarga sus datos)   |
+| `Enter`              | en Proyectos: fija el proyecto activo    |
+| `r`                  | recargar la sección actual               |
+| `/`                  | enfocar la caja de comandos              |
+| `?`                  | abrir el catálogo de comandos            |
+| `q`, `Esc`, `Ctrl+C` | salir                                    |
+
+Teclas, con el foco en la caja de comandos:
+
+| Tecla                | Acción                                   |
+|----------------------|------------------------------------------|
+| `Enter`              | ejecutar el comando escrito              |
+| `Esc`                | devolver el foco al panel                |
+| `↑` / `↓`            | recorrer el historial de lo escrito      |
+| `Ctrl+C`             | salir                                    |
+
+El resto de las teclas se escriben en la caja: ahí `q` es una letra, no una
+salida.
+
+### Escribir comandos
+
+La caja de comandos usa la misma sintaxis que las solicitudes JSON: el nombre
+del comando y, detrás, sus argumentos en forma `nombre=valor`.
+
+```
+project.list
+project.create name=MiJuego dimension=2
+scene.object.get project=MiJuego id=12
+```
+
+Un valor numérico sin comillas se envía como número; entrecomillado (`"2"`, o
+`'un texto con espacios'`) se envía como texto. La línea se parte en palabras
+respetando las comillas, así que un valor entrecomillado puede contener
+espacios. Un comando desconocido, o con argumentos que no encajan, deja su
+código de error en la barra de estado sin interrumpir la sesión.
+
+### Catálogo de comandos
+
+`?` abre un panel con la lista completa de comandos del catálogo y un resumen
+de las teclas. Cualquier tecla lo cierra.
 
 Sin proyecto activo, las secciones Escena y Scripts piden elegir uno en
 Proyectos (`Enter` sobre la fila).
@@ -106,12 +150,17 @@ $ echo $?
 ```
 
 En la consola nativa el tamaño de la terminal se toma del estado de la
-consola y el ratón está disponible. Limitaciones de la vía sin consola de
-Windows: el tamaño de la terminal se detecta una sola vez al arrancar (un
-cambio posterior no se refleja), el ratón queda fuera y las teclas pulsadas
-durante los primeros segundos de arranque pueden perderse, porque las órdenes
-`stty` de la puesta en marcha corren como procesos que heredan la entrada.
-Conviene esperar a que la pantalla se pinte antes de navegar.
+consola. El ratón llega solo en POSIX: FTXUI activa ahí el modo de reporte del
+ratón y la terminal manda los eventos de puntero. En Windows no llega, porque
+FTXUI no implementa los eventos de ratón de la consola de Windows. En la vía
+sin consola de Windows tampoco: ahí el ratón queda desactivado a propósito,
+porque el lector de respaldo no traduce esas secuencias.
+Limitaciones de la vía sin consola de Windows: el tamaño de la terminal se
+detecta una sola vez al arrancar (un cambio posterior no se refleja) y las
+teclas pulsadas durante los primeros segundos de arranque pueden perderse,
+porque las órdenes `stty` de la puesta en marcha corren como procesos que
+heredan la entrada. Conviene esperar a que la pantalla se pinte antes de
+navegar.
 
 ## Solicitudes JSON
 

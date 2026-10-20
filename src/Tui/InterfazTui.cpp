@@ -17,30 +17,36 @@
     SPDX-License-Identifier: Apache-2.0
 */
 // TUI de la CLI construida sobre FTXUI. Compone una pantalla completa que se
-// ajusta al tamaño de la terminal con cuatro piezas: barra superior (versión,
+// ajusta al tamaño de la terminal con cinco piezas: barra superior (versión,
 // directorio de trabajo y proyecto activo), panel lateral de dominios, panel
-// central con los datos reales del núcleo y barra inferior de atajos y estado.
-// Cada carga pide datos a ejecutarSolicitud(): la interfaz no implementa
-// lógica de comandos, solo la presenta.
+// central con los datos reales del núcleo, caja de comandos y barra de
+// estado. Cada carga pide datos a ejecutarSolicitud(): la interfaz no
+// implementa lógica de comandos, solo la presenta.
 #include "Tui/InterfazTui.h"
 
 #include "Tui/EntradaRespaldo.h"
 
+#include "Nucleo/CatalogoComandos.h"
 #include "Nucleo/NucleoCLI.h"
 #include "Nucleo/Respuesta.h"
 #include "Nucleo/Solicitud.h"
 
+#include <ftxui/component/component.hpp>
 #include <ftxui/component/component_base.hpp>
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/screen/color.hpp>
 #include <ftxui/screen/screen.hpp>
+#include <ftxui/screen/string.hpp>
+#include <ftxui/screen/terminal.hpp>
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -69,6 +75,37 @@ const ftxui::Color kError = ftxui::Color::RGB(224, 108, 117);
 
 // Dominios de la TUI, en el orden del panel lateral.
 enum class SeccionTui { Proyectos = 0, Escena, Scripts, Diagnosticos };
+
+// Cantidad de dominios del panel lateral.
+constexpr int kCantidadSecciones = 4;
+
+// Ancho del panel lateral, en columnas.
+constexpr int kAnchoPanelLateral = 30;
+
+// Columna en la que empieza el panel central (panel lateral + separador).
+constexpr int kColumnaPanelCentral = kAnchoPanelLateral + 1;
+
+// Filas que la pantalla reserva fuera del área de paneles: barra superior,
+// separador, caja de comandos, separador, mensaje de estado y atajos.
+constexpr int kFilasFueraDePaneles = 6;
+
+// Filas que ocupa el encabezado de cada panel: su título y el separador que
+// lo sigue.
+constexpr int kFilasEncabezado = 2;
+
+// Fila de la pantalla donde empieza el área de paneles, justo bajo la barra
+// superior.
+constexpr int kFilaPaneles = 1;
+
+// Fila de la pantalla donde empieza la lista de ítems del panel central.
+constexpr int kFilaPrimerItem = kFilaPaneles + kFilasEncabezado;
+
+// Fila de la pantalla donde empieza la lista de dominios del panel lateral.
+constexpr int kFilaPrimeraSeccion = kFilaPrimerItem;
+
+// Filas que ocupa la barra inferior, contadas desde el final de la pantalla:
+// caja de comandos, separador, mensaje y atajos.
+constexpr int kFilasBarraInferior = 4;
 
 // Nombre de cada sección para mostrar en la interfaz.
 const char* nombreSeccion(SeccionTui seccion) {
@@ -107,24 +144,157 @@ std::size_t indiceSeccion(SeccionTui seccion) {
     return static_cast<std::size_t>(seccion);
 }
 
-// Recorta un texto al ancho indicado, sin cortar a mitad de un carácter
-// UTF-8, y agrega puntos de continuación si se recortó.
-std::string recortar(const std::string& texto, std::size_t anchoMaximo) {
-    if (texto.size() <= anchoMaximo) return texto;
-    if (anchoMaximo <= 3) return texto.substr(0, anchoMaximo);
-    std::size_t corte = anchoMaximo - 3;
-    while (corte > 0 && (static_cast<unsigned char>(texto[corte]) & 0xC0) == 0x80) {
-        --corte;  // Retrocede hasta el inicio del carácter UTF-8.
+// Índice del byte donde el texto alcanza el ancho indicado en columnas de
+// pantalla, sin partir un carácter UTF-8.
+std::size_t byteDeAncho(const std::string& texto, std::size_t anchoMaximo) {
+    std::size_t ancho = 0;
+    std::size_t i = 0;
+    while (i < texto.size()) {
+        // Longitud del carácter UTF-8 en bytes.
+        const unsigned char byte = static_cast<unsigned char>(texto[i]);
+        std::size_t largo = 1;
+        if ((byte & 0xE0) == 0xC0) {
+            largo = 2;
+        } else if ((byte & 0xF0) == 0xE0) {
+            largo = 3;
+        } else if ((byte & 0xF8) == 0xF0) {
+            largo = 4;
+        }
+        if (i + largo > texto.size()) break;
+        const int anchoCaracter = ftxui::string_width(texto.substr(i, largo));
+        if (ancho + static_cast<std::size_t>(anchoCaracter) > anchoMaximo) break;
+        ancho += static_cast<std::size_t>(anchoCaracter);
+        i += largo;
     }
-    return texto.substr(0, corte) + "...";
+    return i;
 }
 
-// Estado cargado de una sección: sus ítems, la fila seleccionada y el último
-// error de carga, si lo hubo.
+// Recorta un texto al ancho indicado en columnas de pantalla, sin cortar a
+// mitad de un carácter UTF-8, y agrega puntos de continuación si se recortó.
+std::string recortar(const std::string& texto, std::size_t anchoMaximo) {
+    if (ftxui::string_width(texto) <= static_cast<int>(anchoMaximo)) return texto;
+    if (anchoMaximo <= 3) return texto.substr(0, byteDeAncho(texto, anchoMaximo));
+    return texto.substr(0, byteDeAncho(texto, anchoMaximo - 3)) + "...";
+}
+
+// Ancho útil de la terminal, con un mínimo para que la interfaz no se
+// descomponga en ventanas muy angostas.
+int anchoTerminal() {
+    return std::max(40, ftxui::Terminal::Size().dimx);
+}
+
+// Atajos de la barra inferior, de la versión más completa a la más corta: se
+// usa la primera que cabe en el ancho de la terminal, para que en ventanas
+// angostas la línea no quede cortada a media palabra.
+const std::vector<std::string>& atajosBarraInferior() {
+    static const std::vector<std::string> atajos = {
+        " ↑↓ mover · ←→ sección · enter usar · r recargar · / comando · ? ayuda · esc/q salir ",
+        " ↑↓ mover · ←→ sección · enter usar · / comando · ? ayuda · esc/q salir ",
+        " ↑↓ mover · enter usar · / comando · ? ayuda · esc/q salir ",
+    };
+    return atajos;
+}
+
+// Texto de atajos que cabe en la terminal actual.
+std::string textoAtajos() {
+    const std::size_t ancho = static_cast<std::size_t>(anchoTerminal());
+    for (const std::string& atajos : atajosBarraInferior()) {
+        if (ftxui::string_width(atajos) <= static_cast<int>(ancho)) return atajos;
+    }
+    return recortar(atajosBarraInferior().back(), ancho);
+}
+
+// Pieza de la línea de comandos: el texto y si venía entrecomillado, para
+// distinguir un valor numérico de uno textual.
+struct Token {
+    std::string texto;
+    bool entrecomillado = false;
+};
+
+// Divide una línea en piezas, respetando comillas simples y dobles: el
+// texto entrecomillado se une al token aunque tenga espacios.
+std::vector<Token> tokenizar(const std::string& linea) {
+    std::vector<Token> tokens;
+    Token actual;
+    char comilla = 0;
+    for (const char caracter : linea) {
+        if (comilla != 0) {
+            if (caracter == comilla) {
+                comilla = 0;
+                continue;
+            }
+            actual.texto += caracter;
+            continue;
+        }
+        if (caracter == '"' || caracter == '\'') {
+            comilla = caracter;
+            actual.entrecomillado = true;
+            continue;
+        }
+        if (caracter == ' ' || caracter == '\t') {
+            if (!actual.texto.empty()) {
+                tokens.push_back(actual);
+                actual = Token();
+            }
+            continue;
+        }
+        actual.texto += caracter;
+    }
+    if (!actual.texto.empty()) {
+        tokens.push_back(actual);
+    }
+    return tokens;
+}
+
+// Indica si un texto es un entero que cabe en un long long.
+bool esEntero(const std::string& texto) {
+    if (texto.empty()) return false;
+    std::size_t inicio = (texto[0] == '-' || texto[0] == '+') ? 1 : 0;
+    if (inicio >= texto.size()) return false;
+    for (std::size_t i = inicio; i < texto.size(); ++i) {
+        if (!std::isdigit(static_cast<unsigned char>(texto[i]))) return false;
+    }
+    try {
+        static_cast<void>(std::stoll(texto));
+    } catch (const std::exception&) {
+        return false;
+    }
+    return true;
+}
+
+// Convierte los tokens "clave=valor" en argumentos de la solicitud. Un valor
+// numérico sin comillas se manda como número; entrecomillado, como texto.
+bool construirArgumentos(const std::vector<Token>& tokens, nlohmann::json& argumentos,
+                          std::string& error) {
+    for (std::size_t i = 1; i < tokens.size(); ++i) {
+        const std::string& token = tokens[i].texto;
+        const std::size_t separador = token.find('=');
+        if (separador == std::string::npos) {
+            error = "Argumento sin '=': " + token;
+            return false;
+        }
+        const std::string clave = token.substr(0, separador);
+        const std::string valor = token.substr(separador + 1);
+        if (clave.empty()) {
+            error = "Argumento sin nombre: " + token;
+            return false;
+        }
+        if (!tokens[i].entrecomillado && esEntero(valor)) {
+            argumentos[clave] = std::stoll(valor);
+        } else {
+            argumentos[clave] = valor;
+        }
+    }
+    return true;
+}
+
+// Estado cargado de una sección: sus ítems, la fila seleccionada, la fila
+// visible más alta y el último error de carga, si lo hubo.
 struct EstadoSeccion {
     nlohmann::json items = nlohmann::json::array();
     std::string error;
     int seleccion = 0;
+    int desplazamiento = 0;
 };
 
 // Aplicación principal: un componente FTXUI que mantiene el estado de
@@ -132,6 +302,24 @@ struct EstadoSeccion {
 class AplicacionTui : public ftxui::ComponentBase {
  public:
     explicit AplicacionTui(ftxui::ScreenInteractive* pantalla) : pantalla_(pantalla) {
+        ftxui::InputOption opciones;
+        opciones.content = &textoComando_;
+        opciones.placeholder = "comando del catalogo, por ejemplo project.list";
+        opciones.multiline = false;
+        // El comando se ejecuta al recibir Enter, no con on_enter: FTXUI difiere
+        // ese callback a la cola de tareas y se ejecutaria con el texto ya
+        // modificado si mas teclas llegan en el mismo lote.
+        opciones.transform = [](const ftxui::InputState& estado) {
+            ftxui::Element elemento = estado.element;
+            if (estado.focused) {
+                elemento = elemento | ftxui::color(kAcento) | ftxui::bold;
+            } else {
+                elemento = elemento | ftxui::color(kTextoTenue);
+            }
+            return elemento;
+        };
+        entrada_ = ftxui::Input(opciones);
+        Add(entrada_);
         recargarSeccionActual();
     }
 
@@ -144,18 +332,47 @@ class AplicacionTui : public ftxui::ComponentBase {
                        panelCentral(),
                    }) | ftxui::flex,
                    ftxui::separator(),
-                   barraInferior(),
+                   cajaComandos(),
+                   ftxui::separator(),
+                   ftxui::text(" " + mensaje_ + " ") |
+                       (mensajeEsError_ ? ftxui::color(kError) : ftxui::color(kTextoTenue)) |
+                       ftxui::bgcolor(kFondoBarra),
+                   ftxui::text(textoAtajos()) |
+                       ftxui::color(kTextoTenue) | ftxui::bgcolor(kFondoBarra),
                }) | ftxui::color(kTexto) | ftxui::bgcolor(kFondo);
     }
 
     bool OnEvent(ftxui::Event evento) override {
-        if (evento == ftxui::Event::Character('q') || evento == ftxui::Event::Escape ||
+        if (focoEnEntrada_) {
+            return eventoEnEntrada(evento);
+        }
+        if (ayudaVisible_) {
+            // Cualquier tecla o clic cierra la ayuda.
+            ayudaVisible_ = false;
+            return true;
+        }
+        if (evento.is_mouse()) {
+            return manejarRaton(evento);
+        }
+        if (evento == ftxui::Event::Character('q') || evento == ftxui::Event::CtrlC ||
             evento == ftxui::Event::Character('\x03')) {
+            pantalla_->Exit();
+            return true;
+        }
+        if (evento == ftxui::Event::Escape) {
             pantalla_->Exit();
             return true;
         }
         if (evento == ftxui::Event::Character('r')) {
             recargarSeccionActual();
+            return true;
+        }
+        if (evento == ftxui::Event::Character('/')) {
+            enfocarEntrada();
+            return true;
+        }
+        if (evento == ftxui::Event::Character('?')) {
+            ayudaVisible_ = true;
             return true;
         }
         if (evento == ftxui::Event::ArrowUp) {
@@ -164,6 +381,22 @@ class AplicacionTui : public ftxui::ComponentBase {
         }
         if (evento == ftxui::Event::ArrowDown) {
             moverSeleccion(1);
+            return true;
+        }
+        if (evento == ftxui::Event::PageUp) {
+            moverSeleccion(-filasVisibles());
+            return true;
+        }
+        if (evento == ftxui::Event::PageDown) {
+            moverSeleccion(filasVisibles());
+            return true;
+        }
+        if (evento == ftxui::Event::Home) {
+            irAlInicio();
+            return true;
+        }
+        if (evento == ftxui::Event::End) {
+            irAlFinal();
             return true;
         }
         if (evento == ftxui::Event::ArrowLeft || evento == ftxui::Event::Tab) {
@@ -181,8 +414,15 @@ class AplicacionTui : public ftxui::ComponentBase {
         return false;
     }
 
+    // El foco de FTXUI sigue al hijo activo: la caja de comandos cuando está
+    // enfocada, ninguno cuando la navegación está en el panel central.
+    ftxui::Component ActiveChild() override {
+        return focoEnEntrada_ ? entrada_ : nullptr;
+    }
+
  private:
-    // Sección actualmente visible.
+    // ---- Estado ----
+
     SeccionTui seccionActual() const {
         return static_cast<SeccionTui>(indiceSeccion_);
     }
@@ -195,6 +435,21 @@ class AplicacionTui : public ftxui::ComponentBase {
         return estados_[indiceSeccion(seccionActual())];
     }
 
+    // Filas que puede mostrar la lista de ítems: las que quedan tras quitar
+    // la barra superior, la barra inferior y el encabezado del panel.
+    int filasVisibles() const {
+        return std::max(1, ftxui::Terminal::Size().dimy - kFilasFueraDePaneles -
+                                 kFilasEncabezado);
+    }
+
+    // Fila donde se dibuja la caja de comandos: la barra inferior ocupa las
+    // últimas filas de la pantalla.
+    int filaCajaComandos() const {
+        return std::max(0, ftxui::Terminal::Size().dimy - kFilasBarraInferior);
+    }
+
+    // ---- Datos ----
+
     // Ejecuta un comando del catálogo contra el núcleo y devuelve su
     // resultado. La única vía de datos de la interfaz.
     static ResultadoComando llamar(const std::string& comando,
@@ -206,18 +461,23 @@ class AplicacionTui : public ftxui::ComponentBase {
     }
 
     // Pide los datos de la sección actual al núcleo y actualiza su estado y
-    // la barra de estado con el desenlace.
-    void recargarSeccionActual() {
+    // la barra de estado con el desenlace. `informar` permite recargar sin
+    // pisar el mensaje: al ejecutar un comando desde la caja, el resultado
+    // que se quiere ver es el del comando, no el de la recarga.
+    void recargarSeccionActual(bool informar = true) {
         const SeccionTui seccion = seccionActual();
-        EstadoSeccion nuevo;
+        EstadoSeccion& estado = estados_[indiceSeccion(seccion)];
+        estado.desplazamiento = 0;
 
         nlohmann::json argumentos = nlohmann::json::object();
         if (seccion != SeccionTui::Proyectos) {
             if (proyectoActivo_.empty()) {
-                nuevo.error = "Selecciona un proyecto en la sección Proyectos (Enter)";
-                estados_[indiceSeccion(seccion)] = std::move(nuevo);
-                mensaje_ = "Sin proyecto activo";
-                mensajeEsError_ = true;
+                estado.error = "Selecciona un proyecto en la seccion Proyectos (Enter)";
+                estado.items = nlohmann::json::array();
+                if (informar) {
+                    mensaje_ = "Sin proyecto activo";
+                    mensajeEsError_ = true;
+                }
                 return;
             }
             argumentos["project"] = proyectoActivo_;
@@ -226,27 +486,32 @@ class AplicacionTui : public ftxui::ComponentBase {
         ResultadoComando resultado = llamar(comandoDeSeccion(seccion), argumentos);
         if (resultado.respuesta.correcta) {
             const char* campo = campoItemsDeSeccion(seccion);
-            nuevo.items = resultado.respuesta.resultado.contains(campo)
-                              ? resultado.respuesta.resultado[campo]
-                              : nlohmann::json::array();
-            if (!nuevo.items.is_array()) nuevo.items = nlohmann::json::array();
-            mensaje_ = std::string(comandoDeSeccion(seccion)) + ": " +
-                       std::to_string(nuevo.items.size()) + " elemento(s)";
-            mensajeEsError_ = false;
+            estado.items = resultado.respuesta.resultado.contains(campo)
+                               ? resultado.respuesta.resultado[campo]
+                               : nlohmann::json::array();
+            if (!estado.items.is_array()) estado.items = nlohmann::json::array();
+            estado.error.clear();
+            estado.seleccion = 0;
+            if (informar) {
+                mensaje_ = std::string(comandoDeSeccion(seccion)) + ": " +
+                           std::to_string(estado.items.size()) + " elemento(s)";
+                mensajeEsError_ = false;
+            }
         } else {
-            nuevo.error = resultado.respuesta.codigoError + ": " +
-                          resultado.respuesta.mensajeError;
-            mensaje_ = nuevo.error;
-            mensajeEsError_ = true;
+            estado.items = nlohmann::json::array();
+            estado.error = resultado.respuesta.codigoError + ": " +
+                           resultado.respuesta.mensajeError;
+            if (informar) {
+                mensaje_ = estado.error;
+                mensajeEsError_ = true;
+            }
         }
-        estados_[indiceSeccion(seccion)] = std::move(nuevo);
     }
 
     // Cambia de sección reciclando la selección y recargando sus datos, de
     // modo que siempre se muestre el estado real del disco.
     void cambiarSeccion(int delta) {
-        const int cantidad = 4;
-        indiceSeccion_ = (indiceSeccion_ + delta + cantidad) % cantidad;
+        indiceSeccion_ = (indiceSeccion_ + delta + kCantidadSecciones) % kCantidadSecciones;
         recargarSeccionActual();
     }
 
@@ -255,6 +520,17 @@ class AplicacionTui : public ftxui::ComponentBase {
         if (estado.items.empty()) return;
         const int tope = static_cast<int>(estado.items.size()) - 1;
         estado.seleccion = std::max(0, std::min(tope, estado.seleccion + delta));
+    }
+
+    // Lleva la selección al primer y al último ítem de la sección.
+    void irAlInicio() {
+        estadoActual().seleccion = 0;
+    }
+
+    void irAlFinal() {
+        EstadoSeccion& estado = estadoActual();
+        estado.seleccion = static_cast<int>(estado.items.size()) - 1;
+        if (estado.seleccion < 0) estado.seleccion = 0;
     }
 
     // Acción de Enter sobre la fila seleccionada de la sección actual.
@@ -292,6 +568,135 @@ class AplicacionTui : public ftxui::ComponentBase {
         }
     }
 
+    // ---- Caja de comandos ----
+
+    // Teclas con el foco en la caja de comandos: Esc vuelve al panel, las
+    // flechas recorren el historial y el resto lo atiende el propio input.
+    bool eventoEnEntrada(ftxui::Event evento) {
+        if (evento == ftxui::Event::CtrlC || evento == ftxui::Event::Character('\x03')) {
+            // Interrumpir la TUI tiene que funcionar también con el foco en la
+            // caja de comandos: si no, el carácter se escribiría en ella.
+            pantalla_->Exit();
+            return true;
+        }
+        if (evento == ftxui::Event::Escape) {
+            desenfocarEntrada();
+            return true;
+        }
+        if (evento == ftxui::Event::ArrowUp) {
+            recorrerHistorial(-1);
+            return true;
+        }
+        if (evento == ftxui::Event::ArrowDown) {
+            recorrerHistorial(1);
+            return true;
+        }
+        if (evento == ftxui::Event::Return) {
+            // El comando se ejecuta aqui y no con on_enter del input: ese
+            // callback lo difiere FTXUI al final del lote de eventos, y se
+            // ejecutaria con el texto que hubiera al terminar el lote.
+            ejecutarComandoEscrito();
+            return true;
+        }
+        return entrada_->OnEvent(evento);
+    }
+
+    void enfocarEntrada() {
+        focoEnEntrada_ = true;
+        mensaje_ = "Escribe un comando y pulsa Enter (Esc para volver)";
+        mensajeEsError_ = false;
+    }
+
+    void desenfocarEntrada() {
+        focoEnEntrada_ = false;
+    }
+
+    // Traduce la línea escrita a una solicitud del núcleo y la ejecuta.
+    void ejecutarComandoEscrito() {
+        const std::string linea = textoComando_;
+        const std::vector<Token> tokens = tokenizar(linea);
+        if (tokens.empty()) return;
+
+        nlohmann::json argumentos = nlohmann::json::object();
+        std::string error;
+        if (!construirArgumentos(tokens, argumentos, error)) {
+            mensaje_ = error;
+            mensajeEsError_ = true;
+            return;
+        }
+
+        if (!linea.empty()) {
+            historial_.push_back(linea);
+            indiceHistorial_ = static_cast<int>(historial_.size());
+        }
+
+        const std::string comando = tokens[0].texto;
+        const ResultadoComando resultado = llamar(comando, argumentos);
+        if (resultado.respuesta.correcta) {
+            mensaje_ = comando + ": ok" + resumenResultado(resultado.respuesta.resultado);
+            mensajeEsError_ = false;
+        } else {
+            mensaje_ = comando + ": " + resultado.respuesta.codigoError + " - " +
+                       resultado.respuesta.mensajeError;
+            mensajeEsError_ = true;
+        }
+        textoComando_.clear();
+        recargarSeccionActual(false);
+    }
+
+    // Resumen corto del resultado de un comando, para la barra de estado.
+    static std::string resumenResultado(const nlohmann::json& resultado) {
+        if (!resultado.is_object()) return {};
+        if (resultado.contains("count") && resultado["count"].is_number_integer()) {
+            return " (" + std::to_string(resultado["count"].get<long long>()) + ")";
+        }
+        if (resultado.contains("name") && resultado["name"].is_string()) {
+            return " (" + resultado["name"].get<std::string>() + ")";
+        }
+        return {};
+    }
+
+    // Recorre el historial de comandos escritos.
+    void recorrerHistorial(int delta) {
+        if (historial_.empty()) return;
+        if (indiceHistorial_ < 0) indiceHistorial_ = static_cast<int>(historial_.size());
+        indiceHistorial_ = std::max(
+            0, std::min(static_cast<int>(historial_.size()), indiceHistorial_ + delta));
+        textoComando_ = indiceHistorial_ < static_cast<int>(historial_.size())
+                            ? historial_[indiceHistorial_]
+                            : std::string();
+    }
+
+    // ---- Ratón ----
+
+    // Traduce un clic a una acción sobre la lista de ítems, sobre los
+    // dominios del panel lateral o sobre la caja de comandos.
+    bool manejarRaton(ftxui::Event& evento) {
+        const ftxui::Mouse& raton = evento.mouse();
+        if (raton.button != ftxui::Mouse::Left || raton.motion != ftxui::Mouse::Pressed) {
+            return false;
+        }
+        if (raton.y == filaCajaComandos()) {
+            // Un clic en la caja de comandos la enfoca para poder escribir.
+            enfocarEntrada();
+            return true;
+        }
+        if (raton.x < kColumnaPanelCentral) {
+            const int fila = raton.y - kFilaPrimeraSeccion;
+            if (fila < 0 || fila >= kCantidadSecciones) return false;
+            indiceSeccion_ = fila;
+            recargarSeccionActual();
+            mensaje_ = std::string("Seccion: ") + nombreSeccion(seccionActual());
+            mensajeEsError_ = false;
+            return true;
+        }
+        EstadoSeccion& estado = estadoActual();
+        const int indice = estado.desplazamiento + (raton.y - kFilaPrimerItem);
+        if (indice < 0 || indice >= static_cast<int>(estado.items.size())) return false;
+        estado.seleccion = indice;
+        return true;
+    }
+
     // ---- Render ----
 
     ftxui::Element barraSuperior() {
@@ -302,7 +707,7 @@ class AplicacionTui : public ftxui::ComponentBase {
                    ftxui::text(" FunshiCLI " FUNSHI_VERSION) | ftxui::bold | ftxui::color(kAcento),
                    ftxui::filler(),
                    ftxui::text(" " + recortar(contexto, static_cast<std::size_t>(
-                                                           std::max(20, ftxui::Terminal::Size().dimx - 34))) +
+                                                           std::max(20, anchoTerminal() - 34))) +
                                " ") |
                        ftxui::color(kTextoTenue),
                }) | ftxui::bgcolor(kFondoBarra);
@@ -312,7 +717,7 @@ class AplicacionTui : public ftxui::ComponentBase {
         std::vector<ftxui::Element> filas;
         filas.push_back(ftxui::text(" Dominios") | ftxui::bold | ftxui::color(kAcento));
         filas.push_back(ftxui::separator());
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < kCantidadSecciones; ++i) {
             const SeccionTui seccion = static_cast<SeccionTui>(i);
             const bool activa = i == indiceSeccion_;
             ftxui::Element fila =
@@ -322,23 +727,54 @@ class AplicacionTui : public ftxui::ComponentBase {
         }
         filas.push_back(ftxui::separator());
         filas.push_back(ftxui::text(" Proyecto activo") | ftxui::color(kTextoTenue));
-        filas.push_back(ftxui::text(proyectoActivo_.empty()
-                                        ? "  (ninguno; Enter en Proyectos)"
-                                        : "  " + recortar(proyectoActivo_, 22)) |
-                        (proyectoActivo_.empty() ? ftxui::Decorator(ftxui::color(kTextoTenue))
-                                                 : ftxui::color(kExito)));
+        if (proyectoActivo_.empty()) {
+            filas.push_back(ftxui::text("  (ninguno)") | ftxui::color(kTextoTenue));
+            filas.push_back(ftxui::text("  Enter en Proyectos") | ftxui::color(kTextoTenue));
+        } else {
+            filas.push_back(ftxui::text("  " + recortar(proyectoActivo_, 24)) |
+                            ftxui::color(kExito));
+        }
         return ftxui::vbox(std::move(filas)) |
-               ftxui::size(ftxui::WIDTH, ftxui::EQUAL, 30) | ftxui::bgcolor(kFondoPanel);
+               ftxui::size(ftxui::WIDTH, ftxui::EQUAL, kAnchoPanelLateral) |
+               ftxui::bgcolor(kFondoPanel);
     }
 
     ftxui::Element panelCentral() {
+        if (ayudaVisible_) {
+            return panelAyuda();
+        }
         const SeccionTui seccion = seccionActual();
-        const EstadoSeccion& estado = estadoActual();
-        std::vector<ftxui::Element> filas;
+        EstadoSeccion& estado = estadoActual();
+        const int visibles = filasVisibles();
+        const int total = static_cast<int>(estado.items.size());
 
-        filas.push_back(ftxui::text(" " + std::string(nombreSeccion(seccion)) + "  (" +
-                                    std::to_string(estado.items.size()) + ")") |
-                        ftxui::bold);
+        // La lista se desplaza para que la fila seleccionada quede a la vista.
+        if (estado.seleccion < estado.desplazamiento) {
+            estado.desplazamiento = estado.seleccion;
+        }
+        if (estado.seleccion >= estado.desplazamiento + visibles) {
+            estado.desplazamiento = estado.seleccion - visibles + 1;
+        }
+        if (estado.desplazamiento > std::max(0, total - visibles)) {
+            estado.desplazamiento = std::max(0, total - visibles);
+        }
+        if (estado.desplazamiento < 0) {
+            estado.desplazamiento = 0;
+        }
+
+        std::vector<ftxui::Element> filas;
+        filas.push_back(ftxui::hbox({
+                           ftxui::text(" " + std::string(nombreSeccion(seccion)) + "  (" +
+                                       std::to_string(total) + ")") |
+                               ftxui::bold,
+                           ftxui::filler(),
+                           ftxui::text(total > visibles
+                                           ? std::to_string(estado.desplazamiento + 1) + "-" +
+                                                 std::to_string(std::min(total, estado.desplazamiento + visibles)) +
+                                                 " de " + std::to_string(total)
+                                           : "") |
+                               ftxui::color(kTextoTenue),
+                       }));
         filas.push_back(ftxui::separator());
 
         if (!estado.error.empty()) {
@@ -347,18 +783,48 @@ class AplicacionTui : public ftxui::ComponentBase {
             filas.push_back(ftxui::text(" Sin elementos. r para recargar.") |
                             ftxui::color(kTextoTenue));
         } else {
-            const std::size_t ancho =
-                static_cast<std::size_t>(std::max(20, ftxui::Terminal::Size().dimx - 34));
-            for (std::size_t i = 0; i < estado.items.size(); ++i) {
+            const std::size_t ancho = static_cast<std::size_t>(
+                std::max(20, anchoTerminal() - kColumnaPanelCentral - 2));
+            const int fin = std::min(total, estado.desplazamiento + visibles);
+            for (int i = estado.desplazamiento; i < fin; ++i) {
                 ftxui::Element fila = filaDeItem(seccion, estado.items[i], ancho);
-                if (static_cast<int>(i) == estado.seleccion) {
+                if (i == estado.seleccion) {
                     fila = fila | ftxui::bgcolor(kFondoSeleccion);
                 }
                 filas.push_back(std::move(fila));
             }
         }
-        return ftxui::vbox(std::move(filas)) | ftxui::flex | ftxui::bgcolor(kFondoPanel) |
-               ftxui::frame;
+        return ftxui::vbox(std::move(filas)) | ftxui::flex | ftxui::bgcolor(kFondoPanel);
+    }
+
+    // Panel con el catálogo de comandos, para consultar qué se puede pedir.
+    ftxui::Element panelAyuda() {
+        std::vector<ftxui::Element> filas;
+        filas.push_back(ftxui::text(" Comandos del catalogo") | ftxui::bold);
+        filas.push_back(ftxui::separator());
+        for (const ComandoCLI comando : todosLosComandos()) {
+            filas.push_back(ftxui::text("  " + std::string(textoDesdeComando(comando))) |
+                            ftxui::color(kTexto));
+        }
+        filas.push_back(ftxui::separator());
+        filas.push_back(ftxui::text(" En la caja de comandos: nombre argumentos, por") |
+                        ftxui::color(kTextoTenue));
+        filas.push_back(ftxui::text(" ejemplo: project.create name=MiJuego dimension=2") |
+                        ftxui::color(kTextoTenue));
+        filas.push_back(ftxui::text(" Una tecla cierra esta ayuda.") | ftxui::color(kTextoTenue));
+        filas.push_back(ftxui::text("") | ftxui::color(kTextoTenue));
+        filas.push_back(ftxui::text(" Teclas: flechas mover y cambiar de seccion,") |
+                        ftxui::color(kTextoTenue));
+        filas.push_back(ftxui::text(" avpag y repag recorren la lista, inicio y fin") |
+                        ftxui::color(kTextoTenue));
+        filas.push_back(ftxui::text(" van a sus extremos, enter usa el elemento.") |
+                        ftxui::color(kTextoTenue));
+        filas.push_back(ftxui::text(" En la caja de comandos, esc vuelve al panel") |
+                        ftxui::color(kTextoTenue));
+        filas.push_back(ftxui::text(" y las flechas arriba y abajo recorren el") |
+                        ftxui::color(kTextoTenue));
+        filas.push_back(ftxui::text(" historial de lo escrito.") | ftxui::color(kTextoTenue));
+        return ftxui::vbox(std::move(filas)) | ftxui::flex | ftxui::bgcolor(kFondoPanel);
     }
 
     // Fila de un ítem, con el formato propio de su sección.
@@ -421,24 +887,30 @@ class AplicacionTui : public ftxui::ComponentBase {
         return ftxui::text("");
     }
 
-    ftxui::Element barraInferior() {
-        ftxui::Element estado = ftxui::text(" " + recortar(mensaje_, 60) + " ") |
-                                (mensajeEsError_ ? ftxui::color(kError)
-                                                 : ftxui::color(kTextoTenue));
-        ftxui::Element atajos =
-            ftxui::text(" ↑↓ navegar · ←→/Tab cambiar panel · Enter seleccionar · "
-                        "r refrescar · q salir ") |
-            ftxui::color(kTextoTenue);
-        return ftxui::hbox({std::move(estado), ftxui::filler(), std::move(atajos)}) |
-               ftxui::bgcolor(kFondoBarra);
+    // Caja de comandos: una línea de entrada donde se escriben las
+    // solicitudes del catálogo.
+    ftxui::Element cajaComandos() {
+        ftxui::Element entrada = entrada_->Render();
+        return ftxui::hbox({
+                   ftxui::text(focoEnEntrada_ ? " > " : " / ") | ftxui::color(kAcento),
+                   std::move(entrada) | ftxui::flex,
+               }) | ftxui::bgcolor(kFondoBarra);
     }
 
+    // ---- Miembros ----
+
     ftxui::ScreenInteractive* pantalla_ = nullptr;
-    std::vector<EstadoSeccion> estados_ = std::vector<EstadoSeccion>(4);
+    ftxui::Component entrada_;
+    std::string textoComando_;
+    std::vector<std::string> historial_;
+    int indiceHistorial_ = 0;
+    std::vector<EstadoSeccion> estados_ = std::vector<EstadoSeccion>(kCantidadSecciones);
     int indiceSeccion_ = 0;
     std::string proyectoActivo_;
     std::string mensaje_ = "Listo";
     bool mensajeEsError_ = false;
+    bool focoEnEntrada_ = false;
+    bool ayudaVisible_ = false;
 };
 
 }  // namespace
