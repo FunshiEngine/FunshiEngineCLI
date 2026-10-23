@@ -46,6 +46,43 @@ ResultadoComando escenaObjetoSetComponente(const nlohmann::json& argumentos);
 // scene.hierarchy: alias de scene.objects; carga y devuelve la jerarquía.
 ResultadoComando escenaJerarquia(const nlohmann::json& argumentos);
 
+// scene.save: guarda la escena actual en disco (serializa el registro completo).
+ResultadoComando escenaGuardar(const nlohmann::json& argumentos);
+
+// scene.object.setparent: asigna un objeto como hijo de otro (parentId=0 = root).
+ResultadoComando escenaObjetoSetPadre(const nlohmann::json& argumentos);
+
+// scene.object.addcomponent: agrega un componente nuevo al objeto.
+// componentType: "Script" | "Model" | "Color" | "AudioSource" | "Collider" | "RigidBody"
+ResultadoComando escenaObjetoAddComponente(const nlohmann::json& argumentos);
+
+// scene.object.create: crea un nuevo GameObject en la escena (padre opcional).
+ResultadoComando escenaObjetoCrear(const nlohmann::json& argumentos);
+
+// scene.object.clone: clona un objeto existente con sus componentes.
+ResultadoComando escenaObjetoClonar(const nlohmann::json& argumentos);
+
+// scene.object.removecomponent: quita un componente de un objeto.
+ResultadoComando escenaObjetoQuitarComponente(const nlohmann::json& argumentos);
+
+// scene.object.unparent: desvincula un objeto de su padre (lo vuelve raíz).
+ResultadoComando escenaObjetoDesvincularPadre(const nlohmann::json& argumentos);
+
+// scene.object.settag: cambia la etiqueta (tag) de un objeto.
+ResultadoComando escenaObjetoSetTag(const nlohmann::json& argumentos);
+
+// scene.object.setactive: activa o desactiva un objeto.
+ResultadoComando escenaObjetoSetActivo(const nlohmann::json& argumentos);
+
+// scene.object.components: lista los componentes de un objeto con sus tipos y campos.
+ResultadoComando escenaObjetoComponentes(const nlohmann::json& argumentos);
+
+// scene.object.findbytag: busca objetos por etiqueta.
+ResultadoComando escenaObjetoBuscarPorTag(const nlohmann::json& argumentos);
+
+// scene.object.findbyname: busca objetos por nombre.
+ResultadoComando escenaObjetoBuscarPorNombre(const nlohmann::json& argumentos);
+
 }  // namespace funshi
 
 #endif  // FUNSHI_COMANDOS_ESCENA_H

@@ -98,6 +98,30 @@ ResultadoComando ejecutarSolicitud(const Solicitud& solicitud) {
             return escenaObjetoSetComponente(argumentos);
         case ComandoCLI::EscenaJerarquia:
             return escenaJerarquia(argumentos);
+        case ComandoCLI::EscenaGuardar:
+            return escenaGuardar(argumentos);
+        case ComandoCLI::EscenaObjetoSetPadre:
+            return escenaObjetoSetPadre(argumentos);
+        case ComandoCLI::EscenaObjetoAddComponente:
+            return escenaObjetoAddComponente(argumentos);
+        case ComandoCLI::EscenaObjetoCrear:
+            return escenaObjetoCrear(argumentos);
+        case ComandoCLI::EscenaObjetoClonar:
+            return escenaObjetoClonar(argumentos);
+        case ComandoCLI::EscenaObjetoQuitarComponente:
+            return escenaObjetoQuitarComponente(argumentos);
+        case ComandoCLI::EscenaObjetoDesvincularPadre:
+            return escenaObjetoDesvincularPadre(argumentos);
+        case ComandoCLI::EscenaObjetoSetTag:
+            return escenaObjetoSetTag(argumentos);
+        case ComandoCLI::EscenaObjetoSetActivo:
+            return escenaObjetoSetActivo(argumentos);
+        case ComandoCLI::EscenaObjetoComponentes:
+            return escenaObjetoComponentes(argumentos);
+        case ComandoCLI::EscenaObjetoBuscarPorTag:
+            return escenaObjetoBuscarPorTag(argumentos);
+        case ComandoCLI::EscenaObjetoBuscarPorNombre:
+            return escenaObjetoBuscarPorNombre(argumentos);
         case ComandoCLI::AssetImportar:
             return assetImportar(argumentos);
         case ComandoCLI::ScriptListar:
@@ -132,7 +156,7 @@ std::string textoAyuda() {
            "Comandos: help, version, project.create, project.list, "
            "project.config.get, project.src.create, project.src.list, project.src.delete, project.src.rename, project.dir.import, "
            "project.fs.create, file.create, scene.list, scene.objects, "
-           "scene.object.get, scene.object.getglobalpos, scene.object.settransform, scene.object.setcomponent, scene.hierarchy, asset.import, script.list, "
+           "scene.object.get, scene.object.getglobalpos, scene.object.settransform, scene.object.setcomponent, scene.hierarchy, scene.save, scene.object.setparent, scene.object.addcomponent, scene.object.create, scene.object.clone, scene.object.removecomponent, scene.object.unparent, scene.object.settag, scene.object.setactive, scene.object.components, scene.object.findbytag, scene.object.findbyname, asset.import, script.list, "
            "script.compile, diagnostics.list, diagnostics.clear\n";
 }
 

@@ -47,6 +47,18 @@ const std::unordered_map<std::string, ComandoCLI>& mapaComandos() {
         {"scene.object.settransform", ComandoCLI::EscenaObjetoSetTransform},
         {"scene.object.setcomponent", ComandoCLI::EscenaObjetoSetComponente},
         {"scene.hierarchy", ComandoCLI::EscenaJerarquia},
+        {"scene.save", ComandoCLI::EscenaGuardar},
+        {"scene.object.setparent", ComandoCLI::EscenaObjetoSetPadre},
+        {"scene.object.addcomponent", ComandoCLI::EscenaObjetoAddComponente},
+        {"scene.object.create", ComandoCLI::EscenaObjetoCrear},
+        {"scene.object.clone", ComandoCLI::EscenaObjetoClonar},
+        {"scene.object.removecomponent", ComandoCLI::EscenaObjetoQuitarComponente},
+        {"scene.object.unparent", ComandoCLI::EscenaObjetoDesvincularPadre},
+        {"scene.object.settag", ComandoCLI::EscenaObjetoSetTag},
+        {"scene.object.setactive", ComandoCLI::EscenaObjetoSetActivo},
+        {"scene.object.components", ComandoCLI::EscenaObjetoComponentes},
+        {"scene.object.findbytag", ComandoCLI::EscenaObjetoBuscarPorTag},
+        {"scene.object.findbyname", ComandoCLI::EscenaObjetoBuscarPorNombre},
         {"asset.import", ComandoCLI::AssetImportar},
         {"script.list", ComandoCLI::ScriptListar},
         {"script.compile", ComandoCLI::ScriptCompilar},
@@ -85,6 +97,18 @@ std::string textoDesdeComando(ComandoCLI comando) {
         case ComandoCLI::EscenaObjetoSetTransform: return "scene.object.settransform";
         case ComandoCLI::EscenaObjetoSetComponente: return "scene.object.setcomponent";
         case ComandoCLI::EscenaJerarquia: return "scene.hierarchy";
+        case ComandoCLI::EscenaGuardar: return "scene.save";
+        case ComandoCLI::EscenaObjetoSetPadre: return "scene.object.setparent";
+        case ComandoCLI::EscenaObjetoAddComponente: return "scene.object.addcomponent";
+        case ComandoCLI::EscenaObjetoCrear: return "scene.object.create";
+        case ComandoCLI::EscenaObjetoClonar: return "scene.object.clone";
+        case ComandoCLI::EscenaObjetoQuitarComponente: return "scene.object.removecomponent";
+        case ComandoCLI::EscenaObjetoDesvincularPadre: return "scene.object.unparent";
+        case ComandoCLI::EscenaObjetoSetTag: return "scene.object.settag";
+        case ComandoCLI::EscenaObjetoSetActivo: return "scene.object.setactive";
+        case ComandoCLI::EscenaObjetoComponentes: return "scene.object.components";
+        case ComandoCLI::EscenaObjetoBuscarPorTag: return "scene.object.findbytag";
+        case ComandoCLI::EscenaObjetoBuscarPorNombre: return "scene.object.findbyname";
         case ComandoCLI::AssetImportar: return "asset.import";
         case ComandoCLI::ScriptListar: return "script.list";
         case ComandoCLI::ScriptCompilar: return "script.compile";
@@ -116,6 +140,18 @@ const std::vector<ComandoCLI>& todosLosComandos() {
         ComandoCLI::EscenaObjetoSetTransform,
         ComandoCLI::EscenaObjetoSetComponente,
         ComandoCLI::EscenaJerarquia,
+        ComandoCLI::EscenaGuardar,
+        ComandoCLI::EscenaObjetoSetPadre,
+        ComandoCLI::EscenaObjetoAddComponente,
+        ComandoCLI::EscenaObjetoCrear,
+        ComandoCLI::EscenaObjetoClonar,
+        ComandoCLI::EscenaObjetoQuitarComponente,
+        ComandoCLI::EscenaObjetoDesvincularPadre,
+        ComandoCLI::EscenaObjetoSetTag,
+        ComandoCLI::EscenaObjetoSetActivo,
+        ComandoCLI::EscenaObjetoComponentes,
+        ComandoCLI::EscenaObjetoBuscarPorTag,
+        ComandoCLI::EscenaObjetoBuscarPorNombre,
         ComandoCLI::AssetImportar,
         ComandoCLI::ScriptListar,
         ComandoCLI::ScriptCompilar,
