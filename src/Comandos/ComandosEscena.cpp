@@ -20,6 +20,7 @@
 
 #include <Configuracion/ProjectManager.h>
 #include <Configuracion/ProjectPaths.h>
+#include <Assets/AssetPath.h>
 
 #include "Escena/ContextoEscena.h"
 #include "Escena/SerializacionEscena.h"
@@ -30,6 +31,8 @@
 #include <Objetos/Componentes/Transform.h>
 #include <Objetos/Componentes/Model.h>
 #include <Objetos/Componentes/Script.h>
+#include <Behaviour/ScriptRuntime.h>
+#include <Behaviour/Reflection/BehaviourReflection.h>
 #include <Objetos/Componentes/Color.h>
 #include <Objetos/Componentes/AudioSource.h>
 #include <Objetos/Componentes/Colliders/EsfereCollider.h>
@@ -37,6 +40,7 @@
 #include <Objetos/Componentes/RigidBody/RigidBody.h>
 
 #include <filesystem>
+#include <fstream>
 
 namespace funshi {
 // ---------------------------------------------------------------------------
@@ -53,8 +57,65 @@ static std::string tipoComponenteNombre(Component* comp) {
     return "Unknown";
 }
 
+// Forward declarations: definidas despues en este archivo.
+void registrarOperacionUndo(const std::string& nombreProyecto,
+                            const std::string& tipo,
+                            int idObjeto,
+                            const nlohmann::json& antes,
+                            const nlohmann::json& despues);
+bool cargarHistorial(const std::string& ruta, nlohmann::json& historial);
+bool guardarHistorial(const std::string& ruta, const nlohmann::json& historial);
+std::string rutaHistorialUndo(const std::string& nombreProyecto) {
+    return ProjectPaths::directorioMemory(nombreProyecto) + "/undo_history.json";
+}
 
-namespace {
+bool cargarHistorial(const std::string& ruta, nlohmann::json& historial) {
+    std::ifstream f(ruta);
+    if (!f.is_open()) {
+        historial = nlohmann::json::array();
+        return true;
+    }
+    try {
+        f >> historial;
+        return true;
+    } catch (...) {
+        historial = nlohmann::json::array();
+        return true;
+    }
+}
+
+bool guardarHistorial(const std::string& ruta, const nlohmann::json& historial) {
+    std::error_code ec;
+    std::filesystem::create_directories(
+        std::filesystem::path(ruta).parent_path(), ec);
+    std::ofstream f(ruta);
+    if (!f.is_open()) return false;
+    f << historial.dump(2);
+    return f.good();
+}
+
+void registrarOperacionUndo(const std::string& nombreProyecto,
+                            const std::string& tipo,
+                            int idObjeto,
+                            const nlohmann::json& antes,
+                            const nlohmann::json& despues) {
+    std::string ruta = rutaHistorialUndo(nombreProyecto);
+    nlohmann::json historial;
+    if (!cargarHistorial(ruta, historial)) return;
+
+    nlohmann::json operacion;
+    operacion["type"] = tipo;
+    operacion["id"] = idObjeto;
+    operacion["before"] = antes;
+    operacion["after"] = despues;
+    historial.push_back(operacion);
+
+    // Mantener solo las últimas 100 operaciones
+    if (historial.size() > 100)
+        while (historial.size() > 100) { historial.erase(historial.begin()); };
+
+    guardarHistorial(ruta, historial);
+}
 
 // Resuelve args.project y el proyecto correspondiente. Si falla, deja en
 // `resultado` la respuesta de error lista y devuelve false.
@@ -78,7 +139,7 @@ bool resolverProyectoDesdeArgs(const nlohmann::json& argumentos,
     return true;
 }
 
-}  // namespace
+
 
 ResultadoComando escenaListar(const nlohmann::json& argumentos) {
     std::string nombreProyecto;
@@ -484,11 +545,21 @@ ResultadoComando escenaObjetoSetPadre(const nlohmann::json& argumentos) {
                                       codigosSalida::kErrorUso);
     }
 
+    Entity* padreAnteriorEnt = hijo->getParentEntity();
+    GameObject* padreAnteriorGo = dynamic_cast<GameObject*>(padreAnteriorEnt); int padreAnteriorId = padreAnteriorGo ? padreAnteriorGo->getId() : 0;
+
     if (!registro->reparent(hijo, padre)) {
         registrarErrorOperacional("reparent_failed", "No se pudo reparentar el objeto id=" + std::to_string(id));
         return ResultadoComando::fallo("reparent_failed", "No se pudo reparentar el objeto",
                                       codigosSalida::kFalloGeneral);
     }
+
+    hijo->setDirty(true);
+    if (padre) padre->setDirty(true);
+
+    registrarOperacionUndo(nombreProyecto, "setparent", id,
+                           nlohmann::json{{"parentId", padreAnteriorId}},
+                           nlohmann::json{{"parentId", parentId}});
 
     return ResultadoComando::exito({
         {"project", nombreProyecto},
@@ -611,6 +682,8 @@ ResultadoComando escenaObjetoAddComponente(const nlohmann::json& argumentos) {
         return ResultadoComando::fallo("unsupported", mensaje, codigosSalida::kErrorUso);
     }
 
+    obj->setDirty(true);
+
     return ResultadoComando::exito({
         {"project", nombreProyecto},
         {"id", id},
@@ -669,6 +742,13 @@ ResultadoComando escenaObjetoCrear(const nlohmann::json& argumentos) {
         return ResultadoComando::fallo("create_failed", "No se pudo crear el objeto",
                                       codigosSalida::kFalloGeneral);
     }
+
+    creado->setDirty(true);
+    if (padre) padre->setDirty(true);
+
+    registrarOperacionUndo(nombreProyecto, "create", creado->getId(),
+                           nlohmann::json{},
+                           nlohmann::json{{"name", nombre}, {"parentId", parentId}});
 
     return ResultadoComando::exito({
         {"project", nombreProyecto},
@@ -822,6 +902,13 @@ ResultadoComando escenaObjetoClonar(const nlohmann::json& argumentos) {
         }
     }
 
+    creado->setDirty(true);
+    if (padreDestino) padreDestino->setDirty(true);
+
+    registrarOperacionUndo(nombreProyecto, "clone", creado->getId(),
+                           nlohmann::json{{"sourceId", idOrigen}},
+                           nlohmann::json{{"name", creado->inputName}, {"parentId", padreDestino->getId()}});
+
     return ResultadoComando::exito({
         {"project", nombreProyecto},
         {"id", creado->getId()},
@@ -892,6 +979,12 @@ ResultadoComando escenaObjetoQuitarComponente(const nlohmann::json& argumentos) 
         {"componentType", componentType},
         {"removed", true}
     });
+
+    obj->setDirty(true);
+
+    registrarOperacionUndo(nombreProyecto, "removecomponent", id,
+                           nlohmann::json{{"componentType", componentType}},
+                           nlohmann::json{{"componentType", componentType}});
 }
 // ---------------------------------------------------------------------------
 // scene.object.unparent
@@ -940,8 +1033,17 @@ ResultadoComando escenaObjetoDesvincularPadre(const nlohmann::json& argumentos) 
                                       codigosSalida::kFalloGeneral);
     }
 
+    int padreAnteriorId = padre ? padre->getId() : 0;
+
     // Desvincular del padre actual y volver a root
     registro->reparent(obj, raiz);
+
+    obj->setDirty(true);
+    if (raiz) raiz->setDirty(true);
+
+    registrarOperacionUndo(nombreProyecto, "unparent", id,
+                           nlohmann::json{{"parentId", padreAnteriorId}},
+                           nlohmann::json{{"parentId", 0}});
 
     return ResultadoComando::exito({
         {"project", nombreProyecto},
@@ -981,7 +1083,13 @@ ResultadoComando escenaObjetoSetTag(const nlohmann::json& argumentos) {
                                       codigosSalida::kRecursoNoEncontrado);
     }
 
+    std::string tagAnterior = obj->getTag();
     obj->setTag(tag);
+    obj->setDirty(true);
+
+    registrarOperacionUndo(nombreProyecto, "settag", id,
+                           nlohmann::json{{"tag", tagAnterior}},
+                           nlohmann::json{{"tag", tag}});
 
     return ResultadoComando::exito({
         {"project", nombreProyecto},
@@ -1023,7 +1131,13 @@ ResultadoComando escenaObjetoSetActivo(const nlohmann::json& argumentos) {
                                       codigosSalida::kRecursoNoEncontrado);
     }
 
+    bool activoAnterior = obj->getState();
     obj->setState(activo);
+    obj->setDirty(true);
+
+    registrarOperacionUndo(nombreProyecto, "setactive", id,
+                           nlohmann::json{{"active", activoAnterior}},
+                           nlohmann::json{{"active", activo}});
 
     return ResultadoComando::exito({
         {"project", nombreProyecto},
@@ -1175,6 +1289,515 @@ ResultadoComando escenaObjetoBuscarPorNombre(const nlohmann::json& argumentos) {
         {"name", nombre},
         {"objects", resultados},
         {"count", static_cast<int>(resultados.size())}
+    });
+}
+// ---------------------------------------------------------------------------
+// scene.object.getglobaltransform
+// ---------------------------------------------------------------------------
+ResultadoComando escenaObjetoGetGlobalTransform(const nlohmann::json& argumentos) {
+    std::string nombreProyecto;
+    ResultadoComando resultado;
+    if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
+
+    const std::vector<RequisitoArg> requisitos = {
+        {"id", true, nlohmann::json::value_t::number_unsigned},
+    };
+    std::string errorValidacion;
+    if (!validarArgumentos(argumentos, requisitos, errorValidacion)) {
+        registrarErrorUso("invalid_request", errorValidacion);
+        return ResultadoComando::fallo("invalid_request", errorValidacion,
+                                      codigosSalida::kErrorUso);
+    }
+
+    int id = static_cast<int>(argumentos["id"].get<unsigned>());
+
+    ContextoEscena contexto(nombreProyecto);
+    SceneRegistry* registro = &contexto.registro();
+
+    GameObject* obj = findObjectById(registro, id);
+    if (!obj) {
+        registrarErrorUso("object_not_found", "Objeto no encontrado");
+        return ResultadoComando::fallo("object_not_found", "Objeto no encontrado",
+                                      codigosSalida::kRecursoNoEncontrado);
+    }
+
+    Transform* globalTransform = obj->getGlobalTransform();
+    if (!globalTransform) {
+        registrarErrorOperacional("no_transform", "El objeto no tiene transform global");
+        return ResultadoComando::fallo("no_transform", "El objeto no tiene transform global",
+                                      codigosSalida::kFalloGeneral);
+    }
+
+    return ResultadoComando::exito({
+        {"project", nombreProyecto},
+        {"id", id},
+        {"position", {
+            globalTransform->arrTranslatef[0],
+            globalTransform->arrTranslatef[1],
+            globalTransform->arrTranslatef[2]
+        }},
+        {"rotation", {
+            globalTransform->arrRotatef[0],
+            globalTransform->arrRotatef[1],
+            globalTransform->arrRotatef[2],
+            globalTransform->arrRotatef[3]
+        }},
+        {"scale", {
+            globalTransform->arrScalef[0],
+            globalTransform->arrScalef[1],
+            globalTransform->arrScalef[2]
+        }}
+    });
+}
+// ---------------------------------------------------------------------------
+// scene.script.compile
+// ---------------------------------------------------------------------------
+ResultadoComando escenaScriptCompilar(const nlohmann::json& argumentos) {
+    std::string nombreProyecto;
+    ResultadoComando resultado;
+    if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
+
+    bool soloUno = false;
+    int idObjeto = 0;
+    if (argumentos.contains("id") && argumentos["id"].is_number_unsigned()) {
+        idObjeto = static_cast<int>(argumentos["id"].get<unsigned>());
+        soloUno = true;
+    }
+
+    if (soloUno) {
+        ContextoEscena contexto(nombreProyecto);
+        SceneRegistry* registro = &contexto.registro();
+        GameObject* obj = findObjectById(registro, idObjeto);
+        if (!obj) {
+            registrarErrorUso("object_not_found", "Objeto no encontrado");
+            return ResultadoComando::fallo("object_not_found", "Objeto no encontrado",
+                                          codigosSalida::kRecursoNoEncontrado);
+        }
+        Script* script = obj->getComponent<Script>();
+        if (!script) {
+            registrarErrorUso("component_not_found", "El objeto no tiene componente Script");
+            return ResultadoComando::fallo("component_not_found",
+                                          "El objeto no tiene componente Script",
+                                          codigosSalida::kRecursoNoEncontrado);
+        }
+        std::string fuente = script->getPath();
+        if (fuente.empty()) {
+            registrarErrorUso("invalid_request", "El script no tiene ruta de fuente asignada");
+            return ResultadoComando::fallo("invalid_request",
+                                          "El script no tiene ruta de fuente asignada",
+                                          codigosSalida::kErrorUso);
+        }
+        ComportamientoCargado comportamiento;
+        std::string compileError;
+        std::string className = script->getNameClass();
+        if (className.empty()) {
+            size_t pos = fuente.find_last_of("/\\");
+            std::string nombreArchivo = (pos == std::string::npos) ? fuente : fuente.substr(pos + 1);
+            size_t punto = nombreArchivo.find_last_of('.');
+            className = (punto == std::string::npos) ? nombreArchivo : nombreArchivo.substr(0, punto);
+        }
+        if (ScriptRuntime::compilarYCargar(fuente, className, comportamiento, compileError)) {
+            script->setDllPath(fuente);
+            script->setNombreComponente(className);
+            return ResultadoComando::exito({
+                {"project", nombreProyecto},
+                {"id", idObjeto},
+                {"scriptPath", fuente},
+                {"compiled", true},
+                {"message", "Script compilado y cargado correctamente"}
+            });
+        } else {
+            return ResultadoComando::fallo("compile_error", compileError,
+                                          codigosSalida::kFalloGeneral);
+        }
+    } else {
+        const std::string scriptsDir = ProjectPaths::directorioScripts(nombreProyecto);
+        std::error_code ec;
+        nlohmann::json results = nlohmann::json::array();
+        int compiled = 0, failed = 0, skipped = 0;
+        if (std::filesystem::exists(scriptsDir, ec) && !ec) {
+            for (const auto& entry : std::filesystem::directory_iterator(scriptsDir, ec)) {
+                if (!entry.is_regular_file(ec)) continue;
+                std::string ext = entry.path().extension().string();
+                std::string sourcePath = entry.path().string();
+                if (ext == ".cpp" || ext == ".java") {
+                    std::string className = AssetPath::basename(sourcePath);
+                    ComportamientoCargado comportamiento;
+                    std::string compileError;
+                    if (ScriptRuntime::compilarYCargar(sourcePath, className, comportamiento,
+                                                       compileError)) {
+                        results.push_back({{"file", entry.path().filename().string()},
+                                           {"language", ext},
+                                           {"status", "ok"},
+                                           {"message", "Compilado y cargado correctamente"}});
+                        compiled++;
+                    } else {
+                        results.push_back({{"file", entry.path().filename().string()},
+                                           {"language", ext},
+                                           {"status", "error"},
+                                           {"message", compileError}});
+                        failed++;
+                    }
+                }
+            }
+        }
+        return ResultadoComando::exito({
+            {"project", nombreProyecto},
+            {"compiled", compiled},
+            {"failed", failed},
+            {"skipped", skipped},
+            {"results", std::move(results)}
+        });
+    }
+}
+// ---------------------------------------------------------------------------
+// scene.script.reload
+// ---------------------------------------------------------------------------
+ResultadoComando escenaScriptRecargar(const nlohmann::json& argumentos) {
+    std::string nombreProyecto;
+    ResultadoComando resultado;
+    if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
+
+    const std::vector<RequisitoArg> requisitos = {
+        {"id", true, nlohmann::json::value_t::number_unsigned},
+    };
+    std::string errorValidacion;
+    if (!validarArgumentos(argumentos, requisitos, errorValidacion)) {
+        registrarErrorUso("invalid_request", errorValidacion);
+        return ResultadoComando::fallo("invalid_request", errorValidacion,
+                                      codigosSalida::kErrorUso);
+    }
+
+    int idObjeto = static_cast<int>(argumentos["id"].get<unsigned>());
+
+    ContextoEscena contexto(nombreProyecto);
+    SceneRegistry* registro = &contexto.registro();
+
+    GameObject* obj = findObjectById(registro, idObjeto);
+    if (!obj) {
+        registrarErrorUso("object_not_found", "Objeto no encontrado");
+        return ResultadoComando::fallo("object_not_found", "Objeto no encontrado",
+                                      codigosSalida::kRecursoNoEncontrado);
+    }
+
+    Script* script = obj->getComponent<Script>();
+    if (!script) {
+        registrarErrorUso("component_not_found", "El objeto no tiene componente Script");
+        return ResultadoComando::fallo("component_not_found",
+                                      "El objeto no tiene componente Script",
+                                      codigosSalida::kRecursoNoEncontrado);
+    }
+
+    if (!script->estaCargado()) {
+        return ResultadoComando::exito({
+            {"project", nombreProyecto},
+            {"id", idObjeto},
+            {"reloaded", false},
+            {"message", "El script no estaba cargado; no hay nada que recargar"}
+        });
+    }
+
+    script->recargar(obj);
+
+    return ResultadoComando::exito({
+        {"project", nombreProyecto},
+        {"id", idObjeto},
+        {"scriptPath", script->getPath()},
+        {"reloaded", true},
+        {"message", "Script recargado correctamente"}
+    });
+}
+// ---------------------------------------------------------------------------
+// Historial de undo/redo (almacenado en <proyecto>/Memory/undo_history.json)
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// scene.undo
+// ---------------------------------------------------------------------------
+ResultadoComando escenaUndo(const nlohmann::json& argumentos) {
+    std::string nombreProyecto;
+    ResultadoComando resultado;
+    if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
+
+    std::string ruta = rutaHistorialUndo(nombreProyecto);
+    nlohmann::json historial;
+    if (!cargarHistorial(ruta, historial) || historial.empty()) {
+        return ResultadoComando::exito({
+            {"project", nombreProyecto},
+            {"undone", false},
+            {"message", "No hay operaciones para deshacer"}
+        });
+    }
+
+    nlohmann::json operacion = historial.back();
+    historial.erase(historial.end() - 1);
+
+    std::string tipo = operacion["type"].get<std::string>();
+    int idObjeto = operacion["id"].get<int>();
+    const nlohmann::json& antes = operacion["before"];
+
+    ContextoEscena contexto(nombreProyecto);
+    SceneRegistry* registro = &contexto.registro();
+    GameObject* obj = findObjectById(registro, idObjeto);
+
+    bool exito = false;
+    if (tipo == "settag" && obj) {
+        obj->setTag(antes.value("tag", std::string("Untagged")));
+        exito = true;
+    } else if (tipo == "setactive" && obj) {
+        obj->setState(antes.value("active", true));
+        exito = true;
+    } else if (tipo == "setparent" && obj) {
+        int padreId = antes.value("parentId", 0);
+        GameObject* padre = padreId != 0 ? findObjectById(registro, padreId) : registro->getRoot();
+        if (padre) { registro->reparent(obj, padre); exito = true; }
+    } else if (tipo == "unparent" && obj) {
+        int padreId = antes.value("parentId", 0);
+        GameObject* padre = padreId != 0 ? findObjectById(registro, padreId) : registro->getRoot();
+        if (padre) { registro->reparent(obj, padre); exito = true; }
+    } else if (tipo == "create" || tipo == "clone") {
+        if (obj) { registro->deleteObjectByID(idObjeto); exito = true; }
+    }
+
+    // Mover al historial de redo
+    std::string rutaRedo = ruta + ".redo";
+    nlohmann::json historialRedo;
+    cargarHistorial(rutaRedo, historialRedo);
+    historialRedo.push_back(operacion);
+    if (historialRedo.size() > 100)
+        while (historialRedo.size() > 100) { historialRedo.erase(historialRedo.begin()); };
+    guardarHistorial(rutaRedo, historialRedo);
+    guardarHistorial(ruta, historial);
+
+    return ResultadoComando::exito({
+        {"project", nombreProyecto},
+        {"undone", exito},
+        {"type", tipo},
+        {"id", idObjeto},
+        {"message", exito ? "Operación deshecha" : "No se pudo deshacer"}
+    });
+}
+// ---------------------------------------------------------------------------
+// scene.redo
+// ---------------------------------------------------------------------------
+ResultadoComando escenaRedo(const nlohmann::json& argumentos) {
+    std::string nombreProyecto;
+    ResultadoComando resultado;
+    if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
+
+    std::string rutaRedo = rutaHistorialUndo(nombreProyecto) + ".redo";
+    nlohmann::json historial;
+    if (!cargarHistorial(rutaRedo, historial) || historial.empty()) {
+        return ResultadoComando::exito({
+            {"project", nombreProyecto},
+            {"redone", false},
+            {"message", "No hay operaciones para rehacer"}
+        });
+    }
+
+    nlohmann::json operacion = historial.back();
+    historial.erase(historial.end() - 1);
+
+    std::string tipo = operacion["type"].get<std::string>();
+    int idObjeto = operacion["id"].get<int>();
+    const nlohmann::json& despues = operacion["after"];
+
+    ContextoEscena contexto(nombreProyecto);
+    SceneRegistry* registro = &contexto.registro();
+    GameObject* obj = findObjectById(registro, idObjeto);
+
+    bool exito = false;
+    if (tipo == "settag" && obj) {
+        obj->setTag(despues.value("tag", std::string("Untagged")));
+        exito = true;
+    } else if (tipo == "setactive" && obj) {
+        obj->setState(despues.value("active", true));
+        exito = true;
+    } else if (tipo == "setparent" && obj) {
+        int padreId = despues.value("parentId", 0);
+        GameObject* padre = padreId != 0 ? findObjectById(registro, padreId) : registro->getRoot();
+        if (padre) { registro->reparent(obj, padre); exito = true; }
+    } else if (tipo == "unparent" && obj) {
+        GameObject* raiz = registro->getRoot();
+        if (raiz) { registro->reparent(obj, raiz); exito = true; }
+    } else if (tipo == "create" || tipo == "clone") {
+        // No se puede rehacer fácilmente (perdería el nuevo id)
+    }
+
+    // Mover al historial de undo
+    std::string rutaUndo = rutaHistorialUndo(nombreProyecto);
+    nlohmann::json historialUndo;
+    cargarHistorial(rutaUndo, historialUndo);
+    historialUndo.push_back(operacion);
+    if (historialUndo.size() > 100)
+        while (historialUndo.size() > 100) { historialUndo.erase(historialUndo.begin()); };
+    guardarHistorial(rutaUndo, historialUndo);
+    guardarHistorial(rutaRedo, historial);
+
+    return ResultadoComando::exito({
+        {"project", nombreProyecto},
+        {"redone", exito},
+        {"type", tipo},
+        {"id", idObjeto},
+        {"message", exito ? "Operación rehecha" : "No se pudo rehacer"}
+    });
+}
+// ---------------------------------------------------------------------------
+// scene.autosave
+// ---------------------------------------------------------------------------
+ResultadoComando escenaAutoSave(const nlohmann::json& argumentos) {
+    std::string nombreProyecto;
+    ResultadoComando resultado;
+    if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
+
+    ContextoEscena contexto(nombreProyecto);
+    SceneRegistry* registro = &contexto.registro();
+
+    std::string dirBinarios = ProjectPaths::directorioBinarios(nombreProyecto);
+    std::error_code ec;
+    std::filesystem::create_directories(dirBinarios, ec);
+
+    ListaDE<GameObject*>* lista = registro->getGameObjects();
+    int guardados = 0;
+    int total = 0;
+    if (!lista->isEmpty()) {
+        Position<GameObject*>* pos = lista->first();
+        while (pos != nullptr) {
+            GameObject* obj = pos->getElement();
+            if (obj && obj->isDirty()) {
+                obj->saveEntity(dirBinarios);
+                obj->setDirty(false);
+                guardados++;
+            }
+            total++;
+            pos = (pos != lista->last()) ? lista->next(pos) : nullptr;
+        }
+    }
+
+    return ResultadoComando::exito({
+        {"project", nombreProyecto},
+        {"saved", guardados},
+        {"total", total},
+        {"autosaved", true}
+    });
+}
+// ---------------------------------------------------------------------------
+// scene.object.setfield
+// ---------------------------------------------------------------------------
+ResultadoComando escenaObjetoSetField(const nlohmann::json& argumentos) {
+    std::string nombreProyecto;
+    ResultadoComando resultado;
+    if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
+
+    const std::vector<RequisitoArg> requisitos = {
+        {"id", true, nlohmann::json::value_t::number_unsigned},
+        {"field", true, nlohmann::json::value_t::string},
+        {"value", true, nlohmann::json::value_t::object}, // value debe ser un objeto con el valor
+    };
+    std::string errorValidacion;
+    if (!validarArgumentos(argumentos, requisitos, errorValidacion)) {
+        registrarErrorUso("invalid_request", errorValidacion);
+        return ResultadoComando::fallo("invalid_request", errorValidacion,
+                                      codigosSalida::kErrorUso);
+    }
+
+    int idObjeto = static_cast<int>(argumentos["id"].get<unsigned>());
+    std::string nombreCampo = argumentos["field"].get<std::string>();
+    const nlohmann::json& valorJson = argumentos["value"];
+
+    ContextoEscena contexto(nombreProyecto);
+    SceneRegistry* registro = &contexto.registro();
+
+    GameObject* obj = findObjectById(registro, idObjeto);
+    if (!obj) {
+        registrarErrorUso("object_not_found", "Objeto no encontrado");
+        return ResultadoComando::fallo("object_not_found", "Objeto no encontrado",
+                                      codigosSalida::kRecursoNoEncontrado);
+    }
+
+    Script* script = obj->getComponent<Script>();
+    if (!script) {
+        registrarErrorUso("component_not_found", "El objeto no tiene componente Script");
+        return ResultadoComando::fallo("component_not_found",
+                                      "El objeto no tiene componente Script",
+                                      codigosSalida::kRecursoNoEncontrado);
+    }
+
+    const auto& campos = script->obtenerCampos();
+    int indiceCampo = -1;
+    for (size_t i = 0; i < campos.size(); ++i) {
+        if (campos[i].nombre == nombreCampo) {
+            indiceCampo = static_cast<int>(i);
+            break;
+        }
+    }
+
+    if (indiceCampo < 0) {
+        registrarErrorUso("field_not_found",
+                         "Campo '" + nombreCampo + "' no encontrado en el script");
+        return ResultadoComando::fallo("field_not_found",
+                                      "Campo '" + nombreCampo + "' no encontrado",
+                                      codigosSalida::kRecursoNoEncontrado);
+    }
+
+    const auto& def = campos[indiceCampo];
+    ReflejoScripts::ValorCampo valor;
+    valor.nombre = nombreCampo;
+    valor.tag = def.tag;
+
+    bool conversionOk = true;
+    switch (def.tag) {
+        case ReflejoScripts::TagTipo::Entero:
+            valor.contenido = valorJson.value("v", 0);
+            break;
+        case ReflejoScripts::TagTipo::Flotante:
+            valor.contenido = static_cast<float>(valorJson.value("v", 0.0));
+            break;
+        case ReflejoScripts::TagTipo::Doble:
+            valor.contenido = valorJson.value("v", 0.0);
+            break;
+        case ReflejoScripts::TagTipo::Booleano:
+            valor.contenido = valorJson.value("v", false);
+            break;
+        case ReflejoScripts::TagTipo::Texto:
+            valor.contenido = valorJson.value("v", std::string(""));
+            break;
+        case ReflejoScripts::TagTipo::Vec3: {
+            if (valorJson.contains("v") && valorJson["v"].is_array() &&
+                valorJson["v"].size() >= 3) {
+                const auto& arr = valorJson["v"];
+                vec3 v{
+                    static_cast<float>(arr[0].get<double>()),
+                    static_cast<float>(arr[1].get<double>()),
+                    static_cast<float>(arr[2].get<double>())
+                };
+                valor.contenido = v;
+            } else {
+                conversionOk = false;
+            }
+            break;
+        }
+        default:
+            conversionOk = false;
+            break;
+    }
+
+    if (!conversionOk) {
+        registrarErrorUso("invalid_field_value",
+                         "No se pudo convertir el valor para el campo '" + nombreCampo + "'");
+        return ResultadoComando::fallo("invalid_field_value",
+                                      "Valor invalido para el campo",
+                                      codigosSalida::kErrorUso);
+    }
+
+    script->escribirCampo(indiceCampo, valor);
+    obj->setDirty(true);
+
+    return ResultadoComando::exito({
+        {"project", nombreProyecto},
+        {"id", idObjeto},
+        {"field", nombreCampo},
+        {"value", valorJson},
+        {"set", true}
     });
 }
 }  // namespace funshi

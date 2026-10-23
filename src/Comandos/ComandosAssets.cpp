@@ -118,4 +118,68 @@ ResultadoComando assetImportar(const nlohmann::json& argumentos) {
     });
 }
 
+// ---------------------------------------------------------------------------
+// asset.validar
+// ---------------------------------------------------------------------------
+ResultadoComando assetValidar(const nlohmann::json& argumentos) {
+    const std::vector<RequisitoArg> requisitos = {
+        {"path", true, nlohmann::json::value_t::string},
+    };
+    std::string errorValidacion;
+    if (!validarArgumentos(argumentos, requisitos, errorValidacion)) {
+        registrarErrorUso("invalid_request", errorValidacion);
+        return ResultadoComando::fallo("invalid_request", errorValidacion,
+                                      codigosSalida::kErrorUso);
+    }
+
+    std::string path = argumentos["path"].get<std::string>();
+    const std::string ext = AssetPath::extension(path);
+
+    static const char* extModelo[] = {"obj", "fbx", "gltf", "glb", "dae", "blend"};
+    static const char* extTextura[] = {"png", "jpg", "jpeg", "tga", "bmp", "hdr"};
+    static const char* extAudio[] = {"wav", "ogg", "mp3", "flac"};
+
+    std::string tipo;
+    bool soportado = false;
+    if (std::find(std::begin(extModelo), std::end(extModelo), ext) != std::end(extModelo)) {
+        tipo = "model";
+        soportado = true;
+    } else if (std::find(std::begin(extTextura), std::end(extTextura), ext) != std::end(extTextura)) {
+        tipo = "texture";
+        soportado = true;
+    } else if (std::find(std::begin(extAudio), std::end(extAudio), ext) != std::end(extAudio)) {
+        tipo = "audio";
+        soportado = true;
+    }
+
+    return ResultadoComando::exito({
+        {"path", path},
+        {"extension", ext},
+        {"supported", soportado},
+        {"type", tipo}
+    });
+}
+
+// ---------------------------------------------------------------------------
+// asset.extensions
+// ---------------------------------------------------------------------------
+ResultadoComando assetListarExtensiones(const nlohmann::json& argumentos) {
+    nlohmann::json modelos = nlohmann::json::array();
+    for (const char* ext : {"obj", "fbx", "gltf", "glb", "dae", "blend"})
+        modelos.push_back(ext);
+
+    nlohmann::json texturas = nlohmann::json::array();
+    for (const char* ext : {"png", "jpg", "jpeg", "tga", "bmp", "hdr"})
+        texturas.push_back(ext);
+
+    nlohmann::json audios = nlohmann::json::array();
+    for (const char* ext : {"wav", "ogg", "mp3", "flac"})
+        audios.push_back(ext);
+
+    return ResultadoComando::exito({
+        {"model", modelos},
+        {"texture", texturas},
+        {"audio", audios}
+    });
+}
 }  // namespace funshi

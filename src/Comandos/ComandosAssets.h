@@ -29,6 +29,12 @@ namespace funshi {
 // clasificándolo por extensión en la subcarpeta correspondiente de src/.
 ResultadoComando assetImportar(const nlohmann::json& argumentos);
 
+// asset.validar: valida si una extensión de archivo es soportada y devuelve su tipo.
+ResultadoComando assetValidar(const nlohmann::json& argumentos);
+
+// asset.extensions: lista todas las extensiones de archivo soportadas por tipo.
+ResultadoComando assetListarExtensiones(const nlohmann::json& argumentos);
+
 }  // namespace funshi
 
 #endif  // FUNSHI_COMANDOS_ASSETS_H

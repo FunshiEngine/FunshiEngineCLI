@@ -45,6 +45,7 @@ public:
 
     SceneRegistry& registro();
     EditorController& editor();
+    SceneSerializer& serializer() { return serializer_; }
 
 private:
     SceneRegistry registry_;

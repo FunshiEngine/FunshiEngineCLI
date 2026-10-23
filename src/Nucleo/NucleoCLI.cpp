@@ -122,12 +122,30 @@ ResultadoComando ejecutarSolicitud(const Solicitud& solicitud) {
             return escenaObjetoBuscarPorTag(argumentos);
         case ComandoCLI::EscenaObjetoBuscarPorNombre:
             return escenaObjetoBuscarPorNombre(argumentos);
+        case ComandoCLI::EscenaObjetoGetGlobalTransform:
+            return escenaObjetoGetGlobalTransform(argumentos);
         case ComandoCLI::AssetImportar:
             return assetImportar(argumentos);
+        case ComandoCLI::AssetValidar:
+            return assetValidar(argumentos);
+        case ComandoCLI::AssetListarExtensiones:
+            return assetListarExtensiones(argumentos);
         case ComandoCLI::ScriptListar:
             return scriptListar(argumentos);
         case ComandoCLI::ScriptCompilar:
             return scriptCompilar(argumentos);
+        case ComandoCLI::EscenaScriptCompilar:
+            return escenaScriptCompilar(argumentos);
+        case ComandoCLI::EscenaScriptRecargar:
+            return escenaScriptRecargar(argumentos);
+        case ComandoCLI::EscenaUndo:
+            return escenaUndo(argumentos);
+        case ComandoCLI::EscenaRedo:
+            return escenaRedo(argumentos);
+        case ComandoCLI::EscenaAutoSave:
+            return escenaAutoSave(argumentos);
+        case ComandoCLI::EscenaObjetoSetField:
+            return escenaObjetoSetField(argumentos);
         case ComandoCLI::DiagnosticoListar:
             return diagnosticoListar(argumentos);
         case ComandoCLI::DiagnosticoLimpiar:
@@ -156,8 +174,8 @@ std::string textoAyuda() {
            "Comandos: help, version, project.create, project.list, "
            "project.config.get, project.src.create, project.src.list, project.src.delete, project.src.rename, project.dir.import, "
            "project.fs.create, file.create, scene.list, scene.objects, "
-           "scene.object.get, scene.object.getglobalpos, scene.object.settransform, scene.object.setcomponent, scene.hierarchy, scene.save, scene.object.setparent, scene.object.addcomponent, scene.object.create, scene.object.clone, scene.object.removecomponent, scene.object.unparent, scene.object.settag, scene.object.setactive, scene.object.components, scene.object.findbytag, scene.object.findbyname, asset.import, script.list, "
-           "script.compile, diagnostics.list, diagnostics.clear\n";
+           "scene.object.get, scene.object.getglobalpos, scene.object.settransform, scene.object.setcomponent, scene.hierarchy, scene.save, scene.object.setparent, scene.object.addcomponent, scene.object.create, scene.object.clone, scene.object.removecomponent, scene.object.unparent, scene.object.settag, scene.object.setactive, scene.object.components, scene.object.findbytag, scene.object.findbyname, asset.import, asset.validar, asset.extensions, script.list, "
+           "scene.script.compile, scene.script.reload, scene.undo, scene.redo, scene.autosave, scene.object.setfield, script.compile, diagnostics.list, diagnostics.clear\n";
 }
 
 }  // namespace funshi

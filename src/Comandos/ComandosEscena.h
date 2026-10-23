@@ -83,6 +83,30 @@ ResultadoComando escenaObjetoBuscarPorTag(const nlohmann::json& argumentos);
 // scene.object.findbyname: busca objetos por nombre.
 ResultadoComando escenaObjetoBuscarPorNombre(const nlohmann::json& argumentos);
 
+// scene.object.getglobaltransform: devuelve el transform global (posición,
+// rotación y escala) de un objeto, compuesto con la jerarquía de padres.
+ResultadoComando escenaObjetoGetGlobalTransform(const nlohmann::json& argumentos);
+
+// scene.script.compile: compila y carga el script de un objeto (o todos los
+// scripts del proyecto si no se especifica id).
+ResultadoComando escenaScriptCompilar(const nlohmann::json& argumentos);
+
+// scene.script.reload: fuerza recompilar y recargar el script de un objeto.
+ResultadoComando escenaScriptRecargar(const nlohmann::json& argumentos);
+
+// scene.undo: deshace la última operación registrada en el historial de la escena.
+ResultadoComando escenaUndo(const nlohmann::json& argumentos);
+
+// scene.redo: rehace la última operación deshecha de la escena.
+ResultadoComando escenaRedo(const nlohmann::json& argumentos);
+
+// scene.autosave: guarda todos los objetos marcados como dirty y los limpia.
+ResultadoComando escenaAutoSave(const nlohmann::json& argumentos);
+
+// scene.object.setfield: establece un campo reflejado de un componente Script
+// del objeto, buscandolo por nombre.
+ResultadoComando escenaObjetoSetField(const nlohmann::json& argumentos);
+
 }  // namespace funshi
 
 #endif  // FUNSHI_COMANDOS_ESCENA_H

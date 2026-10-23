@@ -315,6 +315,101 @@ devuelve la jerarquía recursiva de cada objeto con:
 los `.cpp` y `.java` en `src<proyecto>/Scripts/`. Devuelve un resumen con
 `compiled`, `failed`, `skipped` y el detalle por archivo.
 
+`scene.script.compile` compila y carga el script de un objeto específico (si se
+pasa `args.id`) o todos los scripts del proyecto (sin `id`):
+
+```json
+{"command": "scene.script.compile", "args": {"project": "MiProyecto", "id": 6}}
+```
+
+`scene.script.reload` fuerza recompilar y recargar el script de un objeto:
+
+```json
+{"command": "scene.script.reload", "args": {"project": "MiProyecto", "id": 6}}
+```
+
+## Crear y gestionar objetos de escena
+
+`scene.object.create` crea un nuevo GameObject en la escena, con nombre y padre opcional:
+
+```json
+{"command": "scene.object.create", "args": {"project": "MiProyecto", "name": "Enemigo", "parentId": 0}}
+```
+
+Respuesta: `{"id": 9, "name": "Enemigo", "parentId": 0, "created": true}`.
+
+`scene.object.clone` clona un objeto existente con todos sus componentes (Script, Model, Color, AudioSource, Collider, RigidBody):
+
+```json
+{"command": "scene.object.clone", "args": {"project": "MiProyecto", "id": 6, "parentId": 0}}
+```
+
+Respuesta: `{"id": 10, "name": "Enemigo", "parentId": 0, "cloned": true}`.
+
+`scene.object.removecomponent` quita un componente de un objeto por tipo:
+
+```json
+{"command": "scene.object.removecomponent", "args": {"project": "MiProyecto", "id": 6, "componentType": "Collider"}}
+```
+
+Respuesta: `{"componentType": "Collider", "id": 6, "removed": true}`.
+
+`scene.object.unparent` desvincula un objeto de su padre (lo vuelve raíz):
+
+```json
+{"command": "scene.object.unparent", "args": {"project": "MiProyecto", "id": 6}}
+```
+
+Respuesta: `{"id": 6, "unparented": true}`.
+
+`scene.object.settag` cambia la etiqueta de un objeto:
+
+```json
+{"command": "scene.object.settag", "args": {"project": "MiProyecto", "id": 6, "tag": "Enemigo"}}
+```
+
+Respuesta: `{"id": 6, "tag": "Enemigo", "tagged": true}`.
+
+`scene.object.setactive` activa o desactiva un objeto:
+
+```json
+{"command": "scene.object.setactive", "args": {"project": "MiProyecto", "id": 6, "active": false}}
+```
+
+Respuesta: `{"id": 6, "active": false, "activated": true}`.
+
+`scene.object.components` lista los componentes de un objeto con sus tipos:
+
+```json
+{"command": "scene.object.components", "args": {"project": "MiProyecto", "id": 6}}
+```
+
+Respuesta: `{"id": 6, "components": [{"type": "Transform"}, {"type": "Script"}]}`.
+
+`scene.object.findbytag` busca objetos por etiqueta:
+
+```json
+{"command": "scene.object.findbytag", "args": {"project": "MiProyecto", "tag": "Enemigo"}}
+```
+
+Respuesta: `{"tag": "Enemigo", "objects": [{"id": 6, "name": "Enemigo", "tag": "Enemigo", "active": true}], "count": 1}`.
+
+`scene.object.findbyname` busca objetos por nombre:
+
+```json
+{"command": "scene.object.findbyname", "args": {"project": "MiProyecto", "name": "Enemigo"}}
+```
+
+Respuesta: `{"name": "Enemigo", "objects": [{"id": 6, "name": "Enemigo", "tag": "Enemigo", "active": true}], "count": 1}`.
+
+`scene.object.getglobaltransform` devuelve el transform global (posición, rotación, escala) compuesto con la jerarquía de padres:
+
+```json
+{"command": "scene.object.getglobaltransform", "args": {"project": "MiProyecto", "id": 6}}
+```
+
+Respuesta: `{"id": 6, "position": [1.0, 2.0, 3.0], "rotation": [0.0, 0.0, 0.0, 1.0], "scale": [1.0, 1.0, 1.0]}`.
+
 ## Crear archivos y carpetas
 
 `project.src.create` crea estructura dentro de `src<proyecto>/`:
@@ -374,6 +469,58 @@ Cada evento incluye `timestamp`, `level`, `module`, `message`, `project`,
 `exception` y `stack`.
 
 `diagnostics.clear` borra el archivo de diagnósticos.
+
+## Validar extensiones de archivo (assets)
+
+`asset.validar` valida si una extensión de archivo es soportada y devuelve su tipo (model, texture, audio):
+
+```json
+{"command": "asset.validar", "args": {"path": "modelo.fbx"}}
+```
+
+Respuesta: `{"extension": "fbx", "path": "modelo.fbx", "supported": true, "type": "model"}`.
+
+`asset.extensions` lista todas las extensiones soportadas agrupadas por tipo:
+
+```json
+{"command": "asset.extensions", "args": {}}
+```
+
+Respuesta: `{"model": ["obj", "fbx", ...], "texture": ["png", "jpg", ...], "audio": ["wav", "ogg", ...]}`.
+
+## Deshacer y rehacer (undo/redo)
+
+`scene.undo` deshace la última operación registrada en el historial de la escena (settag, setactive, setparent, unparent, create, clone, removecomponent, addcomponent). El historial se persiste en `<proyecto>/Memory/undo_history.json`.
+
+```json
+{"command": "scene.undo", "args": {"project": "MiProyecto"}}
+```
+
+`scene.redo` rehace la última operación deshecha:
+
+```json
+{"command": "scene.redo", "args": {"project": "MiProyecto"}}
+```
+
+## Guardado automático (dirty tracking)
+
+`scene.autosave` guarda todos los objetos marcados como dirty (modificados desde la última carga/guardado) y los marca como limpios. Los comandos de modificación (settag, setactive, addcomponent, removecomponent, setparent, unparent, create, clone) marcan automáticamente los objetos afectados como dirty. El dirty flag se persiste en el binario de cada objeto.
+
+```json
+{"command": "scene.autosave", "args": {"project": "MiProyecto"}}
+```
+
+Respuesta: `{"saved": 1, "total": 4, "autosaved": true}`.
+
+## Establecer campo de script
+
+`scene.object.setfield` establece un campo reflejado de un componente Script del objeto, buscándolo por nombre. El valor se envía como `{"value": {"v": <valor>}}`:
+
+```json
+{"command": "scene.object.setfield", "args": {"project": "MiProyecto", "id": 6, "field": "vida", "value": {"v": 100}}}
+```
+
+Soporta tipos: int, float, double, bool, string, vec3.
 
 ## Códigos de salida
 

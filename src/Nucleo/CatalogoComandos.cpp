@@ -59,9 +59,18 @@ const std::unordered_map<std::string, ComandoCLI>& mapaComandos() {
         {"scene.object.components", ComandoCLI::EscenaObjetoComponentes},
         {"scene.object.findbytag", ComandoCLI::EscenaObjetoBuscarPorTag},
         {"scene.object.findbyname", ComandoCLI::EscenaObjetoBuscarPorNombre},
+        {"scene.object.getglobaltransform", ComandoCLI::EscenaObjetoGetGlobalTransform},
         {"asset.import", ComandoCLI::AssetImportar},
+        {"asset.validar", ComandoCLI::AssetValidar},
+        {"asset.extensions", ComandoCLI::AssetListarExtensiones},
         {"script.list", ComandoCLI::ScriptListar},
         {"script.compile", ComandoCLI::ScriptCompilar},
+        {"scene.script.compile", ComandoCLI::EscenaScriptCompilar},
+        {"scene.script.reload", ComandoCLI::EscenaScriptRecargar},
+        {"scene.undo", ComandoCLI::EscenaUndo},
+        {"scene.redo", ComandoCLI::EscenaRedo},
+        {"scene.autosave", ComandoCLI::EscenaAutoSave},
+        {"scene.object.setfield", ComandoCLI::EscenaObjetoSetField},
         {"diagnostics.list", ComandoCLI::DiagnosticoListar},
         {"diagnostics.clear", ComandoCLI::DiagnosticoLimpiar},
     };
@@ -109,9 +118,18 @@ std::string textoDesdeComando(ComandoCLI comando) {
         case ComandoCLI::EscenaObjetoComponentes: return "scene.object.components";
         case ComandoCLI::EscenaObjetoBuscarPorTag: return "scene.object.findbytag";
         case ComandoCLI::EscenaObjetoBuscarPorNombre: return "scene.object.findbyname";
+        case ComandoCLI::EscenaObjetoGetGlobalTransform: return "scene.object.getglobaltransform";
         case ComandoCLI::AssetImportar: return "asset.import";
+        case ComandoCLI::AssetValidar: return "asset.validar";
+        case ComandoCLI::AssetListarExtensiones: return "asset.extensions";
         case ComandoCLI::ScriptListar: return "script.list";
         case ComandoCLI::ScriptCompilar: return "script.compile";
+        case ComandoCLI::EscenaScriptCompilar: return "scene.script.compile";
+        case ComandoCLI::EscenaScriptRecargar: return "scene.script.reload";
+        case ComandoCLI::EscenaUndo: return "scene.undo";
+        case ComandoCLI::EscenaRedo: return "scene.redo";
+        case ComandoCLI::EscenaAutoSave: return "scene.autosave";
+        case ComandoCLI::EscenaObjetoSetField: return "scene.object.setfield";
         case ComandoCLI::DiagnosticoListar: return "diagnostics.list";
         case ComandoCLI::DiagnosticoLimpiar: return "diagnostics.clear";
         case ComandoCLI::Desconocido: return std::string();
@@ -152,9 +170,18 @@ const std::vector<ComandoCLI>& todosLosComandos() {
         ComandoCLI::EscenaObjetoComponentes,
         ComandoCLI::EscenaObjetoBuscarPorTag,
         ComandoCLI::EscenaObjetoBuscarPorNombre,
+        ComandoCLI::EscenaObjetoGetGlobalTransform,
         ComandoCLI::AssetImportar,
+        ComandoCLI::AssetValidar,
+        ComandoCLI::AssetListarExtensiones,
         ComandoCLI::ScriptListar,
         ComandoCLI::ScriptCompilar,
+        ComandoCLI::EscenaScriptCompilar,
+        ComandoCLI::EscenaScriptRecargar,
+        ComandoCLI::EscenaUndo,
+        ComandoCLI::EscenaRedo,
+        ComandoCLI::EscenaAutoSave,
+        ComandoCLI::EscenaObjetoSetField,
         ComandoCLI::DiagnosticoListar,
         ComandoCLI::DiagnosticoLimpiar,
     };
