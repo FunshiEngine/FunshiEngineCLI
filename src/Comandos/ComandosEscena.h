@@ -34,6 +34,15 @@ ResultadoComando escenaObjetos(const nlohmann::json& argumentos);
 // scene.object.get: carga la escena y busca un objeto por id o tag.
 ResultadoComando escenaObjetoObtener(const nlohmann::json& argumentos);
 
+// scene.object.getglobalpos: devuelve la posicion global/world de un objeto.
+ResultadoComando escenaObjetoPosicionGlobal(const nlohmann::json& argumentos);
+
+// scene.object.settransform: establece el transform local (posicion, rotacion, escala).
+ResultadoComando escenaObjetoSetTransform(const nlohmann::json& argumentos);
+
+// scene.object.setcomponent: establece un campo de un componente del objeto.
+ResultadoComando escenaObjetoSetComponente(const nlohmann::json& argumentos);
+
 // scene.hierarchy: alias de scene.objects; carga y devuelve la jerarquía.
 ResultadoComando escenaJerarquia(const nlohmann::json& argumentos);
 

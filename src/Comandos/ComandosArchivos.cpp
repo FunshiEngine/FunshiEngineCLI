@@ -368,4 +368,167 @@ ResultadoComando archivoCrear(const nlohmann::json& argumentos) {
     });
 }
 
+ResultadoComando proyectoSrcListar(const nlohmann::json& argumentos) {
+    std::string nombreProyecto;
+    ResultadoComando resultado;
+    if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
+
+    const std::string srcDir = ProjectPaths::directorioSrc(nombreProyecto);
+    std::error_code ec;
+    nlohmann::json entries = nlohmann::json::array();
+
+    if (std::filesystem::exists(srcDir, ec) && !ec) {
+        for (const auto& entry : std::filesystem::directory_iterator(srcDir, ec)) {
+            if (!entry.is_regular_file(ec) && !entry.is_directory(ec)) continue;
+            nlohmann::json item;
+            item["name"] = entry.path().filename().string();
+            item["path"] = entry.path().relative_path().string();
+            item["type"] = entry.is_directory(ec) ? "directory" : "file";
+            if (entry.is_regular_file(ec)) {
+                item["size"] = static_cast<long long>(entry.file_size(ec));
+            }
+            entries.push_back(std::move(item));
+        }
+    }
+
+    return ResultadoComando::exito({
+        {"project", nombreProyecto},
+        {"entries", std::move(entries)},
+        {"count", static_cast<long long>(entries.size())}
+    });
+}
+
+ResultadoComando proyectoSrcBorrar(const nlohmann::json& argumentos) {
+    std::string nombreProyecto;
+    ResultadoComando resultado;
+    if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
+
+    const std::vector<RequisitoArg> requisitos = {
+        {"path", true, nlohmann::json::value_t::string},
+    };
+    std::string errorValidacion;
+    if (!validarArgumentos(argumentos, requisitos, errorValidacion)) {
+        registrarErrorUso("invalid_request", errorValidacion);
+        return ResultadoComando::fallo("invalid_request", errorValidacion, codigosSalida::kErrorUso);
+    }
+
+    const std::string rutaRelativa = argumentos["path"].get<std::string>();
+    const std::string srcDir = ProjectPaths::directorioSrc(nombreProyecto);
+    std::error_code ec;
+    const fs::path rutaCompleta = fs::path(srcDir) / rutaRelativa;
+
+    // Validar que la ruta no escape del directorio src.
+    const fs::path srcAbsoluto = fs::weakly_canonical(srcDir, ec);
+    const fs::path destinoAbsoluto = fs::weakly_canonical(rutaCompleta, ec);
+    if (ec || destinoAbsoluto.string().find(srcAbsoluto.string()) != 0) {
+        const std::string mensaje = "La ruta intenta escapar del directorio src del proyecto";
+        registrarErrorOperacional("invalid_path", mensaje);
+        return ResultadoComando::fallo("invalid_path", mensaje,
+                                       codigosSalida::kRecursoNoEncontrado);
+    }
+
+    if (!std::filesystem::exists(rutaCompleta, ec) || ec) {
+        const std::string mensaje = "El archivo o directorio no existe: " + rutaRelativa;
+        registrarErrorOperacional("not_found", mensaje);
+        return ResultadoComando::fallo("not_found", mensaje, codigosSalida::kRecursoNoEncontrado);
+    }
+
+    bool esDirectorio = std::filesystem::is_directory(rutaCompleta, ec);
+    if (esDirectorio) {
+        const bool removido = fs::remove_all(rutaCompleta) > 0;
+        if (!removido) {
+            registrarErrorOperacional("remove_failed", "No se pudo eliminar el directorio");
+            return ResultadoComando::fallo("remove_failed", "No se pudo eliminar el directorio", codigosSalida::kFalloEscritura);
+        }
+    } else {
+        const bool removido = fs::remove(rutaCompleta);
+        if (!removido) {
+            registrarErrorOperacional("remove_failed", "No se pudo eliminar el archivo");
+            return ResultadoComando::fallo("remove_failed", "No se pudo eliminar el archivo", codigosSalida::kFalloEscritura);
+        }
+    }
+
+    registrarErrorOperacional("src_deleted", "Eliminado de src: " + rutaRelativa);
+    return ResultadoComando::exito({
+        {"project", nombreProyecto},
+        {"path", rutaRelativa},
+        {"type", esDirectorio ? "directory" : "file"},
+        {"deleted", true}
+    });
+}
+
+ResultadoComando proyectoSrcRenombrar(const nlohmann::json& argumentos) {
+    std::string nombreProyecto;
+    ResultadoComando resultado;
+    if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
+
+    const std::vector<RequisitoArg> requisitos = {
+        {"path", true, nlohmann::json::value_t::string},
+        {"newPath", true, nlohmann::json::value_t::string},
+    };
+    std::string errorValidacion;
+    if (!validarArgumentos(argumentos, requisitos, errorValidacion)) {
+        registrarErrorUso("invalid_request", errorValidacion);
+        return ResultadoComando::fallo("invalid_request", errorValidacion, codigosSalida::kErrorUso);
+    }
+
+    const std::string rutaRelativa = argumentos["path"].get<std::string>();
+    const std::string nuevaRutaRelativa = argumentos["newPath"].get<std::string>();
+    const std::string srcDir = ProjectPaths::directorioSrc(nombreProyecto);
+    std::error_code ec;
+    const fs::path rutaOrigen = fs::path(srcDir) / rutaRelativa;
+    const fs::path rutaDestino = fs::path(srcDir) / nuevaRutaRelativa;
+
+    // Validar que ambas rutas no escapen del directorio src.
+    const fs::path srcAbsoluto = fs::weakly_canonical(srcDir, ec);
+    const fs::path origenAbsoluto = fs::weakly_canonical(rutaOrigen, ec);
+    const fs::path destinoAbsoluto = fs::weakly_canonical(rutaDestino.parent_path(), ec);
+    if (ec || origenAbsoluto.string().find(srcAbsoluto.string()) != 0 ||
+        destinoAbsoluto.string().find(srcAbsoluto.string()) != 0) {
+        const std::string mensaje = "La ruta intenta escapar del directorio src del proyecto";
+        registrarErrorOperacional("invalid_path", mensaje);
+        return ResultadoComando::fallo("invalid_path", mensaje,
+                                       codigosSalida::kRecursoNoEncontrado);
+    }
+
+    if (!std::filesystem::exists(rutaOrigen, ec) || ec) {
+        const std::string mensaje = "El archivo o directorio origen no existe: " + rutaRelativa;
+        registrarErrorOperacional("not_found", mensaje);
+        return ResultadoComando::fallo("not_found", mensaje, codigosSalida::kRecursoNoEncontrado);
+    }
+
+    if (std::filesystem::exists(rutaDestino, ec) && !ec) {
+        const std::string mensaje = "El destino ya existe: " + nuevaRutaRelativa;
+        registrarErrorOperacional("destination_exists", mensaje);
+        return ResultadoComando::fallo("destination_exists", mensaje, codigosSalida::kRecursoNoEncontrado);
+    }
+
+    // Crear directorios padre del destino si no existen.
+    std::error_code ec2;
+    fs::create_directories(rutaDestino.parent_path(), ec2);
+    if (ec2) {
+        const std::string mensaje = "No se pudieron crear directorios padre: " + ec2.message();
+        registrarErrorOperacional("create_failed", mensaje);
+        return ResultadoComando::fallo("create_failed", mensaje, codigosSalida::kFalloEscritura);
+    }
+
+    // Intentar renombrar y capturar error
+    std::error_code renameEc;
+    fs::rename(rutaOrigen, rutaDestino, renameEc);
+    if (renameEc) {
+        registrarErrorOperacional("rename_failed", "No se pudo renombrar");
+        return ResultadoComando::fallo("rename_failed", "No se pudo renombrar", codigosSalida::kFalloEscritura);
+    }
+
+    bool esDirectorio = std::filesystem::is_directory(rutaDestino, ec);
+    registrarErrorOperacional("src_renamed", "Renombrado en src: " + rutaRelativa + " -> " + nuevaRutaRelativa);
+    return ResultadoComando::exito({
+        {"project", nombreProyecto},
+        {"path", rutaRelativa},
+        {"newPath", nuevaRutaRelativa},
+        {"type", esDirectorio ? "directory" : "file"},
+        {"renamed", true}
+    });
+}
+
 }  // namespace funshi

@@ -72,6 +72,12 @@ ResultadoComando ejecutarSolicitud(const Solicitud& solicitud) {
             return proyectoConfigLeer(argumentos);
         case ComandoCLI::ProyectoSrcCrear:
             return proyectoSrcCrear(argumentos);
+        case ComandoCLI::ProyectoSrcListar:
+            return proyectoSrcListar(argumentos);
+        case ComandoCLI::ProyectoSrcBorrar:
+            return proyectoSrcBorrar(argumentos);
+        case ComandoCLI::ProyectoSrcRenombrar:
+            return proyectoSrcRenombrar(argumentos);
         case ComandoCLI::ProyectoDirImportar:
             return proyectoDirImportar(argumentos);
         case ComandoCLI::ProyectoFsCrear:
@@ -84,6 +90,12 @@ ResultadoComando ejecutarSolicitud(const Solicitud& solicitud) {
             return escenaObjetos(argumentos);
         case ComandoCLI::EscenaObjetoObtener:
             return escenaObjetoObtener(argumentos);
+        case ComandoCLI::EscenaObjetoPosicionGlobal:
+            return escenaObjetoPosicionGlobal(argumentos);
+        case ComandoCLI::EscenaObjetoSetTransform:
+            return escenaObjetoSetTransform(argumentos);
+        case ComandoCLI::EscenaObjetoSetComponente:
+            return escenaObjetoSetComponente(argumentos);
         case ComandoCLI::EscenaJerarquia:
             return escenaJerarquia(argumentos);
         case ComandoCLI::AssetImportar:
@@ -118,9 +130,9 @@ std::string textoAyuda() {
            "La solicitud JSON se envia por stdin o desde un archivo. --tui abre\n" +
            "la interfaz interactiva de terminal.\n" +
            "Comandos: help, version, project.create, project.list, "
-           "project.config.get, project.src.create, project.dir.import, "
+           "project.config.get, project.src.create, project.src.list, project.src.delete, project.src.rename, project.dir.import, "
            "project.fs.create, file.create, scene.list, scene.objects, "
-           "scene.object.get, scene.hierarchy, asset.import, script.list, "
+           "scene.object.get, scene.object.getglobalpos, scene.object.settransform, scene.object.setcomponent, scene.hierarchy, asset.import, script.list, "
            "script.compile, diagnostics.list, diagnostics.clear\n";
 }
 

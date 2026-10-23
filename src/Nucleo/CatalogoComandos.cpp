@@ -34,12 +34,18 @@ const std::unordered_map<std::string, ComandoCLI>& mapaComandos() {
         {"project.list", ComandoCLI::ProyectoListar},
         {"project.config.get", ComandoCLI::ProyectoConfigLeer},
         {"project.src.create", ComandoCLI::ProyectoSrcCrear},
+        {"project.src.list", ComandoCLI::ProyectoSrcListar},
+        {"project.src.delete", ComandoCLI::ProyectoSrcBorrar},
+        {"project.src.rename", ComandoCLI::ProyectoSrcRenombrar},
         {"project.dir.import", ComandoCLI::ProyectoDirImportar},
         {"project.fs.create", ComandoCLI::ProyectoFsCrear},
         {"file.create", ComandoCLI::ArchivoCrear},
         {"scene.list", ComandoCLI::EscenaListar},
         {"scene.objects", ComandoCLI::EscenaObjetos},
         {"scene.object.get", ComandoCLI::EscenaObjetoObtener},
+        {"scene.object.getglobalpos", ComandoCLI::EscenaObjetoPosicionGlobal},
+        {"scene.object.settransform", ComandoCLI::EscenaObjetoSetTransform},
+        {"scene.object.setcomponent", ComandoCLI::EscenaObjetoSetComponente},
         {"scene.hierarchy", ComandoCLI::EscenaJerarquia},
         {"asset.import", ComandoCLI::AssetImportar},
         {"script.list", ComandoCLI::ScriptListar},
@@ -66,12 +72,18 @@ std::string textoDesdeComando(ComandoCLI comando) {
         case ComandoCLI::ProyectoListar: return "project.list";
         case ComandoCLI::ProyectoConfigLeer: return "project.config.get";
         case ComandoCLI::ProyectoSrcCrear: return "project.src.create";
+        case ComandoCLI::ProyectoSrcListar: return "project.src.list";
+        case ComandoCLI::ProyectoSrcBorrar: return "project.src.delete";
+        case ComandoCLI::ProyectoSrcRenombrar: return "project.src.rename";
         case ComandoCLI::ProyectoDirImportar: return "project.dir.import";
         case ComandoCLI::ProyectoFsCrear: return "project.fs.create";
         case ComandoCLI::ArchivoCrear: return "file.create";
         case ComandoCLI::EscenaListar: return "scene.list";
         case ComandoCLI::EscenaObjetos: return "scene.objects";
         case ComandoCLI::EscenaObjetoObtener: return "scene.object.get";
+        case ComandoCLI::EscenaObjetoPosicionGlobal: return "scene.object.getglobalpos";
+        case ComandoCLI::EscenaObjetoSetTransform: return "scene.object.settransform";
+        case ComandoCLI::EscenaObjetoSetComponente: return "scene.object.setcomponent";
         case ComandoCLI::EscenaJerarquia: return "scene.hierarchy";
         case ComandoCLI::AssetImportar: return "asset.import";
         case ComandoCLI::ScriptListar: return "script.list";
@@ -91,12 +103,18 @@ const std::vector<ComandoCLI>& todosLosComandos() {
         ComandoCLI::ProyectoListar,
         ComandoCLI::ProyectoConfigLeer,
         ComandoCLI::ProyectoSrcCrear,
+        ComandoCLI::ProyectoSrcListar,
+        ComandoCLI::ProyectoSrcBorrar,
+        ComandoCLI::ProyectoSrcRenombrar,
         ComandoCLI::ProyectoDirImportar,
         ComandoCLI::ProyectoFsCrear,
         ComandoCLI::ArchivoCrear,
         ComandoCLI::EscenaListar,
         ComandoCLI::EscenaObjetos,
         ComandoCLI::EscenaObjetoObtener,
+        ComandoCLI::EscenaObjetoPosicionGlobal,
+        ComandoCLI::EscenaObjetoSetTransform,
+        ComandoCLI::EscenaObjetoSetComponente,
         ComandoCLI::EscenaJerarquia,
         ComandoCLI::AssetImportar,
         ComandoCLI::ScriptListar,

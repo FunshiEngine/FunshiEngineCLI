@@ -28,6 +28,15 @@ namespace funshi {
 // project.src.create: crea un archivo o directorio dentro de src/<proyecto>.
 ResultadoComando proyectoSrcCrear(const nlohmann::json& argumentos);
 
+// project.src.list: lista archivos y directorios dentro de src/<proyecto>.
+ResultadoComando proyectoSrcListar(const nlohmann::json& argumentos);
+
+// project.src.delete: borra un archivo o directorio dentro de src/<proyecto>.
+ResultadoComando proyectoSrcBorrar(const nlohmann::json& argumentos);
+
+// project.src.rename: renombra/mueve un archivo o directorio dentro de src/<proyecto>.
+ResultadoComando proyectoSrcRenombrar(const nlohmann::json& argumentos);
+
 // project.dir.import: importa recursivamente una carpeta origen a src/<proyecto>.
 ResultadoComando proyectoDirImportar(const nlohmann::json& argumentos);
 
