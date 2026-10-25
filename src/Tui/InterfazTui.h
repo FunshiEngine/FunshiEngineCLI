@@ -30,10 +30,12 @@ std::string errorDeEntradaTui();
 
 // Lanza la TUI de la CLI a pantalla completa en la terminal actual. Toma el
 // control de la terminal hasta que el usuario sale (q, Esc o Ctrl+C) y
-// devuelve el código de salida del proceso. La interfaz construye sus
-// Solicitudes y consume los ResultadoComando de ejecutarSolicitud()
+// devuelve el código de salida del proceso. `seccionInicial` selecciona el
+// dominio del panel lateral que se muestra al arrancar (0=Proyectos,
+// 1=Escena, 2=Scripts, 3=Diagnósticos, 4=Chat Silvy). La interfaz construye
+// sus Solicitudes y consume los ResultadoComando de ejecutarSolicitud()
 // directamente, sin pasar por stdin ni stdout.
-int ejecutarTui();
+int ejecutarTui(int seccionInicial = 0);
 
 }  // namespace funshi
 

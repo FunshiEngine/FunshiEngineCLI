@@ -71,6 +71,7 @@ int main(int argc, char* argv[]) {
     std::string archivoSolicitud;
     bool stdinSolicitud = false;
     bool modoTui = false;
+    bool modoChat = false;
     for (int i = 1; i < argc; ++i) {
         const std::string argumento(argv[i]);
         if (argumento == "--project" && i + 1 < argc) {
@@ -81,6 +82,8 @@ int main(int argc, char* argv[]) {
             archivoSolicitud = argv[++i];
         } else if (argumento == "--tui") {
             modoTui = true;
+        } else if (argumento == "--chat") {
+            modoChat = true;
         } else {
             return errorUso("invalid_arguments",
                             "Argumento no reconocido o incompleto: " + argumento, 2);
@@ -99,6 +102,15 @@ int main(int argc, char* argv[]) {
             return errorUso("tui_terminal_unavailable", errorEntrada, 2);
         }
         return funshi::ejecutarTui();
+    }
+    // El chat interactivo con Silvy toma la terminal completa y no admite
+    // solicitud adjunta.
+    if (modoChat) {
+        if (stdinSolicitud || !archivoSolicitud.empty()) {
+            return errorUso("invalid_arguments",
+                            "--chat no puede combinarse con --request o --request-file", 2);
+        }
+        return funshi::ejecutarTui(4);  // Sección Chat Silvy en la TUI
     }
     if (stdinSolicitud == !archivoSolicitud.empty()) {
         return errorUso("invalid_arguments",

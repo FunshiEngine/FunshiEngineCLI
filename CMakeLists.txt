@@ -76,6 +76,10 @@ add_executable(FunshiCLI
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosArchivos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/InterfazTui.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/EntradaRespaldo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Auditoria.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Harness.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Silvy.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/ChatInteractivo.cpp
 )
 
 target_include_directories(FunshiCLI PRIVATE

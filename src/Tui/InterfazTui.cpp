@@ -26,6 +26,10 @@
 
 #include "Tui/EntradaRespaldo.h"
 
+#include "Agente/Auditoria.h"
+#include "Agente/Harness.h"
+#include "Agente/Silvy.h"
+
 #include "Nucleo/CatalogoComandos.h"
 #include "Nucleo/NucleoCLI.h"
 #include "Nucleo/Respuesta.h"
@@ -74,10 +78,10 @@ const ftxui::Color kAdvertencia = ftxui::Color::RGB(229, 192, 123);
 const ftxui::Color kError = ftxui::Color::RGB(224, 108, 117);
 
 // Dominios de la TUI, en el orden del panel lateral.
-enum class SeccionTui { Proyectos = 0, Escena, Scripts, Diagnosticos };
+enum class SeccionTui { Proyectos = 0, Escena, Scripts, Diagnosticos, Chat };
 
 // Cantidad de dominios del panel lateral.
-constexpr int kCantidadSecciones = 4;
+constexpr int kCantidadSecciones = 5;
 
 // Ancho del panel lateral, en columnas.
 constexpr int kAnchoPanelLateral = 30;
@@ -114,6 +118,7 @@ const char* nombreSeccion(SeccionTui seccion) {
         case SeccionTui::Escena: return "Escena";
         case SeccionTui::Scripts: return "Scripts";
         case SeccionTui::Diagnosticos: return "Diagnósticos";
+        case SeccionTui::Chat: return "Chat Silvy";
     }
     return "";
 }
@@ -125,6 +130,7 @@ const char* comandoDeSeccion(SeccionTui seccion) {
         case SeccionTui::Escena: return "scene.list";
         case SeccionTui::Scripts: return "script.list";
         case SeccionTui::Diagnosticos: return "diagnostics.list";
+        case SeccionTui::Chat: return "";
     }
     return "";
 }
@@ -136,6 +142,7 @@ const char* campoItemsDeSeccion(SeccionTui seccion) {
         case SeccionTui::Escena: return "scenes";
         case SeccionTui::Scripts: return "scripts";
         case SeccionTui::Diagnosticos: return "items";
+        case SeccionTui::Chat: return "";
     }
     return "";
 }
@@ -301,7 +308,10 @@ struct EstadoSeccion {
 // navegación, pide datos al núcleo y los renderiza.
 class AplicacionTui : public ftxui::ComponentBase {
  public:
-    explicit AplicacionTui(ftxui::ScreenInteractive* pantalla) : pantalla_(pantalla) {
+    AplicacionTui(ftxui::ScreenInteractive* pantalla,
+                  Auditoria& auditoria, Harness& harness, Silvy& silvy)
+        : pantalla_(pantalla), auditoria_(auditoria),
+          harness_(harness), silvy_(silvy) {
         ftxui::InputOption opciones;
         opciones.content = &textoComando_;
         opciones.placeholder = "comando del catalogo, por ejemplo project.list";
@@ -320,6 +330,24 @@ class AplicacionTui : public ftxui::ComponentBase {
         };
         entrada_ = ftxui::Input(opciones);
         Add(entrada_);
+
+        // Input dedicado del chat de Silvy (órdenes en lenguaje natural o JSON).
+        ftxui::InputOption opcionesChat;
+        opcionesChat.content = &textoChat_;
+        opcionesChat.placeholder = "orden de Silvy, ej. 'crear proyecto MiJuego 2d'";
+        opcionesChat.multiline = false;
+        opcionesChat.transform = [](const ftxui::InputState& estado) {
+            ftxui::Element elemento = estado.element;
+            if (estado.focused) {
+                elemento = elemento | ftxui::color(kAcento) | ftxui::bold;
+            } else {
+                elemento = elemento | ftxui::color(kTextoTenue);
+            }
+            return elemento;
+        };
+        entradaChat_ = ftxui::Input(opcionesChat);
+        Add(entradaChat_);
+
         recargarSeccionActual();
     }
 
@@ -343,6 +371,9 @@ class AplicacionTui : public ftxui::ComponentBase {
     }
 
     bool OnEvent(ftxui::Event evento) override {
+        if (focoEnChat_) {
+            return eventoEnChat(evento);
+        }
         if (focoEnEntrada_) {
             return eventoEnEntrada(evento);
         }
@@ -368,6 +399,10 @@ class AplicacionTui : public ftxui::ComponentBase {
             return true;
         }
         if (evento == ftxui::Event::Character('/')) {
+            if (seccionActual() == SeccionTui::Chat) {
+                enfocarChat();
+                return true;
+            }
             enfocarEntrada();
             return true;
         }
@@ -469,6 +504,15 @@ class AplicacionTui : public ftxui::ComponentBase {
         EstadoSeccion& estado = estados_[indiceSeccion(seccion)];
         estado.desplazamiento = 0;
 
+        // La sección Chat no carga datos del núcleo: muestra su propio
+        // historial de auditoría de Silvy.
+        if (seccion == SeccionTui::Chat) {
+            estado.items = nlohmann::json::array();
+            estado.error.clear();
+            estado.seleccion = 0;
+            return;
+        }
+
         nlohmann::json argumentos = nlohmann::json::object();
         if (seccion != SeccionTui::Proyectos) {
             if (proyectoActivo_.empty()) {
@@ -515,6 +559,16 @@ class AplicacionTui : public ftxui::ComponentBase {
         recargarSeccionActual();
     }
 
+    public:
+    // Cambia a la sección del panel lateral indicada y recarga sus datos.
+    void irASeccion(int indice) {
+        if (indice >= 0 && indice < kCantidadSecciones) {
+            indiceSeccion_ = indice;
+            recargarSeccionActual();
+        }
+    }
+
+private:
     void moverSeleccion(int delta) {
         EstadoSeccion& estado = estadoActual();
         if (estado.items.empty()) return;
@@ -565,6 +619,10 @@ class AplicacionTui : public ftxui::ComponentBase {
                     item.value("level", std::string{}) == "FATAL";
                 break;
             }
+            case SeccionTui::Chat:
+                // El chat gestiona su propia entrada; Enter en una fila no
+                // hace nada especial aquí.
+                break;
         }
     }
 
@@ -667,6 +725,90 @@ class AplicacionTui : public ftxui::ComponentBase {
                             : std::string();
     }
 
+    // ---- Chat de Silvy ----
+
+    void enfocarChat() {
+        focoEnChat_ = true;
+        focoEnEntrada_ = false;
+        mensaje_ = "Escribe una orden para Silvy y pulsa Enter (Esc para volver)";
+        mensajeEsError_ = false;
+    }
+
+    void desenfocarChat() {
+        focoEnChat_ = false;
+    }
+
+    // Teclas con el foco en la caja de chat de Silvy.
+    bool eventoEnChat(ftxui::Event evento) {
+        if (evento == ftxui::Event::CtrlC || evento == ftxui::Event::Character('\x03')) {
+            pantalla_->Exit();
+            return true;
+        }
+        if (evento == ftxui::Event::Escape) {
+            desenfocarChat();
+            return true;
+        }
+        if (evento == ftxui::Event::ArrowUp) {
+            recorrerHistorialChat(-1);
+            return true;
+        }
+        if (evento == ftxui::Event::ArrowDown) {
+            recorrerHistorialChat(1);
+            return true;
+        }
+        if (evento == ftxui::Event::PageUp) {
+            chatDesplazamiento_ += filasVisibles();
+            return true;
+        }
+        if (evento == ftxui::Event::PageDown) {
+            chatDesplazamiento_ -= filasVisibles();
+            return true;
+        }
+        if (evento == ftxui::Event::Return) {
+            ejecutarOrdenChat();
+            return true;
+        }
+        return entradaChat_->OnEvent(evento);
+    }
+
+    // Ejecuta la orden escrita en el chat a través de Silvy y la registra.
+    void ejecutarOrdenChat() {
+        const std::string linea = textoChat_;
+        if (linea.empty()) return;
+
+        ResultadoComando resultado = silvy_.ejecutarOrden(linea);
+
+        std::string resumen = linea + " -> ";
+        if (resultado.respuesta.correcta) {
+            resumen += "ok";
+        } else {
+            resumen += "error " + resultado.respuesta.codigoError +
+                       " - " + resultado.respuesta.mensajeError;
+        }
+        chatHistorial_.push_back(resumen);
+        textoChat_.clear();
+        chatIndiceHistorial_ = static_cast<int>(chatHistorial_.size());
+        chatDesplazamiento_ = 0;  // mostrar las más recientes
+
+        // Recargar la sección activa para reflejar posibles cambios en disco.
+        recargarSeccionActual(false);
+        mensaje_ = "Silvy: " + resumen;
+        mensajeEsError_ = !resultado.respuesta.correcta;
+    }
+
+    // Recorre el historial de órdenes escritas en el chat.
+    void recorrerHistorialChat(int delta) {
+        if (chatHistorial_.empty()) return;
+        if (chatIndiceHistorial_ < 0)
+            chatIndiceHistorial_ = static_cast<int>(chatHistorial_.size());
+        chatIndiceHistorial_ = std::max(
+            0, std::min(static_cast<int>(chatHistorial_.size()),
+                        chatIndiceHistorial_ + delta));
+        textoChat_ = chatIndiceHistorial_ < static_cast<int>(chatHistorial_.size())
+                         ? chatHistorial_[chatIndiceHistorial_]
+                         : std::string();
+    }
+
     // ---- Ratón ----
 
     // Traduce un clic a una acción sobre la lista de ítems, sobre los
@@ -744,6 +886,9 @@ class AplicacionTui : public ftxui::ComponentBase {
             return panelAyuda();
         }
         const SeccionTui seccion = seccionActual();
+        if (seccion == SeccionTui::Chat) {
+            return panelChat();
+        }
         EstadoSeccion& estado = estadoActual();
         const int visibles = filasVisibles();
         const int total = static_cast<int>(estado.items.size());
@@ -887,6 +1032,69 @@ class AplicacionTui : public ftxui::ComponentBase {
         return ftxui::text("");
     }
 
+    // ---- Panel de chat de Silvy ----
+
+    // Renderiza la sección Chat: historial de auditoría de Silvy más la caja
+    // de entrada para escribir órdenes en lenguaje natural o JSON.
+    ftxui::Element panelChat() {
+        const auto& entradas = auditoria_.entradas();
+        const int visibles = filasVisibles();
+
+        // Desplazamiento para que las entradas más recientes queden visibles.
+        if (chatDesplazamiento_ < 0) chatDesplazamiento_ = 0;
+        if (chatDesplazamiento_ > static_cast<int>(entradas.size()) - visibles &&
+            static_cast<int>(entradas.size()) > visibles) {
+            chatDesplazamiento_ = static_cast<int>(entradas.size()) - visibles;
+        }
+
+        std::vector<ftxui::Element> filas;
+        filas.push_back(ftxui::hbox({
+            ftxui::text(" Chat Silvy  (últimas órdenes ejecutadas)") | ftxui::bold,
+            ftxui::filler(),
+        }));
+        filas.push_back(ftxui::separator());
+
+        int inicio = static_cast<int>(entradas.size()) - visibles - chatDesplazamiento_;
+        if (inicio < 0) inicio = 0;
+        int fin = std::min(static_cast<int>(entradas.size()), inicio + visibles);
+
+        for (int i = inicio; i < fin; ++i) {
+            const EntradaAuditoria& e = entradas[i];
+            std::string linea = "  [" + e.marcaTiempo.substr(11, 8) + "] " + e.comando;
+            if (!e.argumentos.empty() && e.argumentos != nlohmann::json::object()) {
+                linea += " args=" + e.argumentos.dump();
+            }
+            linea += " -> " + std::string(e.ok ? "ok" : ("error " + e.codigoError));
+            if (!e.mensajeError.empty()) {
+                linea += " (" + e.mensajeError + ")";
+            }
+            ftxui::Color color = e.ok ? kExito : kError;
+            if (e.modificaDisco) {
+                linea += " [DISCO]";
+                color = kAdvertencia;
+            }
+            filas.push_back(ftxui::text(recortar(linea, anchoTerminal() - 4)) | ftxui::color(color));
+        }
+
+        if (entradas.empty()) {
+            filas.push_back(ftxui::text("  (sin órdenes aún)") | ftxui::color(kTextoTenue));
+        }
+
+        filas.push_back(ftxui::separator());
+
+        // Caja de entrada del chat.
+        ftxui::Element entradaChat = entradaChat_->Render();
+        filas.push_back(ftxui::hbox({
+            ftxui::text(focoEnChat_ ? " > " : " / ") | ftxui::color(kAcento),
+            std::move(entradaChat) | ftxui::flex,
+        }) | ftxui::bgcolor(kFondoBarra));
+
+        filas.push_back(ftxui::text(" ↑↓ historial · Enter ejecuta · Esc vuelve · / JSON directo ") |
+                        ftxui::color(kTextoTenue) | ftxui::bgcolor(kFondoBarra));
+
+        return ftxui::vbox(std::move(filas)) | ftxui::flex | ftxui::bgcolor(kFondoPanel);
+    }
+
     // Caja de comandos: una línea de entrada donde se escriben las
     // solicitudes del catálogo.
     ftxui::Element cajaComandos() {
@@ -900,10 +1108,23 @@ class AplicacionTui : public ftxui::ComponentBase {
     // ---- Miembros ----
 
     ftxui::ScreenInteractive* pantalla_ = nullptr;
+    Auditoria& auditoria_;
+    Harness& harness_;
+    Silvy& silvy_;
+
     ftxui::Component entrada_;
     std::string textoComando_;
     std::vector<std::string> historial_;
     int indiceHistorial_ = 0;
+
+    // Chat de Silvy integrado en la TUI.
+    ftxui::Component entradaChat_;
+    std::string textoChat_;
+    std::vector<std::string> chatHistorial_;
+    int chatIndiceHistorial_ = 0;
+    int chatDesplazamiento_ = 0;
+    bool focoEnChat_ = false;
+
     std::vector<EstadoSeccion> estados_ = std::vector<EstadoSeccion>(kCantidadSecciones);
     int indiceSeccion_ = 0;
     std::string proyectoActivo_;
@@ -925,7 +1146,7 @@ std::string errorDeEntradaTui() {
            "una terminal.";
 }
 
-int ejecutarTui() {
+int ejecutarTui(int seccionInicial) {
     const EntradaTui entrada = clasificarEntradaTui();
     if (entrada == EntradaTui::SinTerminal) {
         // El motivo ya lo informó quien invocó la TUI; aquí solo se devuelve
@@ -933,7 +1154,16 @@ int ejecutarTui() {
         return codigosSalida::kErrorUso;
     }
     ftxui::ScreenInteractive pantalla = ftxui::ScreenInteractive::Fullscreen();
-    auto aplicacion = std::make_shared<AplicacionTui>(&pantalla);
+    // Las instancias de Agente viven durante todo el bucle de la TUI y
+    // Silvy las usa para ejecutar órdenes desde la sección Chat.
+    Auditoria auditoria;
+    Harness harness(auditoria);
+    Silvy silvy(harness);
+    auto aplicacion =
+        std::make_shared<AplicacionTui>(&pantalla, auditoria, harness, silvy);
+    if (seccionInicial >= 0 && seccionInicial < kCantidadSecciones) {
+        aplicacion->irASeccion(seccionInicial);
+    }
     // En un pty sin consola FTXUI no lee teclas: se las entrega este lector,
     // que además detecta el tamaño de la terminal para el dibujo.
     EntradaRespaldo respaldo;
