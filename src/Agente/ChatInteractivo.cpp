@@ -116,8 +116,15 @@ int ejecutarChatSilvy(Silvy& silvy) {
         }
 
         // Ejecutar la orden con Silvy.
-        ResultadoComando resultado = silvy.ejecutarOrden(recortada);
-        mostrarRespuesta(resultado);
+        auto respuesta = silvy.procesar(recortada);
+        if (respuesta.fueComandoCli) {
+            mostrarRespuesta(respuesta.resultado);
+        } else {
+            std::cout << respuesta.texto << '\n';
+            if (respuesta.error) {
+                std::cout << "(error)" << '\n';
+            }
+        }
     }
 
     return 0;

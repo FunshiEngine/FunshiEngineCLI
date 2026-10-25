@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "scanned_at": "2026-10-25T13:25:36.670Z",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "title": "AGENTS.md — Convenciones para agentes de código",
+      "summary": "Guía rápida para agentes (y humanos) que trabajen en este repositorio. FunshiEngineCLI es la interfaz de línea de comandos del motor FunshiEngineGL. El motor (y toda su API interna) vive en un repo...",
+      "lines": 242,
+      "mtime": 1792617235645.7688
+    },
+    {
+      "path": "README.md",
+      "title": "FunshiEngineCLI",
+      "summary": "Interfaz de línea de comandos del motor [FunshiEngineGL](https://github.com/FunshiEngine/FunshiEngineGL). Ejecuta operaciones del motor mediante solicitudes JSON sin abrir el editor gráfico: creaci...",
+      "lines": 124,
+      "mtime": 1792934728622.683
+    }
+  ]
+}

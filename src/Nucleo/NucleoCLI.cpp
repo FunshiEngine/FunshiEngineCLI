@@ -167,10 +167,12 @@ std::string textoAyuda() {
            "Uso:\n" +
            "  FunshiCLI help | version\n" +
            "  FunshiCLI --tui\n" +
+           "  FunshiCLI --chat\n" +
            "  FunshiCLI [--project RUTA] --request\n" +
            "  FunshiCLI [--project RUTA] --request-file ARCHIVO.json\n" +
            "La solicitud JSON se envia por stdin o desde un archivo. --tui abre\n" +
-           "la interfaz interactiva de terminal.\n" +
+           "la interfaz interactiva de terminal (6 pestañas). --chat abre\n" +
+           "directamente la pestaña Chat Silvy.\n" +
            "Comandos: help, version, project.create, project.list, "
            "project.config.get, project.src.create, project.src.list, project.src.delete, project.src.rename, project.dir.import, "
            "project.fs.create, file.create, scene.list, scene.objects, "

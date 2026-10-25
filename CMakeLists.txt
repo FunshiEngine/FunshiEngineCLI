@@ -41,9 +41,16 @@ else()
     endif()
 endif()
 
+find_package(OpenSSL REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(GLFW3 QUIET)
 find_package(assimp QUIET)
+
+# libcurl para el gateway LLM (requerido: libcurl4-openssl-dev o libcurl4-gnutls-dev)
+find_package(CURL REQUIRED)
+if(NOT CURL_FOUND)
+    message(FATAL_ERROR "libcurl development package not found. Install: sudo apt-get install libcurl4-openssl-dev")
+endif()
 
 # FTXUI: librería TUI (C++17, MIT) para la interfaz interactiva de terminal.
 # Tag fijo para builds reproducibles; solo se construyen los targets que la
@@ -76,20 +83,39 @@ add_executable(FunshiCLI
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosArchivos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/InterfazTui.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/EntradaRespaldo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Chat.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Comandos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Core.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_ModelosHF.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_ModelosHF_Logic.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_ModelosHF_Panel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Nav.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Raton.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Render.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/TerminalStty.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/UtilTui.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Auditoria.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Harness.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Silvy.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/ChatInteractivo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/LlmConfig.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/LlmGateway.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/ToolRegistry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/EngineToolFactory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/AgentLoop.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/LlmTypes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/HfApi.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/LocalInference.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Util/Clipboard.cpp
 )
 
 target_include_directories(FunshiCLI PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Util
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/src
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/External
-    # El parser de secuencias de terminal de FTXUI es interno (vive en su
-    # árbol de fuentes, no en include/) y es el que traduce las teclas a
-    # eventos; la TUI lo reutiliza para su lectura de respaldo en
-    # terminales sin consola de Windows.
     ${ftxui_SOURCE_DIR}/src
 )
 
@@ -103,6 +129,9 @@ target_link_libraries(FunshiCLI PRIVATE
     ftxui::screen
     ftxui::dom
     ftxui::component
+    ${CURL_LIBRARIES}
+    ${OPENSSL_SSL_LIBRARIES}
+    ${OPENSSL_CRYPTO_LIBRARIES}
 )
 
 # El motor llega como target `funshi_engine` que construye el submódulo: es

@@ -58,23 +58,29 @@ Ambos también existen como solicitud JSON (`{"command":"help"}` y
 ajusta al tamaño de la terminal. No admite `--request` ni `--request-file`:
 construye sus propias solicitudes contra el mismo núcleo que la CLI JSON.
 
-La pantalla tiene cinco piezas:
+La pantalla tiene **seis pestañas** en el panel lateral (navegables con `←`/`→`/`Tab`):
+
+1. **Proyectos** — lista y selección de proyecto activo
+2. **Escena** — objetos, jerarquía, componentes
+3. **Scripts** — listado y compilación
+4. **Diagnósticos** — registro de eventos
+5. **Chat Silvy** — agente conversacional unificado
+6. **Modelos HF** — explorador nativo de Hugging Face
+
+Cada pestaña tiene:
 
 - **Barra superior**: versión de la CLI, directorio de trabajo y proyecto
-  activo.
-- **Panel lateral**: los dominios — Proyectos, Escena, Scripts y
-  Diagnósticos — y, debajo, el proyecto activo.
-- **Panel central**: los datos reales de la sección, pedidos al núcleo
-  (`project.list`, `scene.list`, `script.list`, `diagnostics.list`). Su
-  cabecera lleva el número de elementos y, si no caben todos, el rango
-  visible (`12-30 de 87`).
-- **Caja de comandos**: una línea de entrada donde se escriben comandos del
-  catálogo.
-- **Barra de estado**: el desenlace de la última operación y, en la línea
-  siguiente, los atajos. La línea de atajos se acorta sola cuando la terminal
-  es estrecha, de modo que nunca queda cortada a media palabra.
+  activo. En pestañas 5 y 6 muestra también el **estado LLM**:
+  - `🟢 LOCAL: <modelo>` — servidor local corriendo (llama.cpp)
+  - `🔵 REMOTE` — endpoint remoto configurado (Ollama, LM Studio, etc.)
+  - (sin indicador) — modo solo CLI
+- **Panel lateral**: lista de secciones + proyecto activo
+- **Panel central**: datos de la sección (o chat / buscador de modelos)
+- **Caja de comandos** (pie): **oculta en Chat Silvy y Modelos HF**;
+  en las otras 4 pestañas permite escribir comandos del catálogo (`/project.list`, etc.)
+- **Barra de estado**: desenlace de la última operación + atajos contextuales
 
-Teclas, con el foco en el panel:
+### Teclas globales (panel lateral con foco)
 
 | Tecla                | Acción                                   |
 |----------------------|------------------------------------------|
@@ -84,7 +90,84 @@ Teclas, con el foco en el panel:
 | `←` / `→` / `Tab`    | cambiar de sección (recarga sus datos)   |
 | `Enter`              | en Proyectos: fija el proyecto activo    |
 | `r`                  | recargar la sección actual               |
-| `/`                  | enfocar la caja de comandos              |
+| `/`                  | enfoca la caja de comandos (pestañas 1-4) o la caja de búsqueda/chat (pestañas 5-6) |
+| `?`                  | ayuda contextual                         |
+| `q` / `Esc` / `Ctrl+C` | salir de la TUI                         |
+
+### Pestaña 5 — Chat Silvy
+
+Agente conversacional que unifica **comandos CLI** y **lenguaje natural (LLM)**.
+
+**Entrada**: caja de chat en el panel central (enfocada con `/`).
+
+| Escribe | Comportamiento |
+|---|---|
+| `/project.list` | **CLI directo** — ejecuta el comando del catálogo al instante |
+| `crear proyecto MiJuego 2d` | **LLM** — el modelo razona, elige tool `project.create` y la ejecuta |
+| `listar escenas del proyecto activo` | **LLM** — encadena `scene.list` con el proyecto actual |
+| `diagnosticos` | **LLM** — ejecuta `diagnostics.list` |
+
+**Indicador de modo** (cabecera del panel central):
+- `[CLI]` — sin LLM configurado, o último comando fue `/...`
+- `[LOCAL: modelo]` — LLM local activo (ej. `[LOCAL: Qwen2.5-7B-Instruct-Q4_K_M.gguf]`)
+- `[REMOTE]` — endpoint remoto activo
+
+**Historial de auditoría** (panel central, sobre la caja de chat):
+- Timestamp, comando, args, resultado ok/error, código de salida
+- Etiqueta **[DISCO]** en amarillo si la operación modificó archivos
+
+**Teclas en Chat Silvy**:
+| Tecla | Acción |
+|---|---|
+| `/` | Enfoca la caja de chat |
+| `↑` / `↓` | Historial de órdenes propias (no auditoría) |
+| `RePág` / `AvPág` | Scroll en auditoría |
+| `Enter` | Ejecuta la orden escrita |
+| `Esc` | Vuelve al panel lateral |
+
+### Pestaña 6 — Modelos HF (Hugging Face)
+
+Explorador nativo de modelos GGUF en huggingface.co — **sin depender de FunshiEngineAI**.
+
+**Flujo completo auto-guiado**:
+1. Caja de búsqueda (enfocada al entrar a la pestaña) → escribe query (ej: `qwen2.5 gguf`, `phi-4-mini`) → `Enter`
+2. Lista de modelos (ordenados por descargas) → `↑`/`↓` navegar → `Enter` selecciona
+3. **Tabla de variantes** del modelo seleccionado:
+   | Archivo | Tamaño (GB) | Quantization | SHA256 |
+   |---|---|---|---|
+   | `Qwen2.5-7B-Instruct-Q4_K_M.gguf` | 4.37 | Q4_K_M | `abc123...` |
+   | `Qwen2.5-7B-Instruct-Q5_K_M.gguf` | 5.12 | Q5_K_M | `def456...` |
+4. `↑`/`↓` navegar variantes → `Enter` **selecciona y lanza auto-configuración**:
+   - Descarga GGUF con progreso + **verificación SHA256**
+   - Si no existe: **clona `llama.cpp`** (shallow, tag `b6467`) + **compila Release** (`LLAMA_BUILD_SERVER=ON`)
+   - **Levanta `llama-server`** en puerto libre (`11434` → `11435` → ...)
+   - **Health check** `/v1/models` hasta que responde
+   - **Configura Silvy** con `LlmConfig` LOCAL (baseUrl del server, modelo, temp=0.7)
+   - Guarda config en `.agentes/llm-config.json` (persistente)
+5. Vuelta automática a **Chat Silvy** con indicador `[LOCAL: variante]`
+
+**Teclas en Modelos HF**:
+| Tecla | Acción |
+|---|---|
+| `/` | Enfoca caja de búsqueda (si no lo está) |
+| `↑` / `↓` | Navegar lista modelos / tabla variantes |
+| `RePág` / `AvPág` | Scroll página |
+| `Enter` | En búsqueda: ejecuta query. En lista: selecciona modelo. En variantes: auto-config completa |
+| `Esc` | Vuelve al panel lateral (o sube nivel: variantes → lista → búsqueda) |
+
+**Cache local**: `.agentes/hf-cache.json` (TTL 24h) — búsquedas y metadata de modelos.
+
+### Modo Chat directo (`--chat`)
+
+`FunshiCLI --chat` abre la TUI directamente en la pestaña **Chat Silvy** (equivalente a `--tui` + `→→→→→`).
+
+```bash
+FunshiCLI --chat
+# Escribe: crear proyecto Test 2d
+# Escribe: /project.list
+```
+
+## Ayuda y versión
 | `?`                  | abrir el catálogo de comandos            |
 | `q`, `Esc`, `Ctrl+C` | salir                                    |
 
