@@ -272,3 +272,14 @@ target_include_directories(cli-tests PRIVATE
 )
 add_test(NAME cli-tests COMMAND cli-tests)
 
+# Pruebas del agente sin modelo real: RAG, herramientas, subagentes y
+# sesiones, con un gateway falso que sigue un guion.
+add_executable(agente-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/AgenteTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasConocimiento.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasSubagentes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasSesiones.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasMonitor.cpp
+)
+target_link_libraries(agente-tests PRIVATE funshi_cli_core)
+add_test(NAME agente-tests COMMAND agente-tests)
