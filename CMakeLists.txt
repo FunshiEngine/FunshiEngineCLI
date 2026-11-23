@@ -76,46 +76,86 @@ add_executable(FunshiCLI
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Escena/ContextoEscena.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Escena/SerializacionEscena.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosProyecto.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosEscena.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosAgente.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Escena/ComandosEscena.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Escena/ComandosEscenaComun.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Escena/ComandosEscenaTransform.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Escena/ComandosEscenaJerarquia.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Escena/ComandosEscenaClonar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Escena/ComandosEscenaComponentes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Escena/ComandosEscenaObjeto.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Escena/ComandosEscenaScripts.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Escena/ComandosEscenaHistorial.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosAssets.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosScripts.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosConfig.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosDiagnosticos.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosArchivos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Archivos/ComandosArchivos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Archivos/ComandosArchivosGestion.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosComun.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/InterfazTui.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/EntradaRespaldo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Terminal/EntradaRespaldo.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Chat.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Vistas/AyudaComandos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Chat.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_ChatPanel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Comandos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Core.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_ModelosHF.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_ModelosHF_Logic.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_ModelosHF_Panel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/ModelosHF/AplicacionTui_ModelosHF.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/ModelosHF/AplicacionTui_ModelosHF_Logic.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/ModelosHF/AplicacionTui_ModelosHF_Locales.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/ModelosHF/AplicacionTui_ModelosHF_Panel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Nav.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Raton.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Render.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/TerminalStty.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/UtilTui.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Portapapeles.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Vistas/AplicacionTui_Render.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Vistas/AplicacionTui_RenderAyuda.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Vistas/AplicacionTui_Toast.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Terminal/TerminalStty.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Terminal/UtilTui.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Auditoria.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Harness.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Silvy.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/ChatInteractivo.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/LlmConfig.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/LlmGateway.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/ToolRegistry.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/EngineToolFactory.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/AgentLoop.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/LlmTypes.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/HfApi.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/LocalInference.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Config/LlmConfig.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Config/LlmConfig_Json.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Cliente/LlmGateway.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Cliente/LlmGateway_Stream.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/ToolRegistry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/EngineToolFactory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/AgentLoop.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/ToolCallSanitizer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/PromptToolParser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Config/LlmTypes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/HuggingFace/HfApi.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/HuggingFace/HfApi_Parseo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/HuggingFace/HfApi_Consultas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/HuggingFace/HfApi_Descarga.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Local/LocalInference.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Local/LocalInference_Descarga.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Local/LocalInference_Servidor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Local/ArchivoModeloGguf.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Cliente/HttpDescarga.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Local/LlamaBinarios.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Local/LlamaBinarios_Release.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Local/RegistroServidor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Util/Clipboard.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Util/Metricas.cpp
 )
+
+# Raíz del motor: submódulo directo o checkout obtenido por FetchContent.
+if(DEFINED funshi_engine_SOURCE_DIR)
+    set(FUNSHI_ENGINE_ROOT "${funshi_engine_SOURCE_DIR}")
+else()
+    set(FUNSHI_ENGINE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine")
+endif()
 
 target_include_directories(FunshiCLI PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Util
-    ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/External
+    ${FUNSHI_ENGINE_ROOT}/FunshiEngineGL/src
+    ${FUNSHI_ENGINE_ROOT}/FunshiEngineGL/External
     ${ftxui_SOURCE_DIR}/src
 )
 
@@ -192,11 +232,20 @@ endif()
 enable_testing()
 add_executable(cli-tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/CliTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/PruebasCliComun.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/PruebasCliBasicas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/PruebasCliAisladas.cpp
 )
+# TempPruebas.h puede vivir en tests/ o en .local/tests/ según el checkout del motor.
+set(FUNSHI_ENGINE_TESTS_DIR "${FUNSHI_ENGINE_ROOT}/tests")
+if(NOT EXISTS "${FUNSHI_ENGINE_TESTS_DIR}/TempPruebas.h" AND EXISTS "${FUNSHI_ENGINE_ROOT}/.local/tests/TempPruebas.h")
+    set(FUNSHI_ENGINE_TESTS_DIR "${FUNSHI_ENGINE_ROOT}/.local/tests")
+endif()
+
 target_include_directories(cli-tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL
+    ${FUNSHI_ENGINE_ROOT}/FunshiEngineGL
     # JSON vendoriado del motor: el test parsea las respuestas del CLI.
-    ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/FunshiEngineGL/External
-    ${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine/tests
+    ${FUNSHI_ENGINE_ROOT}/FunshiEngineGL/External
+    ${FUNSHI_ENGINE_TESTS_DIR}
 )
 add_test(NAME cli-tests COMMAND cli-tests)

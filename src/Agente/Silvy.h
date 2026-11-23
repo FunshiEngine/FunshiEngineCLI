@@ -18,8 +18,8 @@
 
 #include "Agente/Harness.h"
 #include "Nucleo/Solicitud.h"
-#include "Agente/LLM/LlmTypes.h"
-#include "Agente/LLM/LlmConfig.h"
+#include "Agente/LLM/Config/LlmTypes.h"
+#include "Agente/LLM/Config/LlmConfig.h"
 #include <string>
 #include <vector>
 #include <functional>

@@ -28,7 +28,7 @@ ContextoEscena::ContextoEscena(const std::string& nombreProyecto)
       serializer_(&registry_, &editor_, &assets_) {
     editor_.setAssetManager(&assets_);
     const std::string pathTxt = ProjectPaths::rutaSceneBBDD(nombreProyecto);
-    const std::string semiPath = ProjectPaths::directorioBinarios(nombreProyecto);
+    const std::string semiPath = ProjectPaths::rutaSceneDir(nombreProyecto);
     serializer_.load(pathTxt, semiPath);
     editor_.registerSceneRigidBodies();
 }

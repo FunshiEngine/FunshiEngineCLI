@@ -15,10 +15,10 @@
  */
 
 #include "Agente/Silvy.h"
-#include "Agente/LLM/AgentLoop.h"
-#include "Agente/LLM/LlmGateway.h"
-#include "Agente/LLM/EngineTools.h"
-#include "Agente/LLM/EngineToolFactory.h"
+#include "Agente/LLM/Bucle/AgentLoop.h"
+#include "Agente/LLM/Cliente/LlmGateway.h"
+#include "Agente/LLM/Herramientas/EngineTools.h"
+#include "Agente/LLM/Herramientas/EngineToolFactory.h"
 
 #include <nlohmann/json.hpp>
 #include <algorithm>
@@ -104,9 +104,20 @@ Silvy::RespuestaProcesada Silvy::procesar(const std::string& texto,
         return ejecutarComandoCli(texto.substr(1));
     }
 
-    // Sin prefijo = agente LLM
+    // Sin prefijo: si parece solicitud JSON de CLI, ejecutarla; si no, usar LLM si está disponible.
+    if (esJsonValido(texto)) {
+        return ejecutarComandoCli(texto);
+    }
+
     if (!agentLoop_) {
-        resp.texto = "[Error] Agente LLM no configurado. Usa `/modelo` en la TUI o configura LlmConfig.";
+        OrdenProcesada orden = interpretarTextoPlano(texto);
+        if (orden.interpretada) {
+            return ejecutarComandoCli(texto);
+        }
+        resp.texto =
+            "Agente LLM no configurado. Puedes usar comandos CLI con prefijo '/' "
+            "(ej. /project.list), enviar una solicitud JSON, o configurar un modelo en "
+            "la sección Modelos HF. " + orden.motivoRechazo;
         resp.error = true;
         return resp;
     }
@@ -163,16 +174,10 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje,
     RespuestaProcesada resp;
     resp.fueComandoCli = false;
 
-    // Añadir mensaje del usuario al historial
+    // El bucle del agente actualiza el historial con mensajes intermedios
+    // (tool calls/resultados) y la respuesta final.
     conversationHistory_.push_back(agente::llm::ChatMessage::user(mensaje));
-
-    // Ejecutar el loop
     auto answer = agentLoop_->run(conversationHistory_, onEvent);
-
-    // Añadir respuesta del asistente al historial
-    if (!answer.text.empty()) {
-        conversationHistory_.push_back(agente::llm::ChatMessage::assistant(answer.text));
-    }
 
     resp.texto = answer.text.empty() ? "(sin respuesta)" : answer.text;
     resp.error = false;

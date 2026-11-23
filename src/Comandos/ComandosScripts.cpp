@@ -29,33 +29,9 @@
 
 #include <filesystem>
 
+#include "Comandos/ComandosComun.h"
+
 namespace funshi {
-
-namespace {
-
-// Resuelve args.project y el proyecto. Si falla, deja en `resultado` la
-// respuesta de error y devuelve false.
-bool resolverProyectoDesdeArgs(const nlohmann::json& argumentos,
-                               std::string& nombreProyecto,
-                               ResultadoComando& resultado) {
-    std::string error;
-    if (!argumentoProyecto(argumentos, nombreProyecto, error)) {
-        registrarErrorUso("invalid_request", error);
-        resultado = ResultadoComando::fallo("invalid_request", error,
-                                            codigosSalida::kErrorUso);
-        return false;
-    }
-    ProjectManager::Proyecto proyecto;
-    if (!resolverProyectoPorNombre(nombreProyecto, proyecto, error)) {
-        registrarErrorOperacional("invalid_project", error);
-        resultado = ResultadoComando::fallo("invalid_project", error,
-                                            codigosSalida::kProyectoInvalido);
-        return false;
-    }
-    return true;
-}
-
-}  // namespace
 
 ResultadoComando scriptListar(const nlohmann::json& argumentos) {
     std::string nombreProyecto;

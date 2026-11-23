@@ -7,13 +7,13 @@
 #ifndef FUNSHI_TUI_APLICACION_TUI_H
 #define FUNSHI_TUI_APLICACION_TUI_H
 
-#include "Tui/TemaTui.h"
-#include "Tui/UtilTui.h"
+#include "Tui/Terminal/TemaTui.h"
+#include "Tui/Terminal/UtilTui.h"
 
 #include "Agente/Auditoria.h"
 #include "Agente/Harness.h"
 #include "Agente/Silvy.h"
-#include "Agente/LLM/HfTypes.h"
+#include "Agente/LLM/HuggingFace/HfTypes.h"
 
 #include "Nucleo/Respuesta.h"
 
@@ -31,6 +31,9 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <atomic>
+#include <filesystem>
+#include <thread>
 
 namespace funshi {
 
@@ -75,20 +78,32 @@ class AplicacionTui : public ftxui::ComponentBase {
     void ejecutarComandoEscrito();
     static std::string resumenResultado(const nlohmann::json& resultado);
     void recorrerHistorial(int delta);
+    void cargarSeccionConfiguracion(EstadoSeccion& estado, bool informar);
+    void editarRutaConfiguracion(const nlohmann::json& item);
 
     void enfocarChat();
     void desenfocarChat();
     bool eventoEnChat(ftxui::Event evento);
     void ejecutarOrdenChat();
     void recorrerHistorialChat(int delta);
+    void procesarOrdenChat(const std::string& linea);
+    void agregarMensajeChat(const std::string& texto, int rol, bool enCurso = false);
+    void anexarTextoMensajeChat(std::size_t indice, const std::string& texto);
+    void finalizarMensajeChat(std::size_t indice, const std::string& textoFinal, bool error = false);
+    int chatLineasVisibles() const;
 
     bool eventoEnModelosHF(ftxui::Event evento);
     void enfocarModelosHF();
     void desenfocarModelosHF();
     void iniciarAutoConfiguracionModelo(const funshi::agente::llm::ModelVariant& variant);
+    void iniciarConfiguracionModeloLocal(const std::filesystem::path& rutaModelo);
     void reconocerFinConfiguracionModelo();
     void ejecutarBusquedaModelosHF();
     void cargarVariantesModeloSeleccionado(bool autoSeleccionarPrimera);
+    void abrirModelosLocalesHF();
+    void abrirBusquedaModelosHF();
+    void marcarVariantesDescargadas();
+    void cargarModelosLocalesHF();
 
     // ---- Ratón: selección resaltada + copia automática ----
     bool manejarRaton(ftxui::Event& evento);
@@ -100,7 +115,7 @@ class AplicacionTui : public ftxui::ComponentBase {
     ftxui::Element conSeleccion(ftxui::Element contenido);
     void aplicarSeleccion(ftxui::Screen& pantalla);
     void procesarCopiaPendiente();
-    void mostrarToast(const std::string& mensaje);
+    void mostrarToast(const std::string& mensaje, bool error = false);
     ftxui::Element renderToast();
     // Pide un redibujado dentro de `ms` milisegundos (hilo seguro).
     void redibujarTras(int ms);
@@ -109,6 +124,9 @@ class AplicacionTui : public ftxui::ComponentBase {
     ftxui::Element panelLateral();
     ftxui::Element panelCentral();
     ftxui::Element panelAyuda();
+    bool eventoEnAyuda(ftxui::Event evento);
+    void abrirAyuda();
+    void moverSeleccionAyuda(int delta);
     ftxui::Element filaDeItem(SeccionTui seccion, const nlohmann::json& item, std::size_t ancho);
     ftxui::Element panelChat();
     ftxui::Element panelModelosHF();
@@ -123,16 +141,47 @@ class AplicacionTui : public ftxui::ComponentBase {
 
     ftxui::Component entrada_;
     std::string textoComando_;
+    int cursorComando_ = 0;
     std::vector<std::string> historial_;
     int indiceHistorial_ = 0;
 
     // Chat de Silvy integrado en la TUI.
+    // Línea ya partida al ancho del panel, lista para dibujar.
+    struct LineaChat {
+        std::string texto;
+        ftxui::Color color;
+        bool bold = false;
+        bool tenue = false;
+    };
+    struct MensajeChat {
+        enum class Rol { Usuario, Silvy, Herramienta, Estado, Error };
+        Rol rol = Rol::Estado;
+        std::string texto;
+        bool enCurso = false;
+        // Cada cambio incrementa `version`; las líneas partidas se recalculan
+        // solo si cambió la versión o el ancho (no en cada frame).
+        unsigned version = 0;
+        unsigned versionCache = ~0u;
+        int anchoCache = -1;
+        std::vector<LineaChat> lineasCache;
+    };
+    static void partirMensajeChat(const MensajeChat& m, int ancho, std::vector<LineaChat>& salida);
+    // Pide un redibujado limitado a ~30 fps (los tokens llegan más rápido).
+    void solicitarRedibujoChat(bool forzar = false);
+    std::atomic<long long> ultimoRedibujoChatMs_{0};
     ftxui::Component entradaChat_;
     std::string textoChat_;
-    std::vector<std::string> chatHistorial_;
+    std::vector<std::string> chatHistorialEntrada_;
     int chatIndiceHistorial_ = 0;
     int chatDesplazamiento_ = 0;
     bool focoEnChat_ = false;
+    std::vector<MensajeChat> chatMensajes_;
+    mutable std::mutex chatMutex_;
+    bool chatOcupado_ = false;
+    bool chatAplicarResultadoPendiente_ = false;
+    std::string chatMensajePendiente_;
+    bool chatMensajePendienteError_ = false;
+    bool chatRecargarPendiente_ = false;
 
     // Modelos HF integrado en la TUI.
     ftxui::Component entradaModelosHF_;
@@ -147,12 +196,24 @@ class AplicacionTui : public ftxui::ComponentBase {
     std::string modelosHFError_;
     std::mutex modelosHFMutex_;
 
-    // Estado para selección de variantes
-    enum class ModeloHFEstado { LISTA_MODELOS, LISTA_VARIANTES, CONFIGURANDO, ERROR_CONFIG };
+    // Estado para selección de variantes/modelos locales
+    enum class ModeloHFEstado { LISTA_MODELOS, LISTA_VARIANTES, LISTA_LOCALES, CONFIGURANDO, ERROR_CONFIG };
     ModeloHFEstado modelosHFEstado_ = ModeloHFEstado::LISTA_MODELOS;
+    ModeloHFEstado modelosHFEstadoRetorno_ = ModeloHFEstado::LISTA_VARIANTES;
     std::vector<funshi::agente::llm::ModelVariant> modelosHFVariants_;
     int modelosHFVariantSeleccion_ = 0;
+    int modelosHFVariantDesplazamiento_ = 0;
     funshi::agente::llm::ModelInfo modeloHFSeleccionadoInfo_;
+    std::vector<std::filesystem::path> modelosHFLocales_;
+    int modelosHFLocalSeleccion_ = 0;
+    int modelosHFLocalDesplazamiento_ = 0;
+    bool modelosHFLocalesCargando_ = false;
+    // Paralelo a modelosHFLocales_: false si el archivo está truncado.
+    std::vector<bool> modelosHFLocalCompleto_;
+    // Índice en modelosHFLocales_ del modelo configurado como activo (-1: ninguno).
+    int modelosHFLocalActivo_ = -1;
+    // Paralelo a modelosHFVariants_: true si esa variante ya está descargada.
+    std::vector<bool> modelosHFVariantDescargada_;
     double modelosHFProgreso_ = 0.0;
     int modelosHFFrame_ = 0;  // Para animación de progreso indeterminado
     std::string modelosHFStatus_;
@@ -160,39 +221,59 @@ class AplicacionTui : public ftxui::ComponentBase {
     std::vector<EstadoSeccion> estados_ = std::vector<EstadoSeccion>(kCantidadSecciones);
     int indiceSeccion_ = 0;
     std::string proyectoActivo_;
+    std::string cwdCache_;
     std::string mensaje_ = "Listo";
     bool mensajeEsError_ = false;
     bool focoEnEntrada_ = false;
     bool ayudaVisible_ = false;
+    int ayudaSeleccion_ = 0;
+    int ayudaDesplazamiento_ = 0;
 
     // ---- Selección con ratón (coordenadas de pantalla) ----
-    bool seleccionActiva_ = false;    // botón presionado, arrastrando
+    // Libre: arrastre. Palabra: doble clic. Linea: triple clic.
+    enum class ModoSeleccion { Libre, Palabra, Linea };
+    ModoSeleccion modoSeleccion_ = ModoSeleccion::Libre;
+    bool seleccionActiva_ = false;    // botón presionado
     bool seleccionVisible_ = false;   // hay un resaltado dibujado
     int seleccionInicioX_ = 0;
     int seleccionInicioY_ = 0;
     int seleccionFinX_ = 0;
     int seleccionFinY_ = 0;
-    bool copiarAlSoltar_ = false;     // el botón se soltó: copia final
+    bool copiarAlSoltar_ = false;     // el botón se soltó: el render copia
     bool copiaPendiente_ = false;     // el render pidió copiar
-    bool toastPendiente_ = false;     // el render pidió mostrar el toast
     std::string textoSeleccionado_;   // texto leído de la pantalla (último render)
-    std::string textoCopiado_;        // último texto enviado al portapapeles
-    bool redibujoProgramado_ = false;
-    std::chrono::steady_clock::time_point ultimaCopia_{};
-    // Mínimo entre copias durante el arrastre (la copia final no lo respeta).
-    static constexpr int kCopiaMinMs = 120;
+    std::string textoCopiado_;        // último texto copiado (evita repetir)
+    // Clics seguidos en la misma celda para doble/triple clic.
+    int clicsSeguidos_ = 0;
+    int ultimoClicX_ = -1;
+    int ultimoClicY_ = -1;
+    std::chrono::steady_clock::time_point ultimoClic_{};
+    std::chrono::steady_clock::time_point ultimoMovimiento_{};
+    static constexpr int kDobleClicMs = 400;
+    // Si la terminal no informa el soltar del botón, se copia tras esta pausa.
+    static constexpr int kCopiaInactividadMs = 600;
+    void lanzarCopia(const std::string& texto);
 
     // ---- Toast (solo se toca desde el hilo de la TUI) ----
     bool toastVisible_ = false;
     std::string toastMensaje_;
+    bool toastError_ = false;
     std::chrono::steady_clock::time_point toastInicio_;
-    static constexpr int kToastDuracionMs = 1500;
+    static constexpr int kToastDuracionMs = 2200;
 
     // Estado compartido con los hilos que piden redibujados: permite que un
     // hilo dormido no toque la pantalla si la aplicación ya fue destruida.
     struct EstadoCompartido {
         std::mutex mutex;
         ftxui::ScreenInteractive* pantalla = nullptr;
+        // Resultado de la copia hecha en segundo plano (protegido por mutex).
+        bool copiaLista = false;
+        bool copiaOk = false;
+        std::string copiaMetodo;
+        std::string copiaError;
+        std::string copiaTexto;
+        // Hay un redibujado programado para la copia por inactividad.
+        std::atomic<bool> temporizadorCopia{false};
     };
     std::shared_ptr<EstadoCompartido> compartido_ = std::make_shared<EstadoCompartido>();
 };

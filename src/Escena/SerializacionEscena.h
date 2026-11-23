@@ -21,9 +21,9 @@
 
 #include <nlohmann/json.hpp>
 
-#include <Objetos/Componentes/Component.h>
+#include <Objetos/Componentes/Nucleo/Component.h>
 #include <Objetos/GameObject.h>
-#include <Scenes/SceneRegistry.h>
+#include <Scenes/Registro/SceneRegistry.h>
 
 #include <string>
 
