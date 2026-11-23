@@ -61,19 +61,23 @@ Reglas:
 
 | Módulo | Responsabilidad | API principal | Depende de |
 |---|---|---|---|
-| `Nucleo/` | Modelo de petición/respuesta, catálogo cerrado de comandos y dispatch | `Solicitud`, `ResultadoComando`, `ComandoCLI`, `ejecutarSolicitud()` | `Comandos/` |
+| `Nucleo/` | Modelo de petición/respuesta, catálogo cerrado de comandos, dispatch, ayuda de cada comando y sintaxis de línea | `Solicitud`, `ResultadoComando`, `ComandoCLI`, `ejecutarSolicitud()`, `ayudaComandos()`, `construirArgumentos()` | `Comandos/` |
 | `Validacion/` | Validación de argumentos por tabla | `validarArgumentos()`, `argumentoProyecto()` | — |
 | `Proyectos/` | Resolver un proyecto por nombre o ruta | `resolverProyectoPorNombre()` | motor |
 | `Escena/` | Armazón RAII de escena y serialización a JSON | `ContextoEscena`, `sceneHierarchyJson()` | motor |
 | `Comandos/` | Un manejador por comando (`ResultadoComando f(const json&)`) | `escena*`, `proyecto*`, `script*`… | Validacion, Proyectos, Escena, motor |
-| `Agente/` | Silvy (enrutado), Harness (ejecución auditada), Auditoría | `Silvy::procesar()`, `Harness::ejecutar()` | Nucleo, Agente/LLM |
+| `Agente/` | Silvy (enrutado y armado de cada pedido), Harness (ejecución auditada y serializada), Auditoría | `Silvy::procesar(texto, SesionAgente&, onEvent)`, `Harness::ejecutar()` | Nucleo, Agente/LLM |
+| `Agente/Conocimiento` | RAG: índice BM25 sobre la ayuda de los comandos, guías y documentos del usuario | `BaseConocimiento::global()`, `contextoParaPedido()` | Nucleo/AyudaComandos |
+| `Agente/Subagentes` | Instrucciones de Silvy y subagentes; delegación de tareas | `GestorSubagentes`, `LanzarSubagentesTool`, `instruccionesPrincipal()` | Agente/LLM, Conocimiento |
+| `Agente/Sesiones` | Conversaciones independientes persistidas | `SesionChat`, `AlmacenSesiones` | Agente (SesionAgente) |
 | `Agente/LLM/Config` | Configuración persistida y tipos del chat | `LlmConfig`, `ChatMessage`, `AgentEvent` | — |
 | `Agente/LLM/Cliente` | Cliente HTTP OpenAI-compatible con streaming SSE; descargas | `LlmGateway`, `http::descargar()` | libcurl |
 | `Agente/LLM/Bucle` | Bucle modelo → herramientas → modelo | `AgentLoop`, `ToolRegistry`, `PromptToolParser` | Cliente, Config |
-| `Agente/LLM/Herramientas` | Comandos del motor expuestos como tools | `EngineTool`, `createEngineToolRegistry()` | Bucle, Harness |
+| `Agente/LLM/Herramientas` | Comandos del motor como tools, `buscar_comandos`, `ejecutar_comando` y perfiles | `EngineTool`, `crearRegistroPerfil(harness, perfil)`, `comandoPermitido()` | Bucle, Harness, Conocimiento |
 | `Agente/LLM/HuggingFace` | Búsqueda, metadatos, variantes y descarga verificada | `HfApi` | Cliente |
 | `Agente/LLM/Local` | Binario llama-server, modelos locales, ciclo de vida del servidor | `LocalInferenceManager`, `InstaladorLlama`, `RegistroServidor` | Cliente, HuggingFace |
 | `Tui/` | Interfaz FTXUI: secciones, chat, modelos, ayuda | `ejecutarTui()`, `AplicacionTui` | Nucleo, Agente |
+| `Tui/Chat` | Modelo del chat (sesiones, mensajes, subagentes), monitor de eventos y su dibujo | `chat::SesionTui`, `chat::MonitorSesion`, `chat::MonitorTranscripcion` | Agente (eventos, sesiones) |
 | `Util/` | Portapapeles (herramienta del sistema u OSC 52), métricas | `util::Clipboard::copiar()`, `secuenciaOsc52()`, `metricas::Cronometro` | — |
 
 ## 4. Flujos principales
@@ -86,12 +90,48 @@ traduce el texto a `ComandoCLI` → `switch` exhaustivo → manejador de
 `Comandos/` → valida, resuelve el proyecto, opera sobre el motor →
 `ResultadoComando` → `main.cpp` imprime JSON y sale con su código.
 
-**Chat con Silvy.** La TUI lanza un hilo por orden → `Silvy::procesar()`:
+**Chat con Silvy.** La TUI lanza un hilo por orden con la sesión en la que
+se escribió → `Silvy::procesar(texto, sesion.agente, onEvent)`:
+- `/nueva`, `/sesion N`… (sin punto): órdenes de sesión, las atiende la TUI;
 - texto con `/` al inicio: comando CLI directo vía `Harness`;
-- resto: `AgentLoop::run()` envía el historial al `LlmGateway` en streaming;
-  cada tool call se sanea (`ToolCallSanitizer`), se ejecuta como `EngineTool`
-  (→ `Harness` → núcleo) y su resultado vuelve al modelo, hasta 8 rondas.
-  Los eventos (`Text`, `ToolStart`, `ToolEnd`) actualizan el chat en vivo.
+- resto: Silvy arma un pedido nuevo:
+  1. un `AgentLoop` con **su propio gateway** (por eso varias sesiones pueden
+     correr a la vez) y las herramientas del perfil `completo`, más
+     `buscar_comandos`, `ejecutar_comando` y `lanzar_subagentes`;
+  2. las instrucciones de `instruccionesPrincipal()` (cómo trabajar, cuándo
+     delegar, proyecto activo);
+  3. la **documentación recuperada** por `BaseConocimiento` para el pedido,
+     que se antepone al mensaje del usuario solo durante el turno;
+  4. el bucle envía el historial al modelo en streaming; cada tool call se
+     sanea (`ToolCallSanitizer`), se ejecuta (→ `Harness` → núcleo) y su
+     resultado vuelve al modelo, hasta 10 rondas (se corta si una misma
+     herramienta falla 3 veces). Los eventos actualizan el chat en vivo.
+
+**Subagentes.** `lanzar_subagentes` (como mucho 2 tandas por pedido) valida las tareas y las pasa a
+`GestorSubagentes`, que por cada una crea un bucle nuevo (gateway propio,
+historial vacío, herramientas de su perfil, sin `lanzar_subagentes`, máximo 6
+rondas) con `instruccionesSubagente()` y la documentación de su tarea. Corren
+en tandas de `subagentesParalelos` (1 con servidor local). Cada subagente
+tiene un id único: emite `SubagenteInicio` (con la tarea completa), todos sus
+eventos con ese id en `origen`, y `SubagenteFin` (con el informe). Sus
+informes (recortados a 1500 caracteres) vuelven al principal como resultado
+de la herramienta.
+
+**Monitoreo en el chat.** `AgentLoop` emite, además del texto y las
+herramientas, `Pensamiento` (razonamiento del proveedor —`reasoning_content`,
+`reasoning`— o entre `<think>`, separado por `SeparadorPensamiento`; no entra
+al historial) y `Estado` (documentación recuperada, cada ronda con tiempo y
+tokens —`LlmGateway::ultimaLlamada()`—, cortes y errores; una nota con
+`callId` reemplaza a la anterior con el mismo id). En la TUI,
+`chat::MonitorSesion` (`Tui/Chat/MonitorChat.h`) convierte los eventos en
+mensajes en el orden en que ocurren: lo que el modelo escribió antes de una
+llamada pasa a «Piensa», cada herramienta es un mensaje con su resumen y su
+detalle completo (argumentos y resultado, que se ve con un clic), y los
+eventos de cada subagente van a su propia transcripción
+(`chat::SubagenteTui`) mientras la sesión muestra una línea de resumen. Un
+clic en ese resumen (o `/sub N`) cambia el panel a la vista del subagente;
+`Esc` vuelve. Todo se persiste con la sesión (`SubagenteSesion`). La lógica
+del monitor no depende de FTXUI y se prueba en `agente-tests`.
 
 Si la plantilla del modelo no admite tools nativas (`/props` de
 llama-server), el bucle usa el **modo prompt**: las herramientas se describen
@@ -129,6 +169,15 @@ sobreviva a la petición que lo creó. `RegistroServidor` guarda
 - **Comunicación**: los hilos escriben estado bajo un mutex
   (`modelosHFMutex_`, `chatMutex_`) y piden redibujo con
   `pantalla_->PostEvent(Event())`. El chat limita los redibujos a ~30 por segundo.
+- **Un gateway por bucle**: cURL no es seguro entre hilos, así que cada pedido
+  y cada subagente crea el suyo; `Silvy` solo guarda la configuración
+  (`EstadoLlm`, reemplazable entera al cambiar de modelo).
+- **Comandos serializados**: `Harness::ejecutar()` toma un mutex recursivo
+  global: el motor y la auditoría no son seguros entre hilos, y los comandos
+  tardan milisegundos (lo lento, el modelo, sí corre en paralelo).
+- **Sesiones**: el hilo de cada orden guarda un `shared_ptr` a su sesión; una
+  sesión ocupada no se borra, limpia ni guarda desde la UI (la guarda su hilo
+  al terminar).
 - **Estado compartido con hilos desacoplados**: `EstadoCompartido` (con la
   pantalla protegida por mutex) evita que un hilo toque la pantalla después de
   destruida; los estáticos que usan esos hilos se crean con `new` y no se
@@ -145,6 +194,8 @@ sobreviva a la petición que lo creó. `RegistroServidor` guarda
 | `llm-config.json` | `$FUNSHI_CONFIG_DIR`, o `.agentes/` del cwd o de sus padres, o global (`~/.agentes`, `%APPDATA%\FunshiEngine`) | `LlmConfig::save()` (atómico) |
 | `metricas.jsonl` | junto a `llm-config.json` | `metricas::registrar()` (con `FUNSHI_PERF=1`) |
 | `silvy-auditoria.log` | `.agentes/` | `Auditoria` |
+| `sesiones/<id>.json` | junto a `llm-config.json` | `AlmacenSesiones` (atómico; historial recortado a 200 mensajes) |
+| `conocimiento/*.md` | junto a `llm-config.json` | el usuario (lo lee `BaseConocimiento`) |
 | Modelos `.gguf` (+ `.part`) | `modelsDir` o `~/.agentes/local-inference/models` | `LocalInferenceManager::downloadModel()` |
 | `llama-bin/<tag>/`, `installed.json` | `~/.agentes/local-inference/` | `InstaladorLlama` |
 | `llama-server.log`, `llama-server.pid` | `~/.agentes/local-inference/` | servidor / `RegistroServidor` |
@@ -176,6 +227,17 @@ sobreviva a la petición que lo creó. `RegistroServidor` guarda
 1. Valor en `SeccionTui` (`Tui/Terminal/TemaTui.h`) y `kCantidadSecciones`.
 2. Carga en `recargarSeccionActual()` (`AplicacionTui_Nav.cpp`).
 3. Si tiene interacción propia, una subcarpeta `Tui/<Seccion>/` con sus eventos y su panel.
+
+**Enseñarle algo al agente**
+- Un comando nuevo queda documentado solo con su entrada en `Nucleo/AyudaComandos.cpp`.
+- Una receta de varios pasos: una `Guia` en `Agente/Conocimiento/GuiasAgente.cpp`.
+- Conocimiento del proyecto del usuario: `.md` en `<config>/conocimiento/`.
+- Si una consulta en español no recupera lo correcto, agrega el sinónimo en
+  `IndiceBm25.cpp` y el caso a `tests/agente/PruebasConocimiento.cpp`.
+
+**Agregar un perfil de subagente**: entrada en `perfilesHerramientas()` y su
+conjunto de comandos en `PerfilesHerramientas.cpp`; el enum del esquema de
+`lanzar_subagentes` lo lista.
 
 **Agregar un backend LLM**: implementar `LlmGateway` (`chatStream`, `chat`,
 `listModels`, `close`) y crearlo en `Silvy::configurarLlm()`.

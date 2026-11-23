@@ -137,17 +137,27 @@ classDiagram
 classDiagram
     class Silvy {
         -Harness harness_
-        -shared_ptr~LlmGateway~ gateway_
-        -shared_ptr~ToolRegistry~ registry_
-        -shared_ptr~AgentLoop~ agentLoop_
-        -vector~ChatMessage~ conversationHistory_
+        -shared_ptr~EstadoLlm~ llm_
+        -SesionAgente sesionPorDefecto_
         +configurarLlm(LlmConfig, bool nativeToolCalls) bool
+        +configurarConFabrica(FabricaGateway, bool, int)
         +tieneLlm() bool
         +procesar(string texto, onEvent) RespuestaProcesada
-        +limpiarHistorialLlm()
+        +procesar(string texto, SesionAgente, onEvent) RespuestaProcesada
         +modeloActivo() string
         -ejecutarComandoCli(string) RespuestaProcesada
-        -enviarAlLlm(string, onEvent) RespuestaProcesada
+        -enviarAlLlm(string, SesionAgente, onEvent) RespuestaProcesada
+    }
+    class SesionAgente {
+        +vector~ChatMessage~ historial
+        +string proyectoActivo
+        +shared_ptr~atomic bool~ cancelar
+    }
+    class EstadoLlm {
+        +FabricaGateway fabrica
+        +bool nativas
+        +int subagentesParalelos
+        +string modelo
     }
     class RespuestaProcesada {
         +string texto
@@ -179,7 +189,9 @@ classDiagram
     }
 
     Silvy --> Harness
-    Silvy --> AgentLoop
+    Silvy *-- EstadoLlm
+    Silvy ..> SesionAgente : procesa
+    Silvy ..> AgentLoop : crea uno por pedido
     Silvy ..> RespuestaProcesada
     Harness --> Auditoria
     Auditoria *-- EntradaAuditoria
@@ -195,7 +207,10 @@ classDiagram
         -shared_ptr~ToolRegistry~ registry_
         -bool nativeToolCalls_
         +int maxIterations = 8
-        +run(vector~ChatMessage~ mensajes, onEvent) AgentAnswer
+        +run(mensajes, onEvent, contextoTurno) AgentAnswer
+        +setInstrucciones(string)
+        +setResolutorAlias(ResolutorAlias)
+        +setCancelFlag(shared_ptr~atomic bool~)
         +setNativeToolCalls(bool)
         -buildSystemPrompt() string
         -executeTool(string nombre, json args, string callId) ToolResult
@@ -211,6 +226,7 @@ classDiagram
         +feed(string delta) string
         +flush() string
         +drain() vector~string~
+        +llamadasSinCerco(string)$ vector~string~
     }
     class ToolRegistry {
         -vector~shared_ptr~Tool~~ tools_
@@ -233,6 +249,13 @@ classDiagram
     class SceneObjectCreateTool
     class ProjectListTool
     class ScriptCompileTool
+    class BuscarComandosTool {
+        +execute(consulta, max) ToolResult
+    }
+    class EjecutarComandoTool {
+        +bloqueados()$ set~string~
+        +execute(comando, argumentos) ToolResult
+    }
     class LlmGateway {
         <<interface>>
         +chatStream(mensajes, tools, onChunk)* bool
@@ -264,10 +287,35 @@ classDiagram
     class AgentEvent {
         +Type type
         +string delta
+        +string callId
         +string name
         +string argsJson
         +bool ok
         +string result
+        +string origen
+        +estado(texto, id)$ AgentEvent
+    }
+    class TipoEvento {
+        <<enumeration>>
+        Text
+        ToolStart
+        ToolEnd
+        Pensamiento
+        Estado
+        SubagenteInicio
+        SubagenteFin
+    }
+    class SeparadorPensamiento {
+        -bool dentro_
+        -string pendiente_
+        +agregar(fragmento) Partes
+        +terminar() Partes
+    }
+    class EstadisticasLlamada {
+        +long msTotal
+        +long msPrimerToken
+        +long tokensEntrada
+        +long tokensSalida
     }
     class AgentAnswer {
         +string text
@@ -279,12 +327,17 @@ classDiagram
     AgentLoop ..> ToolCallSanitizer
     AgentLoop ..> PromptToolParser : modo prompt
     AgentLoop ..> AgentEvent : emite
+    AgentEvent --> TipoEvento
+    AgentLoop ..> SeparadorPensamiento : por ronda
+    LlmGateway ..> EstadisticasLlamada : ultimaLlamada()
     AgentLoop ..> AgentAnswer : devuelve
     ToolRegistry o-- Tool
     Tool <|-- EngineTool
     EngineTool <|-- SceneObjectCreateTool
     EngineTool <|-- ProjectListTool
     EngineTool <|-- ScriptCompileTool
+    EngineTool <|-- EjecutarComandoTool
+    Tool <|-- BuscarComandosTool
     EngineTool --> Harness
     LlmGateway <|.. OpenAiCompatibleGateway
     OpenAiCompatibleGateway ..> LlmException : lanza
@@ -423,7 +476,117 @@ classDiagram
     ModelInfo *-- ModelVariant
 ```
 
-## 6. TUI
+## 6. Conocimiento, subagentes y sesiones
+
+```mermaid
+classDiagram
+    class IndiceBm25 {
+        +agregar(string texto) size_t
+        +construir()
+        +buscar(string consulta, size_t k) vector
+        +tokenizar(string)$ vector~string~
+        +expandirConsulta(string)$ vector~string~
+    }
+    class BaseConocimiento {
+        -vector~Documento~ documentos_
+        -IndiceBm25 indice_
+        +global()$ shared_ptr~BaseConocimiento~
+        +buscar(string consulta, size_t k) vector~ResultadoBusqueda~
+        +comando(string nombre) Documento*
+        +contextoParaPedido(string pedido, set herramientas, size_t k) string
+        +formatear(Documento, set herramientas)$ string
+    }
+    class Documento {
+        +Tipo tipo
+        +string id
+        +string titulo
+        +string contenido
+    }
+    class PerfilesHerramientas {
+        <<funciones>>
+        +perfilesHerramientas() vector
+        +comandoPermitido(string perfil, string comando) bool
+        +crearRegistroPerfil(Harness, string perfil) ToolRegistry
+    }
+    class GestorSubagentes {
+        -FabricaBucles fabrica_
+        -int maxParalelo_
+        -string proyectoActivo_
+        +ejecutar(vector~TareaSubagente~, onEvent) vector~InformeSubagente~
+        +resumen(vector~InformeSubagente~)$ string
+    }
+    class LanzarSubagentesTool {
+        +leerTareas(json, vector, string error)$ bool
+        +execute(tareas) ToolResult
+    }
+    class TareaSubagente {
+        +string titulo
+        +string instrucciones
+        +string contexto
+        +string perfil
+    }
+    class InformeSubagente {
+        +string id
+        +string titulo
+        +bool ok
+        +string informe
+        +int herramientasUsadas
+    }
+    class PlantillasAgente {
+        <<funciones>>
+        +instruccionesPrincipal(bool conSubagentes, string proyecto) string
+        +instruccionesSubagente(TareaSubagente, string proyecto) string
+    }
+    class SesionChat {
+        +string id
+        +string titulo
+        +int64 creada
+        +int64 actualizada
+        +vector~MensajeSesion~ mensajes
+        +vector~SubagenteSesion~ subagentes
+        +SesionAgente agente
+        +nueva(string titulo)$ SesionChat
+        +tituloDesde(string pedido)$ string
+    }
+    class SubagenteSesion {
+        +string id
+        +string titulo
+        +string perfil
+        +string instrucciones
+        +string contexto
+        +string estado
+        +vector~MensajeSesion~ mensajes
+    }
+    class MensajeSesion {
+        +string rol
+        +string texto
+        +string detalle
+        +string ref
+    }
+    class AlmacenSesiones {
+        -path dir_
+        +cargarTodas() vector~SesionChat~
+        +guardar(SesionChat) bool
+        +borrar(string id) bool
+    }
+
+    BaseConocimiento *-- IndiceBm25
+    BaseConocimiento *-- Documento
+    BuscarComandosTool ..> BaseConocimiento
+    LanzarSubagentesTool --> GestorSubagentes
+    LanzarSubagentesTool ..> TareaSubagente
+    GestorSubagentes ..> InformeSubagente
+    GestorSubagentes ..> PlantillasAgente
+    GestorSubagentes ..> BaseConocimiento : documentación por tarea
+    GestorSubagentes ..> PerfilesHerramientas : vía FabricaBucles
+    AlmacenSesiones ..> SesionChat
+    SesionChat *-- MensajeSesion
+    SesionChat *-- SubagenteSesion
+    SubagenteSesion *-- MensajeSesion
+    GestorSubagentes ..> AgentEvent : SubagenteInicio / SubagenteFin, origen = id
+```
+
+## 7. TUI
 
 ```mermaid
 classDiagram
@@ -436,7 +599,7 @@ classDiagram
         -ScreenInteractive* pantalla_
         -Silvy silvy_
         -vector~EstadoSeccion~ estados_
-        -vector~MensajeChat~ chatMensajes_
+        -vector~shared_ptr~SesionTui~~ sesiones_
         -ModeloHFEstado modelosHFEstado_
         -shared_ptr~EstadoCompartido~ compartido_
         +OnRender() Element
@@ -485,8 +648,59 @@ classDiagram
     class MensajeChat {
         +Rol rol
         +string texto
+        +string detalle
+        +string ref
+        +bool enCurso
+        +bool ok
+        +bool expandido
         +int version
         +vector~LineaChat~ lineasCache
+    }
+    class RolMensaje {
+        <<enumeration>>
+        Usuario
+        Silvy
+        Pensamiento
+        Herramienta
+        Subagente
+        Tarea
+        Estado
+        Error
+    }
+    class SesionTui {
+        +SesionChat datos
+        +vector~MensajeChat~ mensajes
+        +vector~shared_ptr~SubagenteTui~~ subagentes
+        +string vista
+        +bool ocupado
+        +int desplazamiento
+        +subagente(id) SubagenteTui
+        +cargarDesdeDatos()
+        +volcarEnDatos()
+    }
+    class SubagenteTui {
+        +SubagenteSesion datos
+        +vector~MensajeChat~ mensajes
+        +int numero
+        +int acciones
+        +string ultimaAccion
+        +bool enCurso
+    }
+    class MonitorSesion {
+        -MonitorTranscripcion principal_
+        -map~string,MonitorTranscripcion~ subagentes_
+        +esperar()
+        +aplicar(AgentEvent)
+        +cerrar(textoFinal, error)
+    }
+    class MonitorTranscripcion {
+        -vector~MensajeChat~* mensajes_
+        -long respuesta_
+        -long pensamiento_
+        -map~string,long~ herramientas_
+        +esperar()
+        +aplicar(AgentEvent)
+        +cerrar(textoFinal, error)
     }
     class EstadoSeccion {
         +json items
@@ -514,7 +728,16 @@ classDiagram
     AplicacionTui --> Silvy
     AplicacionTui --> SeccionTui
     AplicacionTui --> ModeloHFEstado
-    AplicacionTui *-- MensajeChat
+    AplicacionTui *-- SesionTui : sesiones_
+    SesionTui *-- MensajeChat
+    SesionTui *-- SubagenteTui
+    SubagenteTui *-- MensajeChat
+    MensajeChat --> RolMensaje
+    AplicacionTui ..> MonitorSesion : un monitor por pedido
+    MonitorSesion *-- MonitorTranscripcion
+    MonitorSesion --> SesionTui
+    MonitorTranscripcion --> MensajeChat
+    AplicacionTui --> AlmacenSesiones
     AplicacionTui *-- EstadoSeccion
     AplicacionTui o-- EstadoCompartido : compartido con hilos
     AplicacionTui ..> AyudaComandos

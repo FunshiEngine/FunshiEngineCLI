@@ -3,8 +3,8 @@
 | Documento | Tipo | Contenido |
 |---|---|---|
 | [ARQUITECTURA.md](ARQUITECTURA.md) | Arquitectura | Capas y regla de dependencias, módulos, flujos, concurrencia, datos en disco, errores, puntos de extensión y convenciones |
-| [uml/ArquitecturaUML.es.md](uml/ArquitecturaUML.es.md) · [eng](uml/ArquitecturaUML.eng.md) | UML | Capas, componentes, secuencias (petición JSON, chat con herramientas, instalación de modelo, salida y señales, copia al portapapeles), estados, despliegue, dependencias y patrones |
-| [uml/DiagramaClases.es.md](uml/DiagramaClases.es.md) · [eng](uml/DiagramaClases.eng.md) | UML | Clases por módulo: núcleo, dominio, agente, LLM (bucle, herramientas, cliente), inferencia local y Hugging Face, TUI |
+| [uml/ArquitecturaUML.es.md](uml/ArquitecturaUML.es.md) · [eng](uml/ArquitecturaUML.eng.md) | UML | Capas, componentes, secuencias (petición JSON, chat con herramientas, instalación de modelo, salida y señales, copia al portapapeles, delegación en subagentes), estados, despliegue, dependencias y patrones |
+| [uml/DiagramaClases.es.md](uml/DiagramaClases.es.md) · [eng](uml/DiagramaClases.eng.md) | UML | Clases por módulo: núcleo, dominio, agente, LLM (bucle, herramientas, cliente), inferencia local y Hugging Face, conocimiento, subagentes y sesiones, TUI |
 | [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | Estructura | Árbol de archivos, decisiones de diseño, relación con el motor y multiplataforma |
 | [MANUAL_DE_USO.md](MANUAL_DE_USO.md) | Uso | Referencia de comandos, argumentos, respuestas, códigos de salida y la TUI |
 

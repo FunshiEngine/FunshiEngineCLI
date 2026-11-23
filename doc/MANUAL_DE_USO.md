@@ -112,18 +112,124 @@ Agente conversacional que unifica **comandos CLI** y **lenguaje natural (LLM)**.
 - `[LOCAL: modelo]` — LLM local activo (ej. `[LOCAL: Qwen2.5-7B-Instruct-Q4_K_M.gguf]`)
 - `[REMOTE]` — endpoint remoto activo
 
-**Historial de auditoría** (panel central, sobre la caja de chat):
-- Timestamp, comando, args, resultado ok/error, código de salida
-- Etiqueta **[DISCO]** en amarillo si la operación modificó archivos
-
 **Teclas en Chat Silvy**:
 | Tecla | Acción |
 |---|---|
 | `/` | Enfoca la caja de chat |
-| `↑` / `↓` | Historial de órdenes propias (no auditoría) |
-| `RePág` / `AvPág` | Scroll en auditoría |
+| `↑` / `↓` | Historial de órdenes propias |
+| `RePág` / `AvPág` | Scroll de la conversación |
 | `Enter` | Ejecuta la orden escrita |
-| `Esc` | Vuelve al panel lateral |
+| `Ctrl+N` | Sesión nueva |
+| `Ctrl+←` / `Ctrl+→` (o `Ctrl+P` / `Ctrl+O`) | Sesión anterior / siguiente |
+| `Ctrl+X` | Cancela la respuesta en curso de esta sesión |
+| Clic en una acción | Muestra (o vuelve a ocultar) sus argumentos y su resultado completos |
+| Clic en un subagente | Abre su vista: la tarea que recibió y todo lo que hizo |
+| `Esc` | En la vista de un subagente, vuelve a la conversación; si no, al panel lateral |
+
+#### Monitorear lo que hace Silvy
+
+La conversación muestra, en el orden en que ocurren, todos los pasos de cada
+pedido:
+
+| Línea | Qué es |
+|---|---|
+| `· documentación recuperada: …` | Comandos y guías que el RAG le pasó al modelo para este pedido |
+| `· ronda 2 · 3.4 s (1.er token 1.2 s) · 840 → 56 tokens` | Cada consulta al modelo: mientras espera dice «esperando al modelo»; al terminar, el tiempo y los tokens de entrada → salida |
+| `Piensa …` | El razonamiento del modelo: lo que escribió antes de usar una herramienta y, en modelos que razonan (Qwen3, DeepSeek-R1…), su razonamiento interno, que no se guarda en el historial |
+| `Acción ⟳ / ✔ / ✘ …` | Cada herramienta o comando, con sus argumentos (en amarillo mientras corre; verde si salió bien, rojo si falló) y las primeras líneas del resultado. Con un clic se ven completos |
+| `Subag. ⟳ 1/2 título · perfil … · 3 acciones` | Un subagente: su avance y la acción que está haciendo ahora; al terminar, el resultado de su informe |
+| `· Cancelado`, `· Error del modelo…` | Cortes y errores |
+
+**Vista de un subagente**: con un clic en su línea, o con `/sub N`, el panel
+pasa a mostrar su trabajo: primero la **tarea** que recibió (título, perfil de
+herramientas, instrucciones y contexto), después su razonamiento, sus acciones
+con resultado y su informe final. Si todavía trabaja, se ve en vivo. `Esc` o
+`/volver` regresan a la conversación. La vista de cada subagente se guarda con
+la sesión.
+
+| Orden | Acción |
+|---|---|
+| `/subs` | Lista los subagentes de esta sesión |
+| `/sub N` | Abre la vista del subagente N |
+| `/volver` | Regresa a la conversación |
+
+#### Sesiones
+
+Cada sesión es una conversación independiente con Silvy: tiene su propio
+historial (el modelo solo ve el de esa sesión), su proyecto activo y sus
+mensajes. Las pestañas bajo la cabecera muestran las sesiones; `⟳` marca las
+que están procesando. **Varias sesiones pueden trabajar a la vez**: mientras
+una procesa, puedes cambiar a otra y darle otra orden.
+
+Se guardan solas en `<carpeta de config>/sesiones/<id>.json` y vuelven al
+abrir la TUI. La primera orden le pone nombre a la sesión.
+
+Órdenes de sesión (sin punto; las que llevan punto, como `/project.list`, siguen
+siendo comandos de la CLI):
+
+| Orden | Acción |
+|---|---|
+| `/nueva [título]` | Abre una sesión nueva |
+| `/sesiones` | Lista las sesiones (● la actual) |
+| `/sesion N` | Cambia a la sesión N |
+| `/renombrar título` | Cambia el título |
+| `/limpiar` | Vacía la conversación de esta sesión |
+| `/borrar` | Borra la sesión (pide `/borrar confirmar`) |
+| `/cancelar` | Corta la respuesta en curso |
+| `/ayuda` | Muestra estas órdenes |
+
+#### Qué sabe Silvy de los comandos (RAG)
+
+Antes de cada pedido, Silvy busca en su base de conocimiento los comandos y
+guías relevantes y se los pasa al modelo junto con el pedido. Así el modelo
+conoce el nombre exacto, los argumentos y un ejemplo de cada comando que
+necesita, sin tener los 48 en el contexto. Además puede:
+
+- **`buscar_comandos`**: buscar documentación por su cuenta;
+- **`ejecutar_comando`**: usar cualquier comando del catálogo, también los que
+  no tienen herramienta propia (mover objetos, agregar componentes, listar
+  `src/`…). Por seguridad no puede usar `project.src.delete`,
+  `diagnostics.clear`, `cli.config.set` ni `agente.procesar`: esos los
+  ejecutas tú con `/comando`.
+
+La base incluye la ayuda de todos los comandos y guías de varios pasos
+(crear un objeto con modelo 3D, dar física, agregar un script, sonido,
+jerarquía, deshacer, errores de compilación…). **Puedes agregar tu propio
+conocimiento**: archivos `.md` en `<carpeta de config>/conocimiento/`. Cada
+encabezado `##` es un documento (por ejemplo, las convenciones de tu juego:
+«todos los enemigos llevan el tag Malo y van bajo el objeto Horda»). Se
+recargan solos al cambiar.
+
+#### Subagentes
+
+Para pedidos con varias partes independientes, Silvy puede delegar en
+**subagentes** (`lanzar_subagentes`, hasta 4 por vez). Cada subagente hace una
+sola tarea con su propio contexto, solo con las herramientas de su perfil, y
+devuelve un informe:
+
+| Perfil | Puede |
+|---|---|
+| `lectura` | consultar (listar, obtener, buscar); no modifica nada |
+| `escena` | además, modificar la escena (objetos, transform, componentes, jerarquía) |
+| `archivos` | además, archivos de `src/`, vfs `fs/` e importar assets |
+| `scripts` | además, crear scripts, compilar, recargar y cambiar campos |
+| `completo` | todo lo que puede el agente principal |
+
+Los subagentes no pueden volver a delegar, y Silvy delega como mucho 2 tandas
+por pedido (una, y otra con los resultados de la primera); el resumen marca
+`✔` completado, `◐` parcial o `✘` fallido según el informe. En el chat cada uno tiene una
+línea con su avance; un clic en ella (o `/sub N`) muestra su tarea y todo su
+trabajo (ver «Monitorear lo que hace Silvy»). Las reglas de cuándo
+delegar están en las instrucciones de Silvy: delega partes independientes que
+requieren varias herramientas o revisar mucha información; no delega una
+sola acción ni pasos que dependen entre sí. Con servidor local corren de a uno
+(el servidor atiende un pedido por vez); con una API remota, hasta 3 a la vez
+(`subagentesParalelos` en `llm-config.json`, 0 = automático).
+
+> Modelo recomendado: la delegación pide al modelo armar tareas autocontenidas
+> en JSON. Phi-4-mini (3.8B, sin herramientas nativas) lo hace de forma poco
+> confiable; con un modelo de 7B o más que admita herramientas nativas (por
+> ejemplo Qwen2.5-7B-Instruct en GGUF) funciona mucho mejor.
 
 ### Pestaña 6 — Modelos HF (Hugging Face)
 
@@ -212,6 +318,11 @@ Sin conexión se sigue usando la versión instalada; la barra superior muestra e
 estado. Para usar un binario propio, define `llamaServerPath`.
 
 Los cambios de `projectsDataDir` (ubicación de datos/proyectos del motor) pueden requerir reiniciar la CLI para aplicarse por completo en la sesión actual.
+
+`projectsDataDir` es la carpeta **que contiene** `Proyects/` (la raíz
+`FunshiEngine-DATA`). Si apunta a la propia `Proyects/`, o a una carpeta vacía
+junto a ella (por ejemplo `FunshiEngine-DATA/Projects`), la CLI usa la raíz
+real: `cli.config.get` muestra en `effectivePaths` la ruta que se usa.
 
 ## Integración con el agente
 

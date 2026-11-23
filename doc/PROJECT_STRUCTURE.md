@@ -23,12 +23,14 @@ FunshiEngineCLI/
 │   ├── MANUAL_DE_USO.md      #   referencia de comandos y de la TUI
 │   └── uml/                  #   diagramas Mermaid (es / eng)
 ├── extern/FunshiEngine/      # Submódulo: motor FunshiEngineGL
-├── tests/                    # cli-tests (prueba el binario de punta a punta)
+├── tests/                    # cli-tests (binario de punta a punta) y agente-tests
 │   ├── CliTests.cpp          #   main
 │   ├── PruebasCli.h          #   CHECK, utilidades y grupos
 │   ├── PruebasCliComun.cpp   #   ejecutar el binario y leer respuestas
 │   ├── PruebasCliBasicas.cpp #   help / version / id / recorrido de proyecto
-│   └── PruebasCliAisladas.cpp#   config, escena, archivos y agente en carpeta aislada
+│   ├── PruebasCliAisladas.cpp#   config, escena, archivos y agente en carpeta aislada
+│   └── agente/               #   agente-tests: RAG, herramientas, subagentes y sesiones
+│                             #   con un modelo falso (GatewayGuion)
 └── src/
     ├── main.cpp              # Front-end: argv → Solicitud → stdout (o --tui / --chat)
     ├── Nucleo/               # Núcleo agnóstico del transporte
@@ -36,7 +38,9 @@ FunshiEngineCLI/
     │   ├── Respuesta.h/.cpp  #   Respuesta + código de salida (ResultadoComando)
     │   ├── CatalogoComandos.*#   enum class ComandoCLI + mapeo texto <-> enum
     │   ├── Registro.*        #   registro de errores (uso vs operacional)
-    │   └── NucleoCLI.*       #   ejecutarSolicitud(): dispatch exhaustivo por enum
+    │   ├── NucleoCLI.*       #   ejecutarSolicitud(): dispatch exhaustivo por enum
+    │   ├── AyudaComandos.*   #   ayuda de cada comando (TUI y base de conocimiento)
+    │   └── LineaComando.*    #   sintaxis `cmd clave=valor` → argumentos JSON
     ├── Validacion/           # Validación de argumentos por tabla de requisitos
     ├── Proyectos/            # Resolución de proyectos por nombre/ruta
     ├── Escena/               # ContextoEscena (RAII) y serialización a JSON
@@ -49,14 +53,21 @@ FunshiEngineCLI/
     │                         #   componentes, objeto, scripts, historial + Interno.h)
     ├── Agente/               # Agente Silvy
     │   ├── Silvy.*           #   enruta: '/comando' → CLI, texto → LLM
+    │   ├── Silvy_Llm.cpp     #   arma cada pedido: bucle, herramientas, RAG, subagentes
     │   ├── Harness.*         #   ejecuta solicitudes del agente y audita
     │   ├── Auditoria.*       #   registro de lo que hizo el agente
     │   ├── ChatInteractivo.* #   chat de línea (sin TUI)
+    │   ├── Conocimiento/     #   RAG: IndiceBm25, BaseConocimiento, GuiasAgente
+    │   ├── Subagentes/       #   PlantillasAgente (instrucciones), GestorSubagentes,
+    │   │                     #   HerramientaSubagentes (lanzar_subagentes)
+    │   ├── Sesiones/         #   SesionChat + AlmacenSesiones (<config>/sesiones/)
     │   └── LLM/
     │       ├── Config/       #   LlmConfig (persistencia, rutas) · LlmTypes (mensajes, eventos)
     │       ├── Cliente/      #   LlmGateway (OpenAI-compatible + SSE) · HttpDescarga (cURL)
-    │       ├── Bucle/        #   AgentLoop · ToolRegistry · ToolCallSanitizer · PromptToolParser
-    │       ├── Herramientas/ #   EngineTool* (comandos del motor como tools) + fábrica
+    │       ├── Bucle/        #   AgentLoop (+ _Herramientas) · ToolRegistry · ToolCallSanitizer
+    │       │                 #   · PromptToolParser · SeparadorPensamiento (<think>)
+    │       ├── Herramientas/ #   EngineTool* (comandos del motor como tools) + fábrica,
+    │       │                 #   buscar_comandos / ejecutar_comando, perfiles
     │       ├── HuggingFace/  #   HfApi (búsqueda, metadatos, descarga) · HfTypes
     │       └── Local/        #   LocalInference (modelos + llama-server) · LlamaBinarios
     │                         #   · RegistroServidor (PID) · ArchivoModeloGguf
@@ -64,9 +75,11 @@ FunshiEngineCLI/
     │   ├── InterfazTui.*     #   ejecutarTui(): ciclo de vida de la pantalla
     │   ├── AplicacionTui.h   #   componente principal (estado de toda la TUI)
     │   ├── AplicacionTui*.cpp#   Core, Nav, Comandos, Raton (selección) y Portapapeles
-    │   ├── Chat/             #   sección Chat Silvy (eventos, panel)
+    │   ├── Chat/             #   sección Chat Silvy: ModeloChat (sesiones, mensajes,
+    │   │                     #   subagentes) · MonitorChat/MonitorSesion (eventos →
+    │   │                     #   mensajes) · panel, sesiones y vista de subagentes
     │   ├── ModelosHF/        #   sección Modelos (descargados, búsqueda, instalación)
-    │   ├── Vistas/           #   dibujo: barras, paneles, ayuda (AyudaComandos), toast
+    │   ├── Vistas/           #   dibujo: barras, paneles, ayuda, toast
     │   └── Terminal/         #   tema, utilidades de texto, entrada de respaldo, stty
     └── Util/                 # Clipboard (sistema + OSC 52) · Metricas (FUNSHI_PERF)
 ```

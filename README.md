@@ -11,6 +11,10 @@ assets, compilación de scripts y consulta del registro de diagnósticos.
 - **Model Browser nativo (Hugging Face)**: búsqueda, variantes (GB, quantization), descarga automática
 - **Inferencia local**: descarga el binario oficial de `llama-server` para tu SO (y lo mantiene actualizado), descarga GGUF reanudable sin repetir lo ya bajado, levanta el servidor — todo automático y tolerante a falta de red
 - **Chat interactivo en TUI**: 6ª pestaña "Modelos HF" + pestaña "Chat Silvy" con indicador de modo
+- **Sesiones**: varias conversaciones con Silvy a la vez, guardadas y retomables (`Ctrl+N`, `/sesiones`)
+- **RAG de comandos**: antes de cada pedido Silvy recupera la documentación de los comandos relevantes; puede usar cualquier comando del catálogo (`ejecutar_comando`) y tu propio conocimiento en `.agentes/conocimiento/*.md`
+- **Subagentes**: Silvy delega tareas independientes en subagentes con perfiles de herramientas acotados
+- **Monitoreo en el chat**: razonamiento del modelo, cada comando con sus argumentos y su resultado, rondas con tiempo y tokens; la tarea y el trabajo de cada subagente se abren con un clic (`/sub N`)
 
 El código está modularizado en un núcleo reutilizable agnóstico del
 transporte (`src/Nucleo`), preparado para que una futura app de escritorio

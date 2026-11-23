@@ -27,6 +27,7 @@ graph TD
         HARNESS[Harness]
         AUD[Auditoria]
         LLM["Agente/LLM/<br/>Bucle · Cliente · Config<br/>Herramientas · HuggingFace · Local"]
+        CON["Knowledge (RAG)<br/>Subagents · Sessions"]
     end
 
     subgraph NUCLEO [Transport-agnostic core]
@@ -54,6 +55,7 @@ graph TD
     TUI --> SILVY
     SILVY --> HARNESS
     SILVY --> LLM
+    SILVY --> CON
     LLM -->|EngineTool| HARNESS
     HARNESS --> EJ
     HARNESS --> AUD
@@ -73,7 +75,10 @@ graph TD
 graph LR
     subgraph CLI [FunshiCLI process]
         TUI[Tui]
+        SES[AlmacenSesiones]
         SILVY[Silvy]
+        RAG[BaseConocimiento]
+        SUB[GestorSubagentes]
         LOOP[AgentLoop]
         REG[ToolRegistry]
         TOOLS[EngineTool x N]
@@ -94,6 +99,12 @@ graph LR
     DISCO[("Disk<br/>.agentes/, models, llama-bin")]
 
     TUI --> SILVY
+    TUI --> SES
+    SES --> DISCO
+    SILVY --> RAG
+    SILVY --> SUB
+    SUB -->|one loop per task| LOOP
+    REG -->|buscar_comandos| RAG
     TUI --> HF
     TUI --> LIM
     SILVY --> LOOP
@@ -156,6 +167,7 @@ sequenceDiagram
     actor Usuario as User
     participant Chat as Tui/Chat
     participant Hilo as Worker thread
+    participant Mon as MonitorSesion
     participant Silvy
     participant Bucle as AgentLoop
     participant GW as LlmGateway
@@ -165,35 +177,42 @@ sequenceDiagram
     participant Nucleo as ejecutarSolicitud()
 
     Usuario->>Chat: types an order and Enter
-    Chat->>Hilo: std::thread(procesarOrdenChat)
-    Hilo->>Silvy: procesar(texto, onEvent)
+    Chat->>Hilo: std::thread(procesarOrdenChat, sesion)
+    Hilo->>Silvy: procesar(texto, sesion.agente, onEvent)
     alt text starts with /
         Silvy->>Harness: ejecutar(Solicitud)
         Harness->>Nucleo: ejecutarSolicitud()
         Nucleo-->>Silvy: ResultadoComando
     else natural language
-        Silvy->>Bucle: run(historial, onEvent)
-        loop up to 8 rounds
+        Silvy->>Silvy: BaseConocimiento.contextoParaPedido(texto)
+        Silvy-->>Mon: AgentEvent Estado (retrieved documentation)
+        Silvy->>Bucle: run(history, onEvent, documentation)
+        loop up to 10 rounds
+            Bucle-->>Mon: AgentEvent Estado round N (waiting for the model)
             Bucle->>GW: chatStream(mensajes, tools)
             GW->>Srv: POST /v1/chat/completions (stream)
             Srv-->>GW: SSE deltas
-            GW-->>Bucle: LlmChunk Text / ToolCall
-            Bucle-->>Chat: AgentEvent Text (PostEvent, max 30 fps)
+            GW-->>Bucle: LlmChunk Text / Reasoning / ToolCall
+            Bucle->>Bucle: SeparadorPensamiento splits out text inside think
+            Bucle-->>Mon: AgentEvent Pensamiento and Text
+            Bucle-->>Mon: AgentEvent Estado round N (time and tokens)
             opt there is a tool call
                 Bucle->>Bucle: ToolCallSanitizer validates JSON
-                Bucle-->>Chat: AgentEvent ToolStart
+                Bucle-->>Mon: AgentEvent ToolStart (previous text becomes Piensa)
                 Bucle->>Tool: execute(args)
                 Tool->>Harness: ejecutar(Solicitud)
                 Harness->>Nucleo: ejecutarSolicitud()
                 Nucleo-->>Tool: ResultadoComando
                 Tool-->>Bucle: ToolResult
-                Bucle-->>Chat: AgentEvent ToolEnd
+                Bucle-->>Mon: AgentEvent ToolEnd (result and detail)
             end
         end
         Bucle-->>Silvy: AgentAnswer
     end
+    Mon-->>Chat: messages in order (PostEvent, max 30 fps)
     Silvy-->>Hilo: RespuestaProcesada
-    Hilo-->>Chat: finish message and redraw
+    Hilo->>Mon: cerrar(final text)
+    Hilo->>Hilo: AlmacenSesiones.guardar(sesion)
 ```
 
 ### 3.3 Install and activate a model
@@ -289,6 +308,38 @@ sequenceDiagram
     end
 ```
 
+### 3.6 Delegating to subagents
+
+```mermaid
+sequenceDiagram
+    participant Bucle as main AgentLoop
+    participant Tool as LanzarSubagentesTool
+    participant Gestor as GestorSubagentes
+    participant Sub as subagent AgentLoop
+    participant RAG as BaseConocimiento
+    participant Mon as MonitorSesion
+    participant Chat as Tui/Chat
+
+    Bucle->>Tool: lanzar_subagentes(tareas)
+    Tool->>Tool: leerTareas validates 1 to 4 tasks, instructions and profile
+    Tool->>Gestor: ejecutar(tareas, onEvent)
+    loop each task, in batches of subagentesParalelos
+        Gestor->>Mon: SubagenteInicio (id, full task)
+        Mon->>Mon: creates SubagenteTui and the summary line in the session
+        Gestor->>Sub: new loop with profile, own gateway and no lanzar_subagentes
+        Gestor->>RAG: contextoParaPedido(instructions and context)
+        Gestor->>Sub: run with instruccionesSubagente and documentation
+        Sub->>Mon: all its events with origen = id
+        Mon->>Mon: they go to the subagent transcript and update the summary
+        Sub-->>Gestor: report RESULTADO / HECHO / PROBLEMAS
+        Gestor->>Mon: SubagenteFin (report)
+    end
+    Chat->>Chat: click on the summary or /sub N opens the subagent view
+    Gestor-->>Tool: trimmed reports
+    Tool-->>Bucle: summary of the reports
+    Bucle->>Bucle: verifies and answers the user
+```
+
 ## 4. State Diagrams
 
 ### 4.1 TUI Models section
@@ -344,7 +395,8 @@ graph TB
     subgraph MAQUINA [User's machine]
         subgraph PROC [FunshiCLI process]
             UI["UI thread<br/>FTXUI loop"]
-            W1["Thread: chat order"]
+            W1["Threads: one order per session<br/>(several at once)"]
+            W6["Threads: subagents<br/>(in batches)"]
             W2["Thread: HF search / variants"]
             W3["Thread: install model"]
             W4["Thread: update llama-server at startup"]
@@ -352,12 +404,14 @@ graph TB
         end
         LS["llama-server process<br/>127.0.0.1:11434"]
         FS[("~/.agentes/local-inference<br/>llama-bin/, models/, llama-server.pid/.log")]
-        CFG[(".agentes/llm-config.json<br/>metricas.jsonl, silvy-auditoria.log")]
+        CFG[(".agentes/llm-config.json, sesiones/, conocimiento/<br/>metricas.jsonl, silvy-auditoria.log")]
     end
     HF[("huggingface.co")]
     GH[("api.github.com")]
 
     W1 -.->|PostEvent| UI
+    W1 --> W6
+    W6 -->|HTTP SSE| LS
     W2 -.->|PostEvent| UI
     W3 -.->|PostEvent| UI
     W1 -->|HTTP SSE| LS
@@ -394,6 +448,9 @@ graph LR
 | **Enum + exhaustive switch** | `ComandoCLI`, `NucleoCLI.cpp` | The compiler warns about a missing command |
 | **Strategy** | `LlmGateway` (`OpenAiCompatibleGateway`) | Swap the LLM backend without touching the loop |
 | **Registry** | `ToolRegistry` | Tool catalog by name with cached specs |
+| **RAG (BM25)** | `BaseConocimiento`, `IndiceBm25` | Documentation of the relevant commands for each request |
+| **Orchestrator–workers** | `GestorSubagentes` | The main agent hands out independent tasks |
+| **Repository** | `AlmacenSesiones` | Session persistence behind a simple interface |
 | **Template Method** | `EngineTool::executeCommand()` | Every tool goes through `Harness` the same way |
 | **Factory** | `createEngineToolRegistry()` | Builds the engine tool registry |
 | **Facade** | `Harness`, `LocalInferenceManager`, `HfApi` | Hide auditing, processes and HTTP |
