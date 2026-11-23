@@ -218,11 +218,30 @@ std::filesystem::path LlmConfig::llamaServerPathEfectivo() const {
     return localInferenceDirEfectivo() / "llama-bin";
 }
 
+std::filesystem::path LlmConfig::projectsDataDirEfectivo() const {
+    namespace fs = std::filesystem;
+    if (projectsDataDir.empty()) return {};
+    fs::path p(projectsDataDir);
+    if (!p.is_absolute()) p = directorioBaseConfig() / p;
+    p = p.lexically_normal();
+    if (!p.has_filename()) p = p.parent_path();  // ruta terminada en separador
+    std::error_code ec;
+    if (fs::is_directory(p / "Proyects", ec)) return p;
+    // Apunta a la carpeta de proyectos en sí: la raíz es la de arriba.
+    if (p.filename() == "Proyects") return p.parent_path();
+    // Apunta a otra carpeta junto a Proyects/ (típico: "Projects"). Solo se
+    // corrige si esa carpeta no tiene proyectos propios, para no ocultarlos.
+    const fs::path padre = p.parent_path();
+    if (fs::is_directory(padre / "Proyects", ec)) {
+        const bool vacia = !fs::exists(p, ec) || (fs::is_directory(p, ec) && fs::is_empty(p, ec));
+        if (vacia) return padre;
+    }
+    return p;
+}
+
 void LlmConfig::aplicarRutasEntorno() const {
     if (!projectsDataDir.empty()) {
-        std::filesystem::path p(projectsDataDir);
-        if (!p.is_absolute()) p = directorioBaseConfig() / p;
-        const std::string valor = p.string();
+        const std::string valor = projectsDataDirEfectivo().string();
 #ifdef _WIN32
         _putenv_s("FUNSHI_DATA_DIR", valor.c_str());
 #else

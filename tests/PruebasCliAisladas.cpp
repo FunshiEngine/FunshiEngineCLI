@@ -84,6 +84,17 @@ void probarEscenaYArchivos(const EntornoAislado& env) {
               "project.create: el proyecto debe crearse bajo la ruta configurada");
     }
 
+    // projectsDataDir apuntando a la propia Proyects/ o a una carpeta hermana
+    // vacía ("Projects"): la CLI corrige a la raíz real y lista el proyecto.
+    for (const fs::path& variante : {datos / "Proyects", datos / "Projects"}) {
+        j = ejecutar("config-variante", solicitudJson("cli.config.set", {{"projectsDataDir", variante.string()}}), rc);
+        j = ejecutar("lista-variante", solicitudJson("project.list"), rc);
+        CHECK(esRespuestaOk(j) && j["result"].value("count", 0) == 1,
+              "project.list: tolera projectsDataDir = " + variante.filename().string());
+    }
+    j = ejecutar("config-restaura", solicitudJson("cli.config.set", {{"projectsDataDir", datos.string()}}), rc);
+    CHECK(rc == 0, "cli.config.set: restaurar projectsDataDir");
+
     j = ejecutar("objeto-crear", solicitudJson("scene.object.create", {
         {"project", "Aislado"}, {"name", "Cubo"}
     }), rc);

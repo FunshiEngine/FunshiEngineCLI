@@ -115,6 +115,11 @@ struct LlmConfig {
     std::vector<std::string> validate() const;
 
     // Rutas efectivas de inferencia local/modelos/cache (resueltas con defaults).
+    // Raíz de datos del motor (la carpeta que contiene Proyects/). Tolera que
+    // projectsDataDir apunte a la propia Proyects/ o a una carpeta hermana de
+    // ella (p. ej. "Projects"): en ambos casos devuelve la raíz real. Vacía
+    // si projectsDataDir no está configurado.
+    std::filesystem::path projectsDataDirEfectivo() const;
     std::filesystem::path localInferenceDirEfectivo() const;
     std::filesystem::path modelsDirEfectivo() const;
     std::filesystem::path hfCacheDirEfectivo() const;
