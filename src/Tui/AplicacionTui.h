@@ -13,6 +13,8 @@
 #include "Agente/Auditoria.h"
 #include "Agente/Harness.h"
 #include "Agente/Silvy.h"
+#include "Agente/Sesiones/SesionChat.h"
+#include "Tui/Chat/ModeloChat.h"
 #include "Agente/LLM/HuggingFace/HfTypes.h"
 
 #include "Nucleo/Respuesta.h"
@@ -86,10 +88,6 @@ class AplicacionTui : public ftxui::ComponentBase {
     bool eventoEnChat(ftxui::Event evento);
     void ejecutarOrdenChat();
     void recorrerHistorialChat(int delta);
-    void procesarOrdenChat(const std::string& linea);
-    void agregarMensajeChat(const std::string& texto, int rol, bool enCurso = false);
-    void anexarTextoMensajeChat(std::size_t indice, const std::string& texto);
-    void finalizarMensajeChat(std::size_t indice, const std::string& textoFinal, bool error = false);
     int chatLineasVisibles() const;
 
     bool eventoEnModelosHF(ftxui::Event evento);
@@ -145,27 +143,39 @@ class AplicacionTui : public ftxui::ComponentBase {
     std::vector<std::string> historial_;
     int indiceHistorial_ = 0;
 
-    // Chat de Silvy integrado en la TUI.
-    // Línea ya partida al ancho del panel, lista para dibujar.
-    struct LineaChat {
-        std::string texto;
-        ftxui::Color color;
-        bool bold = false;
-        bool tenue = false;
-    };
-    struct MensajeChat {
-        enum class Rol { Usuario, Silvy, Herramienta, Estado, Error };
-        Rol rol = Rol::Estado;
-        std::string texto;
-        bool enCurso = false;
-        // Cada cambio incrementa `version`; las líneas partidas se recalculan
-        // solo si cambió la versión o el ancho (no en cada frame).
-        unsigned version = 0;
-        unsigned versionCache = ~0u;
-        int anchoCache = -1;
-        std::vector<LineaChat> lineasCache;
-    };
+    // Chat de Silvy integrado en la TUI (modelo en Tui/Chat/ModeloChat.h).
+    using LineaChat = chat::LineaChat;
+    using MensajeChat = chat::MensajeChat;
+    using SesionTui = chat::SesionTui;
     static void partirMensajeChat(const MensajeChat& m, int ancho, std::vector<LineaChat>& salida);
+    std::vector<std::shared_ptr<SesionTui>> sesiones_;  // bajo chatMutex_
+    std::size_t sesionActiva_ = 0;                       // bajo chatMutex_
+    std::unique_ptr<agente::AlmacenSesiones> almacenSesiones_;
+    // Sesión a la vista. Llamar con chatMutex_ tomado.
+    std::shared_ptr<SesionTui> sesionActualSinLock() const;
+    std::shared_ptr<SesionTui> sesionActual() const;
+    void cargarSesiones();
+    std::shared_ptr<SesionTui> crearSesion(const std::string& titulo);
+    void cambiarSesion(int delta);
+    void irASesion(std::size_t indice);
+    void guardarSesion(const std::shared_ptr<SesionTui>& sesion);
+    // /nueva, /sesiones, /sesion N, /renombrar, /borrar, /limpiar, /cancelar.
+    // Devuelve true si la línea era una orden de sesión (ya atendida).
+    bool ordenDeSesion(const std::string& linea);
+    void agregarMensajeChat(SesionTui& sesion, const std::string& texto, MensajeChat::Rol rol,
+                            bool enCurso = false);
+    void procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const std::string& linea);
+    ftxui::Element barraSesiones(int ancho);
+    // Vista de un subagente (AplicacionTui_Subagentes.cpp): clic en su
+    // resumen o /sub N la abre; Esc o /volver regresa a la conversación.
+    bool ordenDeSubagentes(const std::string& orden, const std::string& resto);
+    void abrirSubagente(const std::string& id);
+    bool salirDeVistaSubagente();
+    bool clicEnChat(int x, int y);
+    // Filas dibujadas del chat y a qué se refieren ("sub:<id>", "msg:<i>"),
+    // para atender el clic. Se rehacen en cada frame.
+    std::vector<ftxui::Box> cajasChat_;
+    std::vector<std::string> refsChat_;
     // Pide un redibujado limitado a ~30 fps (los tokens llegan más rápido).
     void solicitarRedibujoChat(bool forzar = false);
     std::atomic<long long> ultimoRedibujoChatMs_{0};
@@ -173,11 +183,8 @@ class AplicacionTui : public ftxui::ComponentBase {
     std::string textoChat_;
     std::vector<std::string> chatHistorialEntrada_;
     int chatIndiceHistorial_ = 0;
-    int chatDesplazamiento_ = 0;
     bool focoEnChat_ = false;
-    std::vector<MensajeChat> chatMensajes_;
     mutable std::mutex chatMutex_;
-    bool chatOcupado_ = false;
     bool chatAplicarResultadoPendiente_ = false;
     std::string chatMensajePendiente_;
     bool chatMensajePendienteError_ = false;

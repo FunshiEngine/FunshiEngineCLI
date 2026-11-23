@@ -114,6 +114,9 @@ AplicacionTui::AplicacionTui(ftxui::ScreenInteractive* pantalla,
         pantalla_->TrackMouse(true);
     }
 
+    // Sesiones de chat guardadas (o una nueva si no hay).
+    cargarSesiones();
+
     recargarSeccionActual();
 
     // Al iniciar: descargar llama-server oficial si falta o actualizarlo si
@@ -266,6 +269,8 @@ bool AplicacionTui::OnEvent(ftxui::Event evento) {
         return true;
     }
     if (evento == ftxui::Event::Escape) {
+        // En la vista de un subagente, Esc regresa a la conversación.
+        if (seccionActual() == SeccionTui::Chat && salirDeVistaSubagente()) return true;
         pantalla_->Exit();
         return true;
     }

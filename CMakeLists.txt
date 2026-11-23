@@ -99,6 +99,11 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Nucleo/AyudaComandos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Chat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_ChatPanel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Sesiones.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Subagentes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/ModeloChat.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/MonitorChat.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/MonitorSesion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Comandos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Core.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/ModelosHF/AplicacionTui_ModelosHF.cpp

@@ -45,16 +45,30 @@ void AplicacionTui::partirMensajeChat(const MensajeChat& m, int ancho,
     bool bold = false;
     bool tenue = false;
     std::string texto = m.texto;
+    if (m.expandido && !m.detalle.empty()) {
+        // Expandido: la primera línea (estado y llamada) + el detalle completo.
+        texto = texto.substr(0, texto.find('\n')) + "\n" + m.detalle;
+    }
+    using Rol = MensajeChat::Rol;
     switch (m.rol) {
-        case MensajeChat::Rol::Usuario: prefijo = "Tú:    "; color = kAcento; bold = true; break;
-        case MensajeChat::Rol::Silvy:
+        case Rol::Usuario: prefijo = "Tú:    "; color = kAcento; bold = true; break;
+        case Rol::Silvy:
             prefijo = "Silvy: ";
             if (m.enCurso && texto.empty()) texto = "...";
             break;
-        case MensajeChat::Rol::Herramienta: prefijo = "       "; color = kAdvertencia; break;
-        case MensajeChat::Rol::Error: prefijo = "Error: "; color = kError; break;
-        case MensajeChat::Rol::Estado:
-        default: prefijo = "       "; color = kTextoTenue; tenue = true; break;
+        case Rol::Pensamiento: prefijo = "Piensa "; color = kTextoTenue; tenue = true; break;
+        case Rol::Herramienta:
+            prefijo = "Acción ";
+            color = m.enCurso ? kAdvertencia : (m.ok ? kExito : kError);
+            break;
+        case Rol::Subagente:
+            prefijo = "Subag. ";
+            color = m.enCurso ? kAdvertencia : (m.ok ? kAcento : kError);
+            bold = true;
+            break;
+        case Rol::Tarea: prefijo = "Tarea: "; color = kAcento; bold = true; break;
+        case Rol::Error: prefijo = "Error: "; color = kError; break;
+        case Rol::Estado: prefijo = "  ·    "; color = kTextoTenue; tenue = true; break;
     }
     // Sangría de continuación con el ancho visible del prefijo (no sus bytes:
     // "Tú" ocupa 2 columnas pero 3 bytes).
@@ -93,19 +107,33 @@ ftxui::Element AplicacionTui::panelChat() {
     const auto tamTerminal = ftxui::Terminal::Size();
     const int alto = std::max(8, tamTerminal.dimy);
     const int ancho = std::max(30, tamTerminal.dimx - kColumnaPanelCentral - 6);
-    const int visibles = std::max(4, alto - 10);
+    const int visibles = std::max(4, alto - 11);  // una fila más: barra de sesiones
 
     // Solo se copian las líneas de la ventana visible; las demás quedan en la
     // caché de cada mensaje.
     std::vector<LineaChat> lineas;
+    std::vector<std::string> refs;  // a qué se refiere cada línea (para el clic)
+    std::string cabeceraSub;        // vista de subagente: su título y estado
     bool ocupado = false;
     int total = 0;
     int inicio = 0;
     int fin = 0;
     {
         std::lock_guard<std::mutex> lock(chatMutex_);
-        ocupado = chatOcupado_;
-        for (auto& m : chatMensajes_) {
+        const auto sesion = sesionActualSinLock();
+        static std::vector<MensajeChat> sinMensajes;
+        const auto sub = sesion && !sesion->vista.empty() ? sesion->subagente(sesion->vista) : nullptr;
+        if (sesion && !sesion->vista.empty() && !sub) sesion->vista.clear();
+        auto& mensajes = sub ? sub->mensajes : (sesion ? sesion->mensajes : sinMensajes);
+        int sinDesplazamiento = 0;
+        int& desplazamientoSesion =
+            sub ? sub->desplazamiento : (sesion ? sesion->desplazamiento : sinDesplazamiento);
+        if (sub) {
+            cabeceraSub = " Subagente " + std::to_string(sub->numero) + " · " + sub->datos.titulo + " · " +
+                          sub->datos.estado;
+        }
+        ocupado = sesion && sesion->ocupado;
+        for (auto& m : mensajes) {
             if (m.versionCache != m.version || m.anchoCache != ancho) {
                 partirMensajeChat(m, ancho, m.lineasCache);
                 m.versionCache = m.version;
@@ -113,20 +141,25 @@ ftxui::Element AplicacionTui::panelChat() {
             }
             total += static_cast<int>(m.lineasCache.size());
         }
-        int desplazamiento = std::max(0, chatDesplazamiento_);
+        int desplazamiento = std::max(0, desplazamientoSesion);
         desplazamiento = std::min(desplazamiento, std::max(0, total - visibles));
-        chatDesplazamiento_ = desplazamiento;
+        desplazamientoSesion = desplazamiento;
         inicio = std::max(0, total - visibles - desplazamiento);
         fin = std::min(total, inicio + visibles);
 
         int cursor = 0;
-        for (const auto& m : chatMensajes_) {
+        for (std::size_t i = 0; i < mensajes.size(); ++i) {
+            const auto& m = mensajes[i];
             const int n = static_cast<int>(m.lineasCache.size());
             if (cursor + n > inicio && cursor < fin) {
                 const int desde = std::max(0, inicio - cursor);
                 const int hasta = std::min(n, fin - cursor);
                 lineas.insert(lineas.end(), m.lineasCache.begin() + desde,
                               m.lineasCache.begin() + hasta);
+                std::string ref;
+                if (m.rol == MensajeChat::Rol::Subagente && !m.ref.empty()) ref = "sub:" + m.ref;
+                else if (!m.detalle.empty()) ref = "msg:" + std::to_string(i);
+                refs.insert(refs.end(), static_cast<std::size_t>(hasta - desde), ref);
             }
             cursor += n;
             if (cursor >= fin) break;
@@ -135,8 +168,9 @@ ftxui::Element AplicacionTui::panelChat() {
 
     if (total == 0) {
         lineas.push_back({"  Escribe una orden para Silvy. Usa /comando para ejecutar CLI directo.", kTextoTenue, false, true});
-        lineas.push_back({"  Ejemplo: crear proyecto MiJuego 2d", kTextoTenue, false, true});
+        lineas.push_back({"  Ejemplo: crea un cubo con física en MiJuego", kTextoTenue, false, true});
         lineas.push_back({"  Ejemplo: /project.list", kTextoTenue, false, true});
+        lineas.push_back({"  /ayuda muestra las órdenes de sesión (/nueva, /sesiones, /sesion N…)", kTextoTenue, false, true});
         inicio = 0;
         fin = static_cast<int>(lineas.size());
     }
@@ -152,7 +186,8 @@ ftxui::Element AplicacionTui::panelChat() {
     } else {
         header += "  [CLI]";
     }
-    if (ocupado) header += "  (procesando...)";
+    if (ocupado) header += "  (procesando... Ctrl+X cancela)";
+    if (!cabeceraSub.empty()) header = cabeceraSub + "   (Esc vuelve a la conversación)";
 
     filas.push_back(ftxui::hbox({
         ftxui::text(header) | ftxui::bold | ftxui::color(ocupado ? kAdvertencia : kAcento),
@@ -163,12 +198,19 @@ ftxui::Element AplicacionTui::panelChat() {
                         : " ") |
             ftxui::color(kTextoTenue),
     }));
+    filas.push_back(barraSesiones(ancho + 4));
     filas.push_back(ftxui::separator());
 
-    for (const auto& l : lineas) {
+    // Cada línea guarda su caja en pantalla para saber qué se cliqueó.
+    refs.resize(lineas.size());
+    cajasChat_.assign(lineas.size(), ftxui::Box{});
+    refsChat_ = refs;
+    for (std::size_t i = 0; i < lineas.size(); ++i) {
+        const auto& l = lineas[i];
         auto elem = ftxui::text(l.texto) | ftxui::color(l.color);
         if (l.bold) elem = elem | ftxui::bold;
         if (l.tenue) elem = elem | ftxui::dim;
+        if (!refs[i].empty()) elem = elem | ftxui::reflect(cajasChat_[i]);
         filas.push_back(elem);
     }
     while ((int)filas.size() < visibles + 2) {
@@ -183,7 +225,9 @@ ftxui::Element AplicacionTui::panelChat() {
         std::move(entradaChat) | ftxui::flex,
     }) | ftxui::bgcolor(kFondoBarra));
 
-    filas.push_back(ftxui::text(" ↑↓ historial · PgUp/PgDn scroll · Enter envía · Esc vuelve · /comando = CLI directo ") |
+    filas.push_back(ftxui::text(cabeceraSub.empty()
+                                    ? " ↑↓ historial · PgUp/PgDn scroll · clic: ver detalle/subagente · /comando = CLI · /ayuda "
+                                    : " PgUp/PgDn scroll · clic en una acción: detalle · Esc o /volver: conversación ") |
                     ftxui::color(kTextoTenue) | ftxui::bgcolor(kFondoBarra));
 
     return ftxui::vbox(std::move(filas)) | ftxui::flex | ftxui::bgcolor(kFondoPanel);

@@ -4,56 +4,35 @@
     SPDX-License-Identifier: Apache-2.0
 */
 // AplicacionTui — Chat Silvy: foco, mensajes, eventos y envío de órdenes.
+// Cada orden se procesa en un hilo con la sesión en la que se escribió, así
+// el usuario puede cambiar de sesión (o escribir en otra) mientras tanto.
 #include "Tui/AplicacionTui.h"
 
 #include "Tui/Terminal/TemaTui.h"
 #include "Tui/Terminal/UtilTui.h"
-#include "Util/Metricas.h"
 
-#include "Agente/Auditoria.h"
-#include "Agente/Harness.h"
 #include "Agente/Silvy.h"
+#include "Tui/Chat/MonitorChat.h"
 
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/event.hpp>
-#include <ftxui/dom/elements.hpp>
-#include <ftxui/screen/color.hpp>
-#include <ftxui/screen/string.hpp>
 #include <ftxui/screen/terminal.hpp>
-
-#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <chrono>
-#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
 
-#ifndef FUNSHI_VERSION
-#define FUNSHI_VERSION "0.0.0"
-#endif
-
 namespace funshi {
-
-namespace {
-
-std::string resumenHerramientaChat(const std::string& nombre, bool ok) {
-    return std::string(ok ? "[ok] " : "[error] ") + nombre;
-}
-
-}  // namespace
 
 void AplicacionTui::enfocarChat() {
     focoEnChat_ = true;
     focoEnEntrada_ = false;
-    if (chatOcupado_) {
-        mensaje_ = "Silvy está procesando una orden...";
-        mensajeEsError_ = false;
-    } else {
-        mensaje_ = "Escribe una orden para Silvy y pulsa Enter (Esc para volver)";
-        mensajeEsError_ = false;
-    }
+    const auto s = sesionActual();
+    mensaje_ = s && s->ocupado ? "Silvy está procesando en esta sesión (Ctrl+X cancela)"
+                               : "Escribe una orden para Silvy · Ctrl+N nueva sesión · Ctrl+←/→ cambia";
+    mensajeEsError_ = false;
 }
 
 void AplicacionTui::desenfocarChat() {
@@ -62,35 +41,19 @@ void AplicacionTui::desenfocarChat() {
 
 int AplicacionTui::chatLineasVisibles() const {
     int alto = std::max(8, ftxui::Terminal::Size().dimy);
-    // barra superior, separador, footer separador, mensaje, atajos, header/separador del chat,
-    // separador, input y ayuda = margen conservador.
-    return std::max(4, alto - 10);
+    // Barras, separadores, cabecera, barra de sesiones, entrada y ayuda.
+    return std::max(4, alto - 11);
 }
 
-void AplicacionTui::agregarMensajeChat(const std::string& texto, int rol, bool enCurso) {
+void AplicacionTui::agregarMensajeChat(SesionTui& sesion, const std::string& texto, MensajeChat::Rol rol,
+                                       bool enCurso) {
     std::lock_guard<std::mutex> lock(chatMutex_);
     MensajeChat m;
-    m.rol = static_cast<MensajeChat::Rol>(rol);
+    m.rol = rol;
     m.texto = texto;
     m.enCurso = enCurso;
-    chatMensajes_.push_back(std::move(m));
-    chatDesplazamiento_ = 0;
-}
-
-void AplicacionTui::anexarTextoMensajeChat(std::size_t indice, const std::string& texto) {
-    std::lock_guard<std::mutex> lock(chatMutex_);
-    if (indice >= chatMensajes_.size()) return;
-    chatMensajes_[indice].texto += texto;
-    ++chatMensajes_[indice].version;
-}
-
-void AplicacionTui::finalizarMensajeChat(std::size_t indice, const std::string& textoFinal, bool error) {
-    std::lock_guard<std::mutex> lock(chatMutex_);
-    if (indice >= chatMensajes_.size()) return;
-    chatMensajes_[indice].texto = textoFinal;
-    chatMensajes_[indice].enCurso = false;
-    if (error) chatMensajes_[indice].rol = MensajeChat::Rol::Error;
-    ++chatMensajes_[indice].version;
+    sesion.mensajes.push_back(std::move(m));
+    sesion.desplazamiento = 0;
 }
 
 void AplicacionTui::solicitarRedibujoChat(bool forzar) {
@@ -111,7 +74,23 @@ bool AplicacionTui::eventoEnChat(ftxui::Event evento) {
         return true;
     }
     if (evento == ftxui::Event::Escape) {
-        desenfocarChat();
+        if (!salirDeVistaSubagente()) desenfocarChat();
+        return true;
+    }
+    if (evento == ftxui::Event::CtrlN) {
+        ordenDeSesion("/nueva");
+        return true;
+    }
+    if (evento == ftxui::Event::ArrowLeftCtrl || evento == ftxui::Event::CtrlP) {
+        cambiarSesion(-1);
+        return true;
+    }
+    if (evento == ftxui::Event::ArrowRightCtrl || evento == ftxui::Event::CtrlO) {
+        cambiarSesion(1);
+        return true;
+    }
+    if (evento == ftxui::Event::CtrlX) {
+        ordenDeSesion("/cancelar");
         return true;
     }
     if (evento == ftxui::Event::ArrowUp) {
@@ -122,13 +101,14 @@ bool AplicacionTui::eventoEnChat(ftxui::Event evento) {
         recorrerHistorialChat(1);
         return true;
     }
-    if (evento == ftxui::Event::PageUp) {
-        chatDesplazamiento_ += chatLineasVisibles();
-        return true;
-    }
-    if (evento == ftxui::Event::PageDown) {
-        chatDesplazamiento_ -= chatLineasVisibles();
-        if (chatDesplazamiento_ < 0) chatDesplazamiento_ = 0;
+    if (evento == ftxui::Event::PageUp || evento == ftxui::Event::PageDown) {
+        std::lock_guard<std::mutex> lock(chatMutex_);
+        if (auto s = sesionActualSinLock()) {
+            auto sub = s->vista.empty() ? nullptr : s->subagente(s->vista);
+            int& desplazamiento = sub ? sub->desplazamiento : s->desplazamiento;
+            desplazamiento += (evento == ftxui::Event::PageUp ? 1 : -1) * chatLineasVisibles();
+            desplazamiento = std::max(0, desplazamiento);
+        }
         return true;
     }
     if (evento == ftxui::Event::Return) {
@@ -138,55 +118,31 @@ bool AplicacionTui::eventoEnChat(ftxui::Event evento) {
     return entradaChat_->OnEvent(evento);
 }
 
-void AplicacionTui::procesarOrdenChat(const std::string& linea) {
-    auto post = [this]() {
-        if (pantalla_) pantalla_->PostEvent(ftxui::Event());
-    };
-
-    std::size_t indiceRespuesta = 0;
+void AplicacionTui::procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const std::string& linea) {
+    // El monitor ordena los eventos en la sesión: razonamiento, herramientas
+    // con argumentos y resultado, notas de progreso y un resumen por
+    // subagente (cuya transcripción queda aparte, ver /sub N).
+    chat::MonitorSesion monitor(*sesion);
     {
         std::lock_guard<std::mutex> lock(chatMutex_);
-        MensajeChat respuesta;
-        respuesta.rol = MensajeChat::Rol::Silvy;
-        respuesta.texto = "";
-        respuesta.enCurso = true;
-        chatMensajes_.push_back(std::move(respuesta));
-        indiceRespuesta = chatMensajes_.size() - 1;
-        chatDesplazamiento_ = 0;
+        monitor.esperar();
+        sesion->desplazamiento = 0;
     }
-    post();
+    if (pantalla_) pantalla_->PostEvent(ftxui::Event());
 
-    std::string textoAcumulado;
     auto onEvent = [&](const agente::llm::AgentEvent& evento) {
         using Tipo = agente::llm::AgentEvent::Type;
-        if (evento.type == Tipo::Text) {
-            if (!evento.delta.empty()) {
-                textoAcumulado += evento.delta;
-                anexarTextoMensajeChat(indiceRespuesta, evento.delta);
-                solicitarRedibujoChat();
-            }
-            return;
+        {
+            std::lock_guard<std::mutex> lock(chatMutex_);
+            monitor.aplicar(evento);
+            if (evento.origen.empty()) sesion->desplazamiento = 0;
         }
-        if (evento.type == Tipo::ToolStart) {
-            agregarMensajeChat(std::string("[tool] ") + evento.name, 2, false);
-            post();
-            return;
-        }
-        if (evento.type == Tipo::ToolEnd) {
-            std::string resumen = resumenHerramientaChat(evento.name, evento.ok);
-            if (!evento.result.empty()) {
-                std::string r = evento.result;
-                if (r.size() > 180) r = r.substr(0, 177) + "...";
-                for (char& c : r) if (c == '\n') c = ' ';
-                resumen += " - " + r;
-            }
-            agregarMensajeChat(resumen, 2, false);
-            post();
-            return;
-        }
+        // Los fragmentos de texto llegan muy seguido: redibujo limitado.
+        const bool fragmento = evento.type == Tipo::Text || evento.type == Tipo::Pensamiento;
+        solicitarRedibujoChat(!fragmento);
     };
 
-    Silvy::RespuestaProcesada respuesta = silvy_.procesar(linea, onEvent);
+    Silvy::RespuestaProcesada respuesta = silvy_.procesar(linea, sesion->datos.agente, onEvent);
 
     std::string textoFinal = respuesta.texto;
     if (respuesta.fueComandoCli) {
@@ -201,68 +157,76 @@ void AplicacionTui::procesarOrdenChat(const std::string& linea) {
                 textoFinal += " - " + respuesta.resultado.respuesta.mensajeError;
             }
         }
-    } else if (textoFinal.empty() && !textoAcumulado.empty()) {
-        textoFinal = textoAcumulado;
-    } else if (textoFinal.empty()) {
-        textoFinal = "(sin respuesta)";
     }
 
-    finalizarMensajeChat(indiceRespuesta, textoFinal, respuesta.error);
     {
         std::lock_guard<std::mutex> lock(chatMutex_);
-        chatOcupado_ = false;
+        monitor.cerrar(textoFinal, respuesta.error);
+        sesion->ocupado = false;
         chatAplicarResultadoPendiente_ = true;
-        chatMensajePendiente_ = respuesta.error ? "Silvy: error al procesar la orden"
-                                                : "Silvy: orden procesada";
+        chatMensajePendiente_ = "Silvy (" + sesion->datos.titulo + "): " +
+                                (respuesta.error ? "error al procesar la orden" : "orden procesada");
         chatMensajePendienteError_ = respuesta.error;
         chatRecargarPendiente_ = true;
     }
+    guardarSesion(sesion);
     if (pantalla_) pantalla_->PostEvent(ftxui::Event::Custom);
 }
 
 void AplicacionTui::ejecutarOrdenChat() {
     std::string linea;
+    std::shared_ptr<SesionTui> sesion;
     {
         std::lock_guard<std::mutex> lock(chatMutex_);
-        if (chatOcupado_) {
-            mensaje_ = "Silvy está procesando una orden. Espera a que termine.";
-            mensajeEsError_ = true;
-            return;
-        }
         linea = textoChat_;
+        sesion = sesionActualSinLock();
     }
-    if (linea.empty()) return;
-
+    if (linea.empty() || !sesion) return;
+    salirDeVistaSubagente();  // la orden y su respuesta se ven en la conversación
     {
         std::lock_guard<std::mutex> lock(chatMutex_);
         chatHistorialEntrada_.push_back(linea);
         chatIndiceHistorial_ = static_cast<int>(chatHistorialEntrada_.size());
         textoChat_.clear();
-        chatOcupado_ = true;
+    }
+    if (ordenDeSesion(linea)) return;
+
+    {
+        std::lock_guard<std::mutex> lock(chatMutex_);
+        if (sesion->ocupado) {
+            textoChat_ = linea;  // no se pierde lo escrito
+            mensaje_ = "Esta sesión está procesando. Espera, cancela con Ctrl+X o abre otra con Ctrl+N.";
+            mensajeEsError_ = true;
+            return;
+        }
+        sesion->ocupado = true;
+        sesion->datos.agente.proyectoActivo = proyectoActivo_;
+        // La primera orden le da nombre a una sesión sin título propio.
+        const bool sinTitulo = sesion->datos.titulo.rfind("Sesión ", 0) == 0;
+        const bool primera = std::none_of(sesion->mensajes.begin(), sesion->mensajes.end(),
+                                          [](const MensajeChat& m) { return m.rol == MensajeChat::Rol::Usuario; });
+        if (sinTitulo && primera) sesion->datos.titulo = agente::SesionChat::tituloDesde(linea);
         MensajeChat usuario;
         usuario.rol = MensajeChat::Rol::Usuario;
         usuario.texto = linea;
-        chatMensajes_.push_back(std::move(usuario));
-        chatDesplazamiento_ = 0;
+        sesion->mensajes.push_back(std::move(usuario));
+        sesion->desplazamiento = 0;
     }
-
     mensaje_ = "Silvy: procesando...";
     mensajeEsError_ = false;
     if (pantalla_) pantalla_->PostEvent(ftxui::Event());
-
-    std::thread([this, linea]() { procesarOrdenChat(linea); }).detach();
+    std::thread([this, sesion, linea]() { procesarOrdenChat(sesion, linea); }).detach();
 }
 
 void AplicacionTui::recorrerHistorialChat(int delta) {
     std::lock_guard<std::mutex> lock(chatMutex_);
     if (chatHistorialEntrada_.empty()) return;
-    if (chatIndiceHistorial_ < 0)
-        chatIndiceHistorial_ = static_cast<int>(chatHistorialEntrada_.size());
-    chatIndiceHistorial_ = std::max(
-        0, std::min(static_cast<int>(chatHistorialEntrada_.size()),
-                    chatIndiceHistorial_ + delta));
+    if (chatIndiceHistorial_ < 0) chatIndiceHistorial_ = static_cast<int>(chatHistorialEntrada_.size());
+    chatIndiceHistorial_ = std::max(0, std::min(static_cast<int>(chatHistorialEntrada_.size()),
+                                                chatIndiceHistorial_ + delta));
     textoChat_ = chatIndiceHistorial_ < static_cast<int>(chatHistorialEntrada_.size())
                      ? chatHistorialEntrada_[chatIndiceHistorial_]
                      : std::string();
 }
+
 }  // namespace funshi

@@ -119,6 +119,12 @@ bool AplicacionTui::manejarRaton(ftxui::Event& evento) {
                     seleccionInicioX_ != seleccionFinX_ || seleccionInicioY_ != seleccionFinY_;
             }
             copiarAlSoltar_ = seleccionVisible_;
+            // Clic simple (sin arrastre) en el chat: abre un subagente o el
+            // detalle de una herramienta.
+            if (!seleccionVisible_ && modoSeleccion_ == ModoSeleccion::Libre &&
+                seccionActual() == SeccionTui::Chat) {
+                clicEnChat(raton.x, raton.y);
+            }
             return true;
         }
     }
