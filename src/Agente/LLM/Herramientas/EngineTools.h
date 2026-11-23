@@ -48,9 +48,25 @@ protected:
         auto resultado = harness_->ejecutar(sol);
         if (resultado.respuesta.correcta) {
             return ToolResult::ok(resultado.respuesta.resultado.dump());
-        } else {
-            return ToolResult::error(resultado.respuesta.mensajeError);
         }
+        std::string error = resultado.respuesta.mensajeError;
+        if (resultado.respuesta.codigoError == "invalid_project") {
+            // El modelo inventó el nombre: se le dan los reales para que corrija
+            // (en lugar de crear un proyecto nuevo).
+            funshi::Solicitud lista;
+            lista.comando = "project.list";
+            const auto r = harness_->ejecutar(lista);
+            std::string nombres;
+            if (r.respuesta.correcta) {
+                for (const auto& p : r.respuesta.resultado.value("projects", nlohmann::json::array())) {
+                    if (!nombres.empty()) nombres += ", ";
+                    nombres += "\"" + p.value("name", std::string()) + "\"";
+                }
+            }
+            error += ". \"project\" debe ser el nombre exacto de un proyecto existente: " +
+                     (nombres.empty() ? std::string("no hay proyectos") : nombres) + ".";
+        }
+        return ToolResult::error(error);
     }
 };
 
