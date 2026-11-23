@@ -49,45 +49,12 @@ std::vector<std::string> partirPorEspacios(const std::string& texto) {
 
 Silvy::Silvy(Harness& harness) : harness_(harness) {}
 
-bool Silvy::configurarLlm(const agente::llm::LlmConfig& config, bool nativeToolCalls) {
-    auto errores = config.validate();
-    if (!errores.empty()) {
-        return false;
-    }
-
-    try {
-        if (config.mode == agente::llm::LlmMode::REMOTE) {
-            gateway_ = std::make_shared<agente::llm::OpenAiCompatibleGateway>(
-                config.remoteBaseUrl,
-                config.apiKey,
-                config.modelName,
-                config.temperature,
-                config.effectiveMaxTokens(),
-                config.chatTimeoutMs,
-                config.thinking,
-                config.power
-            );
-            modeloActivoNombre_ = config.modelName;
-        } else {
-            // LOCAL mode - por ahora no implementado (requiere llama-server)
-            return false;
-        }
-
-        registry_ = agente::llm::createEngineToolRegistry(std::make_shared<Harness>(harness_));
-        agentLoop_ = std::make_shared<agente::llm::AgentLoop>(gateway_, registry_, nativeToolCalls, config.toolTimeoutMs);
-        agentLoop_->setMaxIterations(8);
-        conversationHistory_.clear();
-        return true;
-    } catch (const std::exception&) {
-        return false;
-    }
-}
-
-void Silvy::limpiarHistorialLlm() {
-    conversationHistory_.clear();
-}
-
 Silvy::RespuestaProcesada Silvy::procesar(const std::string& texto,
+                                          std::function<void(const agente::llm::AgentEvent&)> onEvent) {
+    return procesar(texto, sesionPorDefecto_, std::move(onEvent));
+}
+
+Silvy::RespuestaProcesada Silvy::procesar(const std::string& texto, SesionAgente& sesion,
                                           std::function<void(const agente::llm::AgentEvent&)> onEvent) {
     RespuestaProcesada resp;
     resp.texto = "";
@@ -109,7 +76,7 @@ Silvy::RespuestaProcesada Silvy::procesar(const std::string& texto,
         return ejecutarComandoCli(texto);
     }
 
-    if (!agentLoop_) {
+    if (!tieneLlm()) {
         OrdenProcesada orden = interpretarTextoPlano(texto);
         if (orden.interpretada) {
             return ejecutarComandoCli(texto);
@@ -122,7 +89,7 @@ Silvy::RespuestaProcesada Silvy::procesar(const std::string& texto,
         return resp;
     }
 
-    return enviarAlLlm(texto, onEvent);
+    return enviarAlLlm(texto, sesion, onEvent);
 }
 
 Silvy::RespuestaProcesada Silvy::ejecutarComandoCli(const std::string& texto) {
@@ -166,21 +133,6 @@ Silvy::RespuestaProcesada Silvy::ejecutarComandoCli(const std::string& texto) {
         resp.texto = "❌ " + resp.resultado.respuesta.codigoError + ": " + resp.resultado.respuesta.mensajeError;
         resp.error = true;
     }
-    return resp;
-}
-
-Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje,
-                                             std::function<void(const agente::llm::AgentEvent&)> onEvent) {
-    RespuestaProcesada resp;
-    resp.fueComandoCli = false;
-
-    // El bucle del agente actualiza el historial con mensajes intermedios
-    // (tool calls/resultados) y la respuesta final.
-    conversationHistory_.push_back(agente::llm::ChatMessage::user(mensaje));
-    auto answer = agentLoop_->run(conversationHistory_, onEvent);
-
-    resp.texto = answer.text.empty() ? "(sin respuesta)" : answer.text;
-    resp.error = false;
     return resp;
 }
 
@@ -322,11 +274,6 @@ OrdenProcesada Silvy::interpretar(const std::string& texto) {
 
 std::string Silvy::resumenQueHice(std::size_t n) const {
     return harness_.auditoria().resumenReciente(n);
-}
-
-std::string Silvy::modeloActivo() const {
-    if (!agentLoop_ || !gateway_) return "";
-    return modeloActivoNombre_;
 }
 
 }  // namespace funshi

@@ -143,11 +143,16 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Local/RegistroServidor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Util/Clipboard.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Util/Metricas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Silvy_Llm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/IndiceBm25.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/BaseConocimiento.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/GuiasAgente.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/HerramientasConocimiento.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/PerfilesHerramientas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/PlantillasAgente.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/GestorSubagentes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/HerramientaSubagentes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Sesiones/SesionChat.cpp
 )
 
 # Raíz del motor: submódulo directo o checkout obtenido por FetchContent.

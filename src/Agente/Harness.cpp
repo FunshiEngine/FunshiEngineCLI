@@ -20,12 +20,21 @@
 
 #include <nlohmann/json.hpp>
 
+#include <mutex>
+
 namespace funshi {
 
 Harness::Harness(Auditoria& auditoria) : auditoria_(auditoria) {}
 
 ResultadoComando Harness::ejecutar(const Solicitud& solicitud,
                                    bool modificaDisco) {
+    // Un comando a la vez en todo el proceso: varias sesiones de chat y
+    // subagentes en paralelo comparten el motor (escenas, rutas, registro de
+    // diagnósticos) y la auditoría, que no son seguros entre hilos. Los
+    // comandos tardan milisegundos; lo lento es el modelo, que sí corre en
+    // paralelo. Recursivo: agente.procesar vuelve a entrar desde el mismo hilo.
+    static auto* mutexComandos = new std::recursive_mutex();  // nunca se destruye (hilos)
+    std::lock_guard<std::recursive_mutex> bloqueo(*mutexComandos);
     if (!modificaDisco) {
         modificaDisco = auditoria_.esComandoDeEscritura(solicitud.comando);
     }

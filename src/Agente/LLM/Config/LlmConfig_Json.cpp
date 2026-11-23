@@ -80,6 +80,7 @@ nlohmann::json LlmConfig::toJson() const {
     j["contextSize"] = contextSize;
     j["gpuLayers"] = gpuLayers;
     j["toolTimeoutMs"] = toolTimeoutMs;
+    j["subagentesParalelos"] = subagentesParalelos;
     
     // Manual conversion for vectors of structs
     nlohmann::json mc = nlohmann::json::array();
@@ -129,6 +130,7 @@ LlmConfig LlmConfig::fromJson(const nlohmann::json& j) {
     cfg.contextSize = j.value("contextSize", kContextoPorDefecto);
     cfg.gpuLayers = j.value("gpuLayers", -1);
     cfg.toolTimeoutMs = j.value("toolTimeoutMs", 30000L);
+    cfg.subagentesParalelos = j.value("subagentesParalelos", 0);
     
     // Manual conversion for vectors of structs
     if (j.contains("modelCatalog") && j["modelCatalog"].is_array()) {

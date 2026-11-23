@@ -94,6 +94,12 @@ struct LlmConfig {
 
     // Tools
     long toolTimeoutMs = 30000;
+    // Subagentes que corren a la vez (0 = automático: 1 con servidor local,
+    // que atiende de a un pedido; 3 con API remota).
+    int subagentesParalelos = 0;
+    int subagentesParalelosEfectivo() const {
+        return subagentesParalelos > 0 ? subagentesParalelos : (isLocalhostUrl() ? 1 : 3);
+    }
 
     // Serialización
     nlohmann::json toJson() const;
