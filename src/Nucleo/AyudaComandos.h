@@ -3,9 +3,10 @@
     Copyright 2026 Gianfranco Ivan Enrique
     SPDX-License-Identifier: Apache-2.0
 */
-// Documentación de uso de cada comando del catálogo para la ayuda de la TUI.
-#ifndef FUNSHI_TUI_AYUDA_COMANDOS_H
-#define FUNSHI_TUI_AYUDA_COMANDOS_H
+// Documentación de uso de cada comando del catálogo. La usan la ayuda de la
+// TUI y la base de conocimiento del agente (Agente/Conocimiento).
+#ifndef FUNSHI_NUCLEO_AYUDA_COMANDOS_H
+#define FUNSHI_NUCLEO_AYUDA_COMANDOS_H
 
 #include <string>
 #include <vector>
@@ -38,4 +39,4 @@ const AyudaComando* buscarAyudaComando(const std::string& comando);
 
 }  // namespace funshi
 
-#endif  // FUNSHI_TUI_AYUDA_COMANDOS_H
+#endif  // FUNSHI_NUCLEO_AYUDA_COMANDOS_H

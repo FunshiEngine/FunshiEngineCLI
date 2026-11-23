@@ -19,7 +19,7 @@
 #include "Tui/AplicacionTui.h"
 
 #include "Tui/Terminal/TemaTui.h"
-#include "Tui/Vistas/AyudaComandos.h"
+#include "Nucleo/AyudaComandos.h"
 #include "Util/Clipboard.h"
 
 #include <ftxui/dom/elements.hpp>

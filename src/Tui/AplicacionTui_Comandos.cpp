@@ -8,7 +8,7 @@
 
 #include "Tui/Terminal/TemaTui.h"
 #include "Tui/Terminal/UtilTui.h"
-#include "Tui/Vistas/AyudaComandos.h"
+#include "Nucleo/AyudaComandos.h"
 
 #include "Agente/Auditoria.h"
 #include "Agente/Harness.h"

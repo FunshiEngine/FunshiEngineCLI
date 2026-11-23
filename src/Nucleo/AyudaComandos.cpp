@@ -3,7 +3,7 @@
     Copyright 2026 Gianfranco Ivan Enrique
     SPDX-License-Identifier: Apache-2.0
 */
-#include "Tui/Vistas/AyudaComandos.h"
+#include "Nucleo/AyudaComandos.h"
 
 #include "Nucleo/CatalogoComandos.h"
 

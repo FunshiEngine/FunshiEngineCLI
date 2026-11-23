@@ -16,10 +16,12 @@
 
     SPDX-License-Identifier: Apache-2.0
 */
-// Utilidades puras de la TUI: recorte de texto, tokenización de comandos y
-// atajos contextuales de la barra inferior.
+// Utilidades puras de la TUI: recorte de texto y atajos contextuales de la
+// barra inferior. La sintaxis de línea de comandos está en Nucleo/LineaComando.
 #ifndef FUNSHI_TUI_UTIL_TUI_H
 #define FUNSHI_TUI_UTIL_TUI_H
+
+#include "Nucleo/LineaComando.h"  // tokenizar / construirArgumentos (antes vivían aquí)
 
 #include <nlohmann/json.hpp>
 
@@ -44,25 +46,6 @@ int anchoTerminal();
 // Texto de atajos que cabe en la terminal actual.
 std::string textoAtajos();
 
-// Pieza de la línea de comandos: el texto y si venía entrecomillado, para
-// distinguir un valor numérico de uno textual.
-struct Token {
-    std::string texto;
-    bool entrecomillado = false;
-};
-
-// Divide una línea en piezas, respetando comillas simples y dobles: el
-// texto entrecomillado se une al token aunque tenga espacios.
-std::vector<Token> tokenizar(const std::string& linea);
-
-// Indica si un texto es un entero que cabe en un long long.
-bool esEntero(const std::string& texto);
-
-// Convierte los tokens "clave=valor" en argumentos de la solicitud. Sin
-// comillas: enteros y decimales van como número, true/false como booleano y
-// [..]/{..} como JSON. Entrecomillado, siempre como texto.
-bool construirArgumentos(const std::vector<Token>& tokens, nlohmann::json& argumentos,
-                         std::string& error);
 
 }  // namespace funshi
 

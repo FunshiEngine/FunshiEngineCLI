@@ -65,11 +65,11 @@ set(FTXUI_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(FTXUI_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(ftxui)
 
-add_executable(FunshiCLI
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
+add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Nucleo/Respuesta.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Nucleo/Registro.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Nucleo/CatalogoComandos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Nucleo/LineaComando.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Nucleo/NucleoCLI.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Validacion/ValidacionArgs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Proyectos/ResolucionProyectos.cpp
@@ -96,7 +96,7 @@ add_executable(FunshiCLI
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/InterfazTui.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Terminal/EntradaRespaldo.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Vistas/AyudaComandos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Nucleo/AyudaComandos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Chat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_ChatPanel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Comandos.cpp
@@ -150,7 +150,7 @@ else()
     set(FUNSHI_ENGINE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/extern/FunshiEngine")
 endif()
 
-target_include_directories(FunshiCLI PRIVATE
+target_include_directories(funshi_cli_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Util
@@ -159,11 +159,11 @@ target_include_directories(FunshiCLI PRIVATE
     ${ftxui_SOURCE_DIR}/src
 )
 
-target_compile_definitions(FunshiCLI PRIVATE
+target_compile_definitions(funshi_cli_core PUBLIC
     FUNSHI_VERSION="0.5.4"
 )
 
-target_link_libraries(FunshiCLI PRIVATE
+target_link_libraries(funshi_cli_core PUBLIC
     funshi_project_core
     funshi_diagnostics_core
     ftxui::screen
@@ -176,23 +176,28 @@ target_link_libraries(FunshiCLI PRIVATE
 
 # El motor llega como target `funshi_engine` que construye el submódulo: es
 # la única forma de que las cabeceras y la biblioteca sean del mismo commit.
-target_link_libraries(FunshiCLI PRIVATE funshi_engine)
+target_link_libraries(funshi_cli_core PUBLIC funshi_engine)
 
 if(GLFW3_FOUND)
-    target_link_libraries(FunshiCLI PRIVATE glfw)
+    target_link_libraries(funshi_cli_core PUBLIC glfw)
 endif()
-target_link_libraries(FunshiCLI PRIVATE OpenGL::GL)
+target_link_libraries(funshi_cli_core PUBLIC OpenGL::GL)
 
-target_link_libraries(FunshiCLI PRIVATE
+target_link_libraries(funshi_cli_core PUBLIC
     BulletDynamics
     BulletCollision
     LinearMath
 )
 if(assimp_FOUND)
-    target_link_libraries(FunshiCLI PRIVATE assimp::assimp)
+    target_link_libraries(funshi_cli_core PUBLIC assimp::assimp)
 else()
-    target_link_libraries(FunshiCLI PRIVATE assimp)
+    target_link_libraries(funshi_cli_core PUBLIC assimp)
 endif()
+
+# El ejecutable es solo main.cpp: todo lo demás vive en funshi_cli_core, que
+# también enlazan las pruebas del agente (agente-tests).
+add_executable(FunshiCLI ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
+target_link_libraries(FunshiCLI PRIVATE funshi_cli_core)
 
 # En Windows con MinGW, las DLLs de runtime no llegan al directorio de salida
 # por sí solas: las del toolchain (libstdc++, gcc, pthread) y las del motor
@@ -249,3 +254,4 @@ target_include_directories(cli-tests PRIVATE
     ${FUNSHI_ENGINE_TESTS_DIR}
 )
 add_test(NAME cli-tests COMMAND cli-tests)
+
