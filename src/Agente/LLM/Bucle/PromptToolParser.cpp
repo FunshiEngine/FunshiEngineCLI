@@ -85,4 +85,30 @@ std::string PromptToolParser::consumeLine(const std::string& line) {
     return line;
 }
 
+std::vector<std::string> PromptToolParser::llamadasSinCerco(const std::string& texto) {
+    std::vector<std::string> llamadas;
+    std::size_t desde = 0;
+    while ((desde = texto.find('{', desde)) != std::string::npos) {
+        int profundidad = 0;
+        bool enCadena = false, escape = false;
+        std::size_t fin = std::string::npos;
+        for (std::size_t i = desde; i < texto.size(); ++i) {
+            const char c = texto[i];
+            if (enCadena) {
+                if (escape) escape = false;
+                else if (c == '\\') escape = true;
+                else if (c == '"') enCadena = false;
+                continue;
+            }
+            if (c == '"') enCadena = true;
+            else if (c == '{') ++profundidad;
+            else if (c == '}' && --profundidad == 0) { fin = i; break; }
+        }
+        if (fin == std::string::npos) break;
+        llamadas.push_back(texto.substr(desde, fin - desde + 1));
+        desde = fin + 1;
+    }
+    return llamadas;
+}
+
 } // namespace funshi::agente::llm

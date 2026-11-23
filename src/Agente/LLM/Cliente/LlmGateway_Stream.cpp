@@ -84,6 +84,19 @@ void procesarDatoSse(StreamState& st, const char* datos, std::size_t largo) {
     if (deltaIt == choice.end() || !deltaIt->is_object()) return;
     const nlohmann::json& delta = *deltaIt;
 
+    // Razonamiento: llama-server/DeepSeek usan reasoning_content; Ollama y
+    // OpenRouter, reasoning.
+    for (const char* clave : {"reasoning_content", "reasoning"}) {
+        if (auto r = delta.find(clave); r != delta.end() && r->is_string()) {
+            const std::string& texto = r->get_ref<const std::string&>();
+            if (!texto.empty()) {
+                marcarPrimerToken(st);
+                st.onChunk(LlmChunk::makeReasoning(texto));
+            }
+            break;
+        }
+    }
+
     if (auto c = delta.find("content"); c != delta.end() && c->is_string()) {
         const std::string& text = c->get_ref<const std::string&>();
         if (!text.empty()) {
@@ -177,6 +190,17 @@ bool OpenAiCompatibleGateway::chatStream(const std::vector<ChatMessage>& message
 
     long httpCode = 0;
     curl_easy_getinfo(curl_, CURLINFO_RESPONSE_CODE, &httpCode);
+
+    {
+        const auto fin = std::chrono::steady_clock::now();
+        const auto ms = [](auto d) {
+            return static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(d).count());
+        };
+        ultima_.msTotal = ms(fin - state.inicio);
+        ultima_.msPrimerToken = state.hayPrimerToken ? ms(state.primerToken - state.inicio) : -1;
+        ultima_.tokensEntrada = state.promptTokens;
+        ultima_.tokensSalida = state.completionTokens;
+    }
 
     if (metricas::activas()) {
         const auto ahora = std::chrono::steady_clock::now();

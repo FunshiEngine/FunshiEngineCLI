@@ -116,14 +116,57 @@ std::string ToolCallSanitizer::repairJson(const std::string& raw) {
     s = std::regex_replace(s, std::regex(R"(,\s*([}\]]))"), "$1");
     s = std::regex_replace(s, std::regex(R"(: NaN)"), ": 0");
     s = std::regex_replace(s, std::regex(R"(: Infinite)"), ": 0");
+    // Nombre y argumentos encadenados sin separar (Phi-4-mini):
+    // {"tool_call": "nombre": {...}} → {"tool":"nombre","arguments":{...}}.
+    s = std::regex_replace(
+        s, std::regex(R"re("(tool_call|tool|name|function|herramienta)"\s*:\s*"([A-Za-z0-9_.]+)"\s*:\s*([\{\[]))re"),
+        "\"tool\":\"$2\",\"arguments\":$3");
+    // Llaves y corchetes desparejos (modelos chicos: "[{..},{..}}}" o falta
+    // la última llave). Se reconstruye: un cierre que no corresponde con la
+    // apertura pendiente cierra antes lo pendiente; los cierres de más se
+    // descartan; al final se cierra lo que quedó abierto.
+    std::string reconstruido;
+    std::string pila;
+    bool enCadena = false, escape = false;
+    for (char c : s) {
+        if (enCadena) {
+            reconstruido += c;
+            if (escape) escape = false;
+            else if (c == '\\') escape = true;
+            else if (c == '"') enCadena = false;
+            continue;
+        }
+        if (c == '"') {
+            enCadena = true;
+        } else if (c == '{' || c == '[') {
+            pila += c;
+        } else if (c == '}' || c == ']') {
+            const char apertura = (c == '}') ? '{' : '[';
+            if (pila.find(apertura) == std::string::npos) continue;  // cierre de más
+            while (!pila.empty() && pila.back() != apertura) {
+                reconstruido += (pila.back() == '{') ? '}' : ']';
+                pila.pop_back();
+            }
+            pila.pop_back();
+        }
+        reconstruido += c;
+    }
+    if (enCadena) reconstruido += '"';
+    for (auto it = pila.rbegin(); it != pila.rend(); ++it) reconstruido += (*it == '{') ? '}' : ']';
+    s = std::move(reconstruido);
     return s;
 }
 
 SanitizedToolCall ToolCallSanitizer::validateShape(const nlohmann::json& obj, const std::string* expectedName) {
     if (!obj.is_object()) return SanitizedToolCall::invalid("No es un objeto JSON");
     std::string name;
-    if (obj.contains("tool") && obj["tool"].is_string()) name = obj["tool"].get<std::string>();
-    else if (obj.contains("name") && obj["name"].is_string()) name = obj["name"].get<std::string>();
+    // Claves que usan los modelos para el nombre (la pedida es "tool").
+    for (const char* clave : {"tool", "name", "tool_call", "function", "herramienta"}) {
+        if (obj.contains(clave) && obj[clave].is_string()) {
+            name = obj[clave].get<std::string>();
+            break;
+        }
+    }
     if (name.empty()) {
         if (expectedName && !expectedName->empty()) {
             if (obj.contains("arguments") && obj["arguments"].is_object()) {
@@ -140,9 +183,13 @@ SanitizedToolCall ToolCallSanitizer::validateShape(const nlohmann::json& obj, co
     nlohmann::json args = nlohmann::json::object();
     if (obj.contains("arguments") && obj["arguments"].is_object()) args = obj["arguments"];
     else if (obj.contains("args") && obj["args"].is_object()) args = obj["args"];
+    else if (obj.contains("parameters") && obj["parameters"].is_object()) args = obj["parameters"];
     else {
         for (auto& [k, v] : obj.items()) {
-            if (k != "tool" && k != "name" && k != "arguments" && k != "args") args[k] = v;
+            if (k != "tool" && k != "name" && k != "tool_call" && k != "function" && k != "herramienta" &&
+                k != "arguments" && k != "args") {
+                args[k] = v;
+            }
         }
     }
     return SanitizedToolCall::valid(name, args, name);

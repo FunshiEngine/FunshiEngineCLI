@@ -62,6 +62,15 @@ private:
     std::exception_ptr cause_;
 };
 
+// Datos de la última llamada al modelo, para mostrar el progreso. -1 = el
+// proveedor no lo informó.
+struct EstadisticasLlamada {
+    long msTotal = -1;
+    long msPrimerToken = -1;
+    long tokensEntrada = -1;
+    long tokensSalida = -1;
+};
+
 /**
  * Contrato que usa el AgentLoop. No sabe si detrás hay Ollama, LM Studio, OpenAI, etc.
  */
@@ -96,6 +105,9 @@ public:
     virtual std::vector<std::string> listModels() = 0;
 
     virtual void close() = 0;
+
+    // Estadísticas de la última llamada a chatStream (aunque haya fallado).
+    virtual EstadisticasLlamada ultimaLlamada() const { return {}; }
 };
 
 /**
@@ -121,6 +133,7 @@ public:
     std::string chat(const std::vector<ChatMessage>& messages) override;
     std::vector<std::string> listModels() override;
     void close() override;
+    EstadisticasLlamada ultimaLlamada() const override { return ultima_; }
 
     // Bandera de cancelación compartida: si pasa a true, la respuesta en curso
     // se aborta (LlmException "Cancelado por el usuario").
@@ -139,6 +152,7 @@ private:
     std::string power_;
     int effectiveMaxTokens_;
     std::shared_ptr<std::atomic<bool>> cancel_;
+    EstadisticasLlamada ultima_;
     mutable std::string toolsKey_;      // cache del array "tools" serializado
     mutable nlohmann::json toolsJson_;
 

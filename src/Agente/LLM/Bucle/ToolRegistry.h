@@ -72,6 +72,9 @@ struct ToolContext {
     std::string outputsDir;                 // Carpeta donde escribir archivos
     std::vector<ToolCategory> grantedCategories; // Categorías ya concedidas
     std::function<PermissionDecision(const PermissionRequest&)> requestPermission = [](const auto&) { return PermissionDecision::DENY; };
+    // Eventos de la ejecución en curso (para que una herramienta que corre
+    // su propio bucle, como lanzar_subagentes, informe su progreso).
+    std::function<void(const AgentEvent&)> onEvent;
 };
 
 /**

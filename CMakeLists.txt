@@ -124,6 +124,8 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/ToolRegistry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/EngineToolFactory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/AgentLoop.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/AgentLoop_Herramientas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/SeparadorPensamiento.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/ToolCallSanitizer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/PromptToolParser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Config/LlmTypes.cpp

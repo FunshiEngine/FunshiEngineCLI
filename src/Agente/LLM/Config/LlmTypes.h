@@ -48,14 +48,19 @@ struct ToolSpec {
  * Chunk tipado del streaming del modelo: texto o pedido de herramienta.
  */
 struct LlmChunk {
-    enum class Type { Text, ToolCall } type;
-    std::string delta;           // Para Text: fragmento de texto
+    // Reasoning: razonamiento del modelo (reasoning_content / reasoning en el
+    // stream); se muestra para monitorear pero no entra al historial.
+    enum class Type { Text, ToolCall, Reasoning } type;
+    std::string delta;           // Para Text/Reasoning: fragmento de texto
     std::string toolCallId;      // Para ToolCall: id de la llamada
     std::string toolCallName;    // Para ToolCall: nombre de la herramienta
     std::string toolCallArgsJson; // Para ToolCall: argumentos como JSON crudo
 
     static LlmChunk makeText(std::string d) {
         LlmChunk c; c.type = Type::Text; c.delta = std::move(d); return c;
+    }
+    static LlmChunk makeReasoning(std::string d) {
+        LlmChunk c; c.type = Type::Reasoning; c.delta = std::move(d); return c;
     }
     static LlmChunk makeToolCall(std::string id, std::string name, std::string argsJson) {
         LlmChunk c; c.type = Type::ToolCall;
@@ -126,15 +131,30 @@ struct AgentAnswer {
 /**
  * Eventos del loop para la UI (texto en vivo y tarjetas de herramientas).
  */
+// Eventos que el bucle emite para la UI. Además del texto y las herramientas:
+//   Pensamiento      razonamiento del modelo (delta), fuera del historial;
+//   Estado           nota de progreso (delta). Con callId, una nota posterior
+//                    con el mismo callId reemplaza a la anterior;
+//   SubagenteInicio  name = título, argsJson = {titulo, instrucciones,
+//                    contexto, perfil, indice, total};
+//   SubagenteFin     ok + result = informe completo.
+// `origen` vacío = agente principal; si no, id del subagente que lo emitió.
 struct AgentEvent {
-    enum class Type { Text, ToolStart, ToolEnd } type;
-    std::string delta;           // Text
+    enum class Type { Text, ToolStart, ToolEnd, Pensamiento, Estado, SubagenteInicio, SubagenteFin } type;
+    std::string delta;           // Text / Pensamiento / Estado
     std::string callId;          // ToolStart/ToolEnd
     std::string name;            // ToolStart/ToolEnd
     std::string argsJson;        // ToolStart
     bool ok = false;             // ToolEnd
     std::string result;          // ToolEnd
     std::vector<std::string> artifacts; // ToolEnd
+    std::string origen;          // id del subagente (vacío = principal)
+
+    static AgentEvent estado(std::string texto, std::string id = "") {
+        AgentEvent e{Type::Estado, std::move(texto)};
+        e.callId = std::move(id);
+        return e;
+    }
 };
 
 } // namespace funshi::agente::llm
