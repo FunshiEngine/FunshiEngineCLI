@@ -169,6 +169,30 @@ void probarUsoDeComandos() {
               "respuesta: sin el resultado copiado");
     }
 
+    // 4c. Correcciones de las llamadas del agente.
+    {
+        harness->setCorreccionesDelAgente(true);
+        // "src/" delante: se quita (si no, crearía src/src/...).
+        const auto conSrc = harness->ejecutarTexto(
+            "project.src.create", {{"project", "Pdef"}, {"path", "src/Scripts/C.java"}, {"file", true}, {"content", "class C {}"}});
+        CHECK(conSrc.respuesta.correcta && conSrc.respuesta.resultado.value("path", "") == "Scripts/C.java",
+              "correcciones: ruta sin \"src/\" delante");
+        const auto conNombre = harness->ejecutarTexto(
+            "project.src.create",
+            {{"project", "Pdef"}, {"path", "Scripts/"}, {"name", "E.java"}, {"file", true}, {"content", "class E {}"}});
+        CHECK(conNombre.respuesta.correcta && conNombre.respuesta.resultado.value("path", "") == "Scripts/E.java",
+              "correcciones: name + carpeta → ruta del archivo");
+        CHECK(harness->ejecutarTexto("project.src.create",
+                                     {{"project", "Pdef"}, {"path", "Scripts/D.java"}, {"file", true}, {"content", nullptr}})
+                  .respuesta.correcta,
+              "correcciones: un argumento en null cuenta como ausente");
+        harness->setProyectoPorDefecto("Pdef");
+        CHECK(harness->ejecutarTexto("scene.list", {{"project", "<proyecto>"}}).respuesta.correcta,
+              "correcciones: el marcador <proyecto> usa el proyecto de trabajo");
+        harness->setProyectoPorDefecto("");
+        harness->setCorreccionesDelAgente(false);
+    }
+
     // 5. Guías convertidas en llamadas y documentación de sus comandos.
     std::vector<std::string> comandos;
     const std::string g = con::guiaEjecutable(

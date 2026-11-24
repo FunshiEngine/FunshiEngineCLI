@@ -57,6 +57,11 @@ public:
     // una ruta (".../Proyects/Demo/srcDemo") o el nombre con otras
     // mayúsculas se corrige al nombre exacto antes de ejecutar.
     void setProyectosConocidos(std::vector<std::string> nombres) { proyectosConocidos_ = std::move(nombres); }
+    // Correcciones para las llamadas de un modelo (las del usuario no las
+    // necesitan): los argumentos en null y el marcador "<proyecto>" cuentan
+    // como ausentes; en project.src.* se quita un "src/" inicial de las rutas
+    // y "name" con una carpeta en "path" se une en la ruta del archivo.
+    void setCorreccionesDelAgente(bool activas) { correccionesAgente_ = activas; }
 
     // Nombre de proyecto conocido al que se refiere `valor` (el mismo nombre
     // con otras mayúsculas o una ruta que lo contiene). Vacío si no hay uno.
@@ -64,9 +69,12 @@ public:
 
 private:
     Solicitud conProyectoPorDefecto(const Solicitud& solicitud) const;
+    // Rutas de project.src.* sin "src/" delante.
+    void normalizarRutasSrc(Solicitud& solicitud) const;
     Auditoria& auditoria_;
     std::string proyectoPorDefecto_;
     std::vector<std::string> proyectosConocidos_;
+    bool correccionesAgente_ = false;
 };
 
 }  // namespace funshi

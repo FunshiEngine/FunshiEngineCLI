@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 #include <mutex>
 
 namespace funshi {
@@ -77,7 +78,9 @@ Solicitud Harness::conProyectoPorDefecto(const Solicitud& solicitud) const {
     if (!ayuda || !ayuda->usaProyecto) return solicitud;
     const auto it = solicitud.argumentos.find("project");
     const std::string valor = it != solicitud.argumentos.end() && it->is_string() ? it->get<std::string>() : "";
-    if (!valor.empty()) {
+    // "<proyecto>" es el marcador de los ejemplos, no un nombre: cuenta como ausente.
+    const bool marcador = valor.size() > 2 && valor.front() == '<' && valor.back() == '>';
+    if (!valor.empty() && !marcador) {
         // Un nombre inexistente que se refiere a uno real (ruta, mayúsculas)
         // se corrige; uno que no se reconoce llega tal cual y el comando
         // responde que no existe.
@@ -96,6 +99,31 @@ Solicitud Harness::conProyectoPorDefecto(const Solicitud& solicitud) const {
     return copia;
 }
 
+void Harness::normalizarRutasSrc(Solicitud& solicitud) const {
+    if (!correccionesAgente_ || solicitud.comando.rfind("project.src.", 0) != 0 || !solicitud.argumentos.is_object()) return;
+    for (const char* clave : {"path", "newPath"}) {
+        auto it = solicitud.argumentos.find(clave);
+        if (it == solicitud.argumentos.end() || !it->is_string()) continue;
+        std::string ruta = it->get<std::string>();
+        while (ruta.rfind("./", 0) == 0) ruta.erase(0, 2);
+        if (ruta.size() > 4 && (ruta.rfind("src/", 0) == 0 || ruta.rfind("src\\", 0) == 0)) ruta.erase(0, 4);
+        *it = ruta;
+    }
+    // "name" con "path" de carpeta (el formato de file.create): la ruta del
+    // archivo es la carpeta más el nombre. "name" no es argumento del comando.
+    auto& a = solicitud.argumentos;
+    if (solicitud.comando == "project.src.create" && a.contains("name") && a["name"].is_string()) {
+        const std::string nombre = a["name"].get<std::string>();
+        std::string ruta = a.value("path", std::string());
+        if (!nombre.empty() && (ruta.empty() || ruta.back() == '/' || ruta.back() == '\\' ||
+                                std::filesystem::path(ruta).extension().empty())) {
+            if (!ruta.empty() && ruta.back() != '/' && ruta.back() != '\\') ruta += '/';
+            a["path"] = ruta + nombre;
+        }
+        a.erase("name");
+    }
+}
+
 ResultadoComando Harness::ejecutar(const Solicitud& solicitud,
                                    bool modificaDisco) {
     // Un comando a la vez en todo el proceso: varias sesiones de chat y
@@ -109,7 +137,15 @@ ResultadoComando Harness::ejecutar(const Solicitud& solicitud,
         modificaDisco = auditoria_.esComandoDeEscritura(solicitud.comando);
     }
 
-    const Solicitud efectiva = conProyectoPorDefecto(solicitud);
+    Solicitud efectiva = conProyectoPorDefecto(solicitud);
+    if (correccionesAgente_ && efectiva.argumentos.is_object()) {
+        // Un argumento en null es un argumento ausente (los comandos esperan
+        // el tipo declarado o nada).
+        for (auto it = efectiva.argumentos.begin(); it != efectiva.argumentos.end();) {
+            it = it->is_null() ? efectiva.argumentos.erase(it) : std::next(it);
+        }
+    }
+    normalizarRutasSrc(efectiva);
     ResultadoComando resultado = ejecutarSolicitud(efectiva);
 
     EntradaAuditoria entrada;

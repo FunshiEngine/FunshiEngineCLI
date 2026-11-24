@@ -157,6 +157,7 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
     const std::string proyecto = proyectoDeTrabajo(sesion.proyectoActivo, proyectos);
     harness->setProyectoPorDefecto(proyecto);
     harness->setProyectosConocidos(proyectos);
+    harness->setCorreccionesDelAgente(true);
 
     // Bucles de subagentes: perfil acotado, gateway propio, sin delegar.
     agente::FabricaBucles fabricaSub = [estado, harness](const std::string& perfil) {
