@@ -52,7 +52,9 @@ std::string sinMarcasDeSalida(const std::string& texto) {
         // "RESULTADO DE x:" y el JSON que lo sigue son el resultado copiado.
         const bool copiado = empieza(kResultadoDe) || (anteriorFueResultado && empieza("{"));
         anteriorFueResultado = empieza(kResultadoDe) || (anteriorFueResultado && empieza("{"));
-        if (!copiado && !empieza(kFinSalida) && !empieza(kInicioSalida)) out += linea + (fin < texto.size() ? "\n" : "");
+        if (!copiado && !empieza(kFinSalida) && !empieza(kInicioSalida) && !empieza(kMarcaAclaracion)) {
+            out += linea + (fin < texto.size() ? "\n" : "");
+        }
         ini = fin + 1;
     }
     const auto ultimo = out.find_last_not_of(" \t\r\n");
@@ -158,7 +160,16 @@ std::string AgentLoop::nombreParecido(const std::string& nombre) const {
         }
     }
     const std::size_t tope = std::max<std::size_t>(2, mejor.size() / 5);
-    return mejorDist <= tope ? mejor : std::string();
+    if (mejorDist > tope) return {};
+    // Un comando (con puntos) solo se corrige dentro de su grupo y por un
+    // carácter en la última parte: "rename" no es "create" ni "setname" es
+    // "settag", aunque estén a pocas letras.
+    const auto punto = mejor.rfind('.');
+    if (punto != std::string::npos) {
+        if (nombre.size() <= punto || nombre.compare(0, punto + 1, mejor, 0, punto + 1) != 0) return {};
+        if (distancia(nombre.substr(punto + 1), mejor.substr(punto + 1)) > 1) return {};
+    }
+    return mejor;
 }
 
 bool AgentLoop::existeHerramienta(const std::string& nombre) const {

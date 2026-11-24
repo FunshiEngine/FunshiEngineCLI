@@ -102,6 +102,7 @@ std::string resultadosParaModelo(const std::string& resultados);
 inline constexpr const char* kInicioSalida = "[SALIDA DE TUS HERRAMIENTAS";
 inline constexpr const char* kFinSalida = "[FIN DE LA SALIDA]";
 inline constexpr const char* kResultadoDe = "RESULTADO DE ";
+inline constexpr const char* kMarcaAclaracion = "[Aclaración del usuario";
 std::string sinMarcasDeSalida(const std::string& texto);
 
 namespace detalle {

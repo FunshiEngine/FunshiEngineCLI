@@ -39,7 +39,7 @@ bool AgentLoop::incorporarAclaraciones(std::vector<ChatMessage>& messages, std::
         emitir(AgentEvent::estado("aclaración del usuario incorporada: " + a));
     }
     const auto comoMensaje = [&] {
-        messages.push_back(ChatMessage::user("[Aclaración del usuario mientras trabajabas]\n" + texto +
+        messages.push_back(ChatMessage::user(std::string(kMarcaAclaracion) + " mientras trabajabas]\n" + texto +
                                              "\nTenla en cuenta en lo que sigue de este pedido."));
     };
     switch (formatoAclaracion_) {

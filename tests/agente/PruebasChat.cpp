@@ -60,6 +60,21 @@ std::vector<LlamadaVista> turnoConAclaracion(llm::FormatoAclaracion formato, llm
     return registro->llamadas;
 }
 
+// Herramienta que solo cuenta sus llamadas.
+class HerramientaContada : public llm::Tool {
+public:
+    explicit HerramientaContada(std::string nombre) : nombre_(std::move(nombre)) {}
+    llm::ToolSpec spec() const override { return {nombre_, "prueba", R"({"type":"object","properties":{}})"}; }
+    llm::ToolResult execute(const nlohmann::json&, const llm::ToolContext&) override {
+        ++llamadas;
+        return llm::ToolResult::ok("hecho");
+    }
+    int llamadas = 0;
+
+private:
+    std::string nombre_;
+};
+
 }  // namespace
 
 void probarChat() {
@@ -154,6 +169,35 @@ void probarChat() {
         s.descartarPedidos(5);
         CHECK(s.historial.size() == 1 && s.historial.front().role == "system" && s.tareaAnterior.vacia(),
               "descartar: más pedidos de los que hay deja solo el sistema");
+    }
+
+    // 5. Nombres mal escritos: se corrigen solo dentro del mismo comando.
+    {
+        auto crear = std::make_shared<HerramientaContada>("scene.object.create");
+        auto etiqueta = std::make_shared<HerramientaContada>("scene.object.settag");
+        auto meta = std::make_shared<HerramientaContada>("ejecutar_comando");
+        auto tools = std::make_shared<llm::ToolRegistry>();
+        tools->add(crear);
+        tools->add(etiqueta);
+        tools->add(meta);
+        auto registro = std::make_shared<GatewayGuion::Registro>();
+        auto gateway = std::make_shared<GatewayGuion>(
+            [](const LlamadaVista& v) {
+                const bool primera = v.mensajes.back().content == "prueba";
+                return std::vector<llm::LlmChunk>{llm::LlmChunk::makeText(
+                    primera ? "```tool_call\n{\"tool\":\"scene.object.rename\",\"arguments\":{}}\n"
+                              "{\"tool\":\"scene.object.setname\",\"arguments\":{}}\n"
+                              "{\"tool\":\"scene.object.creat\",\"arguments\":{}}\n"
+                              "{\"tool\":\"ejecutr_comand\",\"arguments\":{}}\n```"
+                            : "Listo.\n[Aclaración del usuario mientras trabajabas]")};
+            },
+            registro);
+        llm::AgentLoop bucle(gateway, tools, false, 1000);
+        std::vector<llm::ChatMessage> historial = {llm::ChatMessage::user("prueba")};
+        const auto r = bucle.run(historial);
+        CHECK(crear->llamadas == 1 && etiqueta->llamadas == 0 && meta->llamadas == 1,
+              "nombres: rename y setname no se convierten en create/settag; creat y ejecutr_comand sí se corrigen");
+        CHECK(r.text.find("[Aclaración") == std::string::npos, "respuesta: sin la marca de aclaración copiada");
     }
 
     // 4. Silvy: la aclaración queda en la tarea cerrada.

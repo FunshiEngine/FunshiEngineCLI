@@ -282,7 +282,7 @@ void SesionAgente::descartarPedidos(std::size_t pedidos) {
     // (modo prompt) ni una aclaración incorporada durante el turno.
     const auto esPedido = [](const agente::llm::ChatMessage& m) {
         return m.role == "user" && m.content.rfind(agente::llm::kInicioSalida, 0) != 0 &&
-               m.content.rfind("[Aclaración del usuario", 0) != 0;
+               m.content.rfind(agente::llm::kMarcaAclaracion, 0) != 0;
     };
     std::size_t vistos = 0;
     std::size_t corte = historial.size();
