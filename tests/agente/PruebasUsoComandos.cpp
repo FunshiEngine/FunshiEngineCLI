@@ -157,6 +157,16 @@ void probarUsoDeComandos() {
         CHECK(sc.ok() && sc.name == "ejecutar_comando" && sc.args.value("comando", "") == "scene.list" &&
                   sc.args["argumentos"].value("project", "") == "Pdef",
               "sanitizador: {\"comando\"…} sin tool → ejecutar_comando");
+        // Código con comillas triples o con saltos de línea crudos dentro de la cadena.
+        const auto triples = llm::ToolCallSanitizer::block(
+            "```json\n{\"tool\":\"project.src.create\",\"arguments\":{\"path\":\"A.java\",\"content\": \"\"\"\n"
+            "public class A {\n    String s = \"hola\";\n}\n\"\"\"}}\n```");
+        CHECK(triples.ok() && triples.args.value("content", "") == "public class A {\n    String s = \"hola\";\n}\n",
+              "sanitizador: contenido entre comillas triples");
+        const auto crudo = llm::ToolCallSanitizer::block(
+            "{\"tool\":\"project.src.create\",\"arguments\":{\"path\":\"A.java\",\"content\":\"linea 1\n\tlinea 2\"}}");
+        CHECK(crudo.ok() && crudo.args.value("content", "") == "linea 1\n\tlinea 2",
+              "sanitizador: saltos de línea crudos dentro de una cadena");
         // Dos llamadas en un bloque, una por línea, la primera sin cerrar.
         const auto partes = llm::PromptToolParser::llamadasSinCerco(
             "```json\n{\"tool\":\"ejecutar_comando\",\"arguments\":{\"comando\":\"a\",\"argumentos\":{\"x\":1}}\n"
