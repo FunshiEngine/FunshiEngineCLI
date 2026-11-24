@@ -62,6 +62,7 @@ FunshiEngineCLI/
     │   ├── Subagentes/       #   PlantillasAgente (instrucciones), GestorSubagentes,
     │   │                     #   HerramientaSubagentes (lanzar_subagentes)
     │   ├── Sesiones/         #   SesionChat + AlmacenSesiones (<config>/sesiones/)
+    │   ├── Tareas/           #   TareaAgente: objetivo y cierre de cada pedido (contexto del siguiente)
     │   ├── Documentos/       #   RAG de documentos: ExtractorTexto (+_Pdf), AlmacenVectores
     │   │                     #   (FVDB), Embeddings (cliente + servidor Qwen3), BaseDocumentos,
     │   │                     #   HerramientaDocumentos (buscar_documentos)
