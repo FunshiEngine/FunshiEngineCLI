@@ -9,8 +9,14 @@ assets, compilación de scripts y consulta del registro de diagnósticos.
 **Novedades:**
 - **Agente Silvy integrado**: lenguaje natural + comandos CLI unificados (`/comando` = CLI, texto = LLM)
 - **Model Browser nativo (Hugging Face)**: búsqueda, variantes (GB, quantization), descarga automática
-- **Inferencia local**: clona/compila `llama.cpp`, descarga GGUF, levanta `llama-server` — todo automático
+- **Inferencia local**: descarga el binario oficial de `llama-server` para tu SO (y lo mantiene actualizado), descarga GGUF reanudable sin repetir lo ya bajado, levanta el servidor — todo automático y tolerante a falta de red
 - **Chat interactivo en TUI**: 6ª pestaña "Modelos HF" + pestaña "Chat Silvy" con indicador de modo
+- **Sesiones**: varias conversaciones con Silvy a la vez, guardadas y retomables (`Ctrl+N`, `/sesiones`)
+- **RAG de comandos**: antes de cada pedido Silvy recupera la documentación de los comandos relevantes; puede usar cualquier comando del catálogo (`ejecutar_comando`) y tu propio conocimiento en `.agentes/conocimiento/*.md`
+- **Subagentes**: Silvy delega tareas independientes en subagentes con perfiles de herramientas acotados
+- **Monitoreo en el chat**: razonamiento del modelo, cada comando con sus argumentos y su resultado, rondas con tiempo y tokens; la tarea y el trabajo de cada subagente se abren con un clic (`/sub N`)
+- **Configuración visual**: cada color de la TUI con un selector de color por ratón (cuadro + slider de tono, vista previa en vivo) e idioma de la interfaz, guardados en `.agentes/tui.json`
+- **Documentos para Silvy (RAG)**: PDFs, Word, EPUB, HTML, texto y código en `.agentes/documentos/` (no versionada), indexados con embeddings Qwen3 en una base local propia al abrir la TUI o con `/docs actualizar`
 
 El código está modularizado en un núcleo reutilizable agnóstico del
 transporte (`src/Nucleo`), preparado para que una futura app de escritorio
@@ -73,7 +79,7 @@ echo '{"command":"project.create","args":{"name":"MiJuego2D","dimension":2}}' \
 Respuesta:
 
 ```json
-{"apiVersion":1,"error":null,"ok":true,"result":{"dimension":2,"name":"MiJuego2D","path":".../MotorGrafico/Proyects/MiJuego2D"}}
+{"apiVersion":2,"error":null,"ok":true,"result":{"dimension":2,"name":"MiJuego2D","path":".../MotorGrafico/Proyects/MiJuego2D"}}
 ```
 
 ## Agente Silvy (Chat)
@@ -95,7 +101,7 @@ En la pestaña **Chat Silvy** (o con `--chat`):
 1. Pestaña **Modelos HF** (Tab/→ 6 veces)
 2. Buscar modelo (ej: `qwen2.5 gguf`, `phi-4-mini`)
 3. Enter en modelo → ver variantes (archivo | GB | quantization)
-4. Enter en variante → **auto**: descarga GGUF → verifica SHA256 → compila llama.cpp → levanta llama-server → configura Silvy
+4. Enter en variante → **auto**: reutiliza o descarga GGUF → verifica SHA256 → prepara llama-server oficial → levanta llama-server → configura Silvy
 5. Ver indicador en Chat: `[LOCAL: modelo]` y barra superior: `🟢 LOCAL: modelo`
 
 ### Servidores LLM compatibles
@@ -109,8 +115,10 @@ En la pestaña **Chat Silvy** (o con `--chat`):
 
 ## Documentación
 
-- [MANUAL_DE_USO.md](MANUAL_DE_USO.md) — referencia completa de comandos, argumentos, formatos de respuesta y cód de salida.
-- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) — arquitectura por capas y relación con el motor.
+- [doc/MANUAL_DE_USO.md](doc/MANUAL_DE_USO.md) — referencia completa de comandos, argumentos, formatos de respuesta y cód de salida.
+- [doc/PROJECT_STRUCTURE.md](doc/PROJECT_STRUCTURE.md) — árbol de archivos y relación con el motor.
+- [doc/ARQUITECTURA.md](doc/ARQUITECTURA.md) — arquitectura: capas, módulos, flujos y decisiones.
+- [doc/uml/](doc/uml/) — diagramas UML (componentes, secuencias, estados, clases) en Mermaid.
 
 ## Tests
 

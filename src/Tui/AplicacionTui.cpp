@@ -5,7 +5,7 @@
 */
 // Fábrica de AplicacionTui.
 #include "Tui/AplicacionTui.h"
-#include "Tui/TemaTui.h"
+#include "Tui/Terminal/TemaTui.h"
 
 #include <memory>
 

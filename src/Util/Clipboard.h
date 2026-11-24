@@ -15,31 +15,52 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-
 #pragma once
 
-#include <string>
 #include <optional>
+#include <string>
 
 namespace funshi::util {
 
-// Abstracción cross-platform para portapapeles del sistema
-// Linux: usa xclip (X11) o wl-copy (Wayland)
-// Windows: usa Win32 API
+// Resultado de una copia: con qué se hizo o por qué falló.
+struct ResultadoCopia {
+    bool ok = false;
+    std::string metodo;  // "wl-copy", "xclip", "xsel", "pbcopy", "tmux", "Win32", "OSC 52"
+    std::string error;   // motivo legible si !ok
+};
+
+// Portapapeles del sistema, multiplataforma.
+//
+// Orden de métodos:
+//   Windows: API Win32 (CF_UNICODETEXT, acentos correctos).
+//   macOS:   pbcopy.
+//   Linux:   wl-copy (Wayland) → xclip / xsel (X11) → tmux load-buffer -w (dentro de tmux).
+// Sin ninguno (SSH, consola sin X) queda OSC 52: la secuencia de escape con la
+// que la propia terminal copia. La CLI no puede escribirla por su cuenta sin
+// pisar el dibujado de la TUI, así que la devuelve `secuenciaOsc52()` para que
+// la escriba quien controla la salida.
 class Clipboard {
 public:
-    Clipboard() = default;
-    ~Clipboard() = default;
+    // Copia con la herramienta del sistema. Puede tardar (lanza un proceso):
+    // no llamar desde el hilo de dibujado.
+    static ResultadoCopia copiar(const std::string& texto);
 
-    // Copia texto al portapapeles del sistema
-    // Retorna true si éxito, false si fallo
-    static bool copy(const std::string& text);
+    // Hay alguna herramienta del sistema utilizable (detección cacheada).
+    static bool hayHerramientaSistema();
 
-    // Obtiene texto del portapapeles (opcional, para futuro uso)
+    // Secuencia OSC 52 lista para escribir en la terminal, envuelta para tmux
+    // o screen si hace falta. Vacía si el texto supera el límite habitual de
+    // las terminales (~74 KB de texto).
+    static std::string secuenciaOsc52(const std::string& texto);
+
+    // Compatibilidad: copia y devuelve si funcionó.
+    static bool copy(const std::string& text) { return copiar(text).ok; }
+
+    // Obtiene texto del portapapeles (sin uso en la TUI por ahora).
     static std::optional<std::string> paste();
 
-    // Verifica si el portapapeles está disponible
-    static bool isAvailable();
+    // Equivale a hayHerramientaSistema().
+    static bool isAvailable() { return hayHerramientaSistema(); }
 };
 
 }  // namespace funshi::util

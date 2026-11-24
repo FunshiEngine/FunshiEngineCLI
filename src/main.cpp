@@ -22,6 +22,8 @@
 // salida correspondiente. Toda la lógica de comandos vive en src/Comandos y
 // src/Nucleo, de modo que una UI de escritorio puede llamar al núcleo sin
 // pasar por este archivo.
+#include "Agente/LLM/Config/LlmConfig.h"
+#include "Agente/LLM/Cliente/HttpDescarga.h"
 #include "Nucleo/NucleoCLI.h"
 #include "Nucleo/Registro.h"
 #include "Nucleo/Respuesta.h"
@@ -54,6 +56,15 @@ int errorUso(const std::string& codigo, const std::string& mensaje,
 }  // namespace
 
 int main(int argc, char* argv[]) {
+    // Aplicar rutas configuradas/persistidas antes de cualquier operación que
+    // pueda resolver ubicaciones (proyectos, modelos, etc.).
+    {
+        auto cfg = funshi::agente::llm::LlmConfig::load();
+        cfg.aplicarRutasEntorno();
+    }
+    // cURL debe inicializarse una vez antes de que existan hilos de red.
+    funshi::agente::llm::http::inicializarCurl();
+
     // Ayuda y versión en prosa (sin JSON) para uso interactivo.
     if (argc == 2) {
         const std::string argumento(argv[1]);

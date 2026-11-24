@@ -208,7 +208,7 @@ Reglas:
   por commits ajenos, reportarlos y esperar instrucciones.
 - **Documentación sincronizada**: la documentación es parte de la tarea. Antes
   de empezar, revisar los `.md` que describen el área afectada (`README.md`,
-  `MANUAL_DE_USO.md`, `PROJECT_STRUCTURE.md` cuando existan) y, si el cambio
+  `doc/MANUAL_DE_USO.md`, `doc/PROJECT_STRUCTURE.md`, `doc/ARQUITECTURA.md` y `doc/uml/` cuando existan) y, si el cambio
   agrega un `.cpp`, una dependencia o un target, mantener el `CMakeLists.txt` al
   día en el mismo commit.
 - **Commits atómicos por tarea**: cada tarea terminada cierra con su commit (o

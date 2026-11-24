@@ -6,15 +6,16 @@
 // AplicacionTui — módulo core
 #include "Tui/AplicacionTui.h"
 
-#include "Tui/TemaTui.h"
-#include "Tui/UtilTui.h"
+#include "Tui/Terminal/TemaTui.h"
+#include "Tui/Terminal/UtilTui.h"
+#include "Nucleo/AyudaComandos.h"
 
 #include "Agente/Auditoria.h"
 #include "Agente/Harness.h"
 #include "Agente/Silvy.h"
-#include "Agente/LLM/HfApi.h"
-#include "Agente/LLM/HfTypes.h"
-#include "Agente/LLM/LocalInference.h"
+#include "Agente/LLM/HuggingFace/HfApi.h"
+#include "Agente/LLM/HuggingFace/HfTypes.h"
+#include "Agente/LLM/Local/LocalInference.h"
 
 #include "Nucleo/CatalogoComandos.h"
 #include "Nucleo/NucleoCLI.h"
@@ -77,6 +78,7 @@ bool AplicacionTui::eventoEnEntrada(ftxui::Event evento) {
 
 void AplicacionTui::enfocarEntrada() {
     focoEnEntrada_ = true;
+    ayudaVisible_ = false;
     mensaje_ = "Escribe un comando y pulsa Enter (Esc para volver)";
     mensajeEsError_ = false;
 }
@@ -87,6 +89,7 @@ void AplicacionTui::desenfocarEntrada() {
 
 void AplicacionTui::ejecutarComandoEscrito() {
     const std::string linea = textoComando_;
+    if (ordenDePreferencias(linea)) return;  // tui.color / tui.idioma
     const std::vector<Token> tokens = tokenizar(linea);
     if (tokens.empty()) return;
 
@@ -104,6 +107,12 @@ void AplicacionTui::ejecutarComandoEscrito() {
     }
 
     const std::string comando = tokens[0].texto;
+    // Los comandos que trabajan sobre un proyecto usan el activo si no se
+    // indica project=.
+    if (!argumentos.contains("project") && !proyectoActivo_.empty()) {
+        const AyudaComando* ayuda = buscarAyudaComando(comando);
+        if (ayuda && ayuda->usaProyecto) argumentos["project"] = proyectoActivo_;
+    }
     const ResultadoComando resultado = llamar(comando, argumentos);
     if (resultado.respuesta.correcta) {
         mensaje_ = comando + ": ok" + resumenResultado(resultado.respuesta.resultado);
@@ -114,6 +123,7 @@ void AplicacionTui::ejecutarComandoEscrito() {
         mensajeEsError_ = true;
     }
     textoComando_.clear();
+    cursorComando_ = 0;
     recargarSeccionActual(false);
 }
 
@@ -128,6 +138,67 @@ std::string AplicacionTui::resumenResultado(const nlohmann::json& resultado) {
     return {};
 }
 
+void AplicacionTui::abrirAyuda() {
+    ayudaVisible_ = true;
+    focoEnEntrada_ = false;
+    const int total = static_cast<int>(ayudaComandos().size());
+    ayudaSeleccion_ = std::max(0, std::min(total - 1, ayudaSeleccion_));
+    mensaje_ = "Ayuda: elige un comando para ver cómo usarlo";
+    mensajeEsError_ = false;
+}
+
+void AplicacionTui::moverSeleccionAyuda(int delta) {
+    const int total = static_cast<int>(ayudaComandos().size());
+    if (total == 0) return;
+    ayudaSeleccion_ = std::max(0, std::min(total - 1, ayudaSeleccion_ + delta));
+}
+
+bool AplicacionTui::eventoEnAyuda(ftxui::Event evento) {
+    if (evento == ftxui::Event::CtrlC || evento == ftxui::Event::Character('\x03')) {
+        pantalla_->Exit();
+        return true;
+    }
+    if (evento == ftxui::Event::Escape || evento == ftxui::Event::Character('?') ||
+        evento == ftxui::Event::Character('q')) {
+        ayudaVisible_ = false;
+        mensaje_ = "Listo";
+        mensajeEsError_ = false;
+        return true;
+    }
+    const int pagina = std::max(1, filasVisibles());
+    if (evento == ftxui::Event::ArrowUp) { moverSeleccionAyuda(-1); return true; }
+    if (evento == ftxui::Event::ArrowDown) { moverSeleccionAyuda(1); return true; }
+    if (evento == ftxui::Event::PageUp) { moverSeleccionAyuda(-pagina); return true; }
+    if (evento == ftxui::Event::PageDown) { moverSeleccionAyuda(pagina); return true; }
+    if (evento == ftxui::Event::Home) { ayudaSeleccion_ = 0; return true; }
+    if (evento == ftxui::Event::End) {
+        ayudaSeleccion_ = static_cast<int>(ayudaComandos().size()) - 1;
+        return true;
+    }
+    if (evento == ftxui::Event::Return) {
+        const auto& lista = ayudaComandos();
+        if (ayudaSeleccion_ < 0 || ayudaSeleccion_ >= static_cast<int>(lista.size())) return true;
+        const AyudaComando& ayuda = lista[ayudaSeleccion_];
+        ayudaVisible_ = false;
+        // Chat y Modelos HF no muestran la caja de comandos global.
+        if (seccionActual() == SeccionTui::Chat || seccionActual() == SeccionTui::ModelosHF) {
+            irASeccion(indiceSeccion(SeccionTui::Proyectos));
+        }
+        textoComando_ = ayuda.ejemplo;
+        cursorComando_ = static_cast<int>(textoComando_.size());
+        focoEnEntrada_ = true;
+        mensaje_ = "Ejemplo de " + ayuda.comando + ": edítalo y pulsa Enter (Esc cancela)";
+        if (ayuda.usaProyecto && proyectoActivo_.empty()) {
+            mensaje_ += " · falta proyecto: selecciona uno o agrega project=Nombre";
+        }
+        mensajeEsError_ = false;
+        return true;
+    }
+    // Las flechas laterales no cambian de sección mientras la ayuda está
+    // abierta; el resto de teclas se ignora.
+    return true;
+}
+
 void AplicacionTui::recorrerHistorial(int delta) {
     if (historial_.empty()) return;
     if (indiceHistorial_ < 0) indiceHistorial_ = static_cast<int>(historial_.size());
@@ -136,6 +207,7 @@ void AplicacionTui::recorrerHistorial(int delta) {
     textoComando_ = indiceHistorial_ < static_cast<int>(historial_.size())
                         ? historial_[indiceHistorial_]
                         : std::string();
+    cursorComando_ = static_cast<int>(textoComando_.size());
 }
 
 

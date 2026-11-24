@@ -19,13 +19,13 @@
 #ifndef FUNSHI_ESCENA_CONTEXTO_H
 #define FUNSHI_ESCENA_CONTEXTO_H
 
-#include <Assets/AssetManager.h>
-#include <Assets/AssimpMeshLoader.h>
+#include <Assets/Mallas/AssetManager.h>
+#include <Assets/Mallas/AssimpMeshLoader.h>
 #include <Events/EventBus.h>
 #include <Fisicas/PhysicsEngine.h>
-#include <Scenes/EditorController.h>
-#include <Scenes/SceneRegistry.h>
-#include <Scenes/SceneSerializer.h>
+#include <Scenes/Editor/EditorController.h>
+#include <Scenes/Registro/SceneRegistry.h>
+#include <Scenes/Serializacion/SceneSerializer.h>
 
 #include <memory>
 #include <string>

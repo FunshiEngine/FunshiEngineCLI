@@ -73,6 +73,9 @@ enum class ComandoCLI {
     EscenaObjetoSetField,
     DiagnosticoListar,
     DiagnosticoLimpiar,
+    CliConfigLeer,
+    CliConfigEscribir,
+    AgenteProcesar,
     Desconocido
 };
 

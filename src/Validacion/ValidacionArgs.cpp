@@ -47,7 +47,7 @@ bool validarArgumentos(const nlohmann::json& argumentos,
     for (const RequisitoArg& req : requisitos) {
         if (!argumentos.contains(req.nombre)) {
             if (req.requerido) {
-                error = "args." + req.nombre + " (string) es requerido";
+                error = "args." + req.nombre + " (" + nombreTipo(req.tipo) + ") es requerido";
                 return false;
             }
             continue;

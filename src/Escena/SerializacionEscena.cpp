@@ -18,10 +18,10 @@
 */
 #include "Escena/SerializacionEscena.h"
 
-#include <Objetos/Componentes/Color.h>
-#include <Objetos/Componentes/Model.h>
-#include <Objetos/Componentes/Script.h>
-#include <Objetos/Componentes/Transform.h>
+#include <Objetos/Componentes/Render/Color.h>
+#include <Objetos/Componentes/Render/Model.h>
+#include <Objetos/Componentes/Scripting/Script.h>
+#include <Objetos/Componentes/Escena/Transform.h>
 
 #include <functional>
 #include <typeinfo>

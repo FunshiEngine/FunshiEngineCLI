@@ -1,0 +1,130 @@
+/*
+ * Copyright 2024 FunshiEngine
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#pragma once
+
+#include "Agente/LLM/Bucle/ToolRegistry.h"
+#include "Agente/Harness.h"
+#include "Agente/Conocimiento/BaseConocimiento.h"
+#include <nlohmann/json.hpp>
+#include <string>
+#include <memory>
+
+namespace funshi::agente::llm {
+
+/**
+ * Base para tools que ejecutan comandos del motor via Harness.
+ */
+class EngineTool : public Tool {
+public:
+    explicit EngineTool(std::shared_ptr<Harness> harness) : harness_(std::move(harness)) {}
+
+    ToolCategory category() const override { return ToolCategory::FILES; }
+
+protected:
+    std::shared_ptr<Harness> harness_;
+
+    ToolResult executeCommand(const std::string& command, const nlohmann::json& args) {
+        if (!harness_) {
+            return ToolResult::error("Harness no disponible");
+        }
+        funshi::Solicitud sol;
+        sol.comando = command;
+        sol.argumentos = args;
+        // El resumen de un archivo es para el usuario (lo muestra el chat), no un
+        // argumento del comando. Los modelos lo nombran de varias formas.
+        if (sol.argumentos.is_object()) {
+            for (const char* k : {"resumen", "summary", "descripcion", "description"}) sol.argumentos.erase(k);
+        }
+        sol.id = "llm-" + std::to_string(std::hash<std::string>{}(command + args.dump()));
+
+        auto resultado = harness_->ejecutar(sol);
+        if (resultado.respuesta.correcta) {
+            return ToolResult::ok(resultado.respuesta.resultado.dump());
+        }
+        std::string error = resultado.respuesta.mensajeError;
+        if (resultado.respuesta.codigoError == "invalid_project") {
+            // El modelo inventó el nombre: se le dan los reales para que corrija
+            // (en lugar de crear un proyecto nuevo).
+            funshi::Solicitud lista;
+            lista.comando = "project.list";
+            const auto r = harness_->ejecutar(lista);
+            std::string nombres;
+            if (r.respuesta.correcta) {
+                for (const auto& p : r.respuesta.resultado.value("projects", nlohmann::json::array())) {
+                    if (!nombres.empty()) nombres += ", ";
+                    nombres += "\"" + p.value("name", std::string()) + "\"";
+                }
+            }
+            error += ". \"project\" debe ser el nombre exacto de un proyecto existente: " +
+                     (nombres.empty() ? std::string("no hay proyectos") : nombres) + ".";
+            const std::string dado = sol.argumentos.value("project", std::string());
+            if (dado.find('/') != std::string::npos || dado.find('\\') != std::string::npos) {
+                error += " Pasaste una ruta: usa solo el nombre.";
+            }
+        } else if (resultado.respuesta.codigoError == "invalid_request") {
+            // Argumentos mal: se devuelve cómo se usa el comando, para corregir
+            // en el siguiente intento en lugar de repetir la misma llamada.
+            const std::string uso = conocimiento::BaseConocimiento::usoDeComando(command);
+            if (!uso.empty()) error += "\n" + uso;
+        }
+        return ToolResult::error(error);
+    }
+};
+
+class ProjectCreateTool : public EngineTool {
+public:
+    using EngineTool::EngineTool;
+    ToolSpec spec() const override {
+        return ToolSpec{
+            "project.create",
+            "Crea un nuevo proyecto (2D o 3D)",
+            R"({"type":"object","properties":{"name":{"type":"string"},"dimension":{"type":"integer","enum":[2,3]}},"required":["name","dimension"]})"
+        };
+    }
+    ToolResult execute(const nlohmann::json& args, const ToolContext&) override {
+        return executeCommand("project.create", args);
+    }
+};
+
+class ProjectListTool : public EngineTool {
+public:
+    using EngineTool::EngineTool;
+    ToolSpec spec() const override {
+        return ToolSpec{"project.list", "Lista todos los proyectos existentes", R"({"type":"object","properties":{}})"};
+    }
+    ToolCategory category() const override { return ToolCategory::NONE; }
+    ToolResult execute(const nlohmann::json&, const ToolContext&) override {
+        return executeCommand("project.list", nlohmann::json::object());
+    }
+};
+
+class ProjectConfigGetTool : public EngineTool {
+public:
+    using EngineTool::EngineTool;
+    ToolSpec spec() const override {
+        return ToolSpec{
+            "project.config.get", "Obtiene la configuración de un proyecto",
+            R"({"type":"object","properties":{"project":{"type":"string"}},"required":["project"]})"
+        };
+    }
+    ToolCategory category() const override { return ToolCategory::NONE; }
+    ToolResult execute(const nlohmann::json& args, const ToolContext&) override {
+        return executeCommand("project.config.get", args);
+    }
+};
+
+} // namespace funshi::agente::llm

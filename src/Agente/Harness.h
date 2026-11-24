@@ -25,6 +25,7 @@
 #include "Nucleo/Solicitud.h"
 
 #include <string>
+#include <vector>
 
 namespace funshi {
 
@@ -47,8 +48,25 @@ public:
 
     const Auditoria& auditoria() const { return auditoria_; }
 
+    // Proyecto que se usa en los comandos que trabajan sobre un proyecto y
+    // no traen "project" (el activo de la sesión, como la caja de comandos de
+    // la TUI). Vacío = no completar.
+    void setProyectoPorDefecto(std::string proyecto) { proyectoPorDefecto_ = std::move(proyecto); }
+    const std::string& proyectoPorDefecto() const { return proyectoPorDefecto_; }
+    // Nombres de los proyectos existentes. Con ellos un "project" que trae
+    // una ruta (".../Proyects/Demo/srcDemo") o el nombre con otras
+    // mayúsculas se corrige al nombre exacto antes de ejecutar.
+    void setProyectosConocidos(std::vector<std::string> nombres) { proyectosConocidos_ = std::move(nombres); }
+
+    // Nombre de proyecto conocido al que se refiere `valor` (el mismo nombre
+    // con otras mayúsculas o una ruta que lo contiene). Vacío si no hay uno.
+    static std::string proyectoReconocido(const std::string& valor, const std::vector<std::string>& conocidos);
+
 private:
+    Solicitud conProyectoPorDefecto(const Solicitud& solicitud) const;
     Auditoria& auditoria_;
+    std::string proyectoPorDefecto_;
+    std::vector<std::string> proyectosConocidos_;
 };
 
 }  // namespace funshi

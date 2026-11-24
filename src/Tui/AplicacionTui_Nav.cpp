@@ -6,15 +6,16 @@
 // AplicacionTui — módulo core
 #include "Tui/AplicacionTui.h"
 
-#include "Tui/TemaTui.h"
-#include "Tui/UtilTui.h"
+#include "Tui/Terminal/TemaTui.h"
+#include "Tui/Terminal/UtilTui.h"
 
 #include "Agente/Auditoria.h"
 #include "Agente/Harness.h"
 #include "Agente/Silvy.h"
-#include "Agente/LLM/HfApi.h"
-#include "Agente/LLM/HfTypes.h"
-#include "Agente/LLM/LocalInference.h"
+#include "Agente/LLM/HuggingFace/HfApi.h"
+#include "Agente/LLM/HuggingFace/HfTypes.h"
+#include "Agente/LLM/Local/LocalInference.h"
+#include "Agente/LLM/Config/LlmConfig.h"
 
 #include "Nucleo/CatalogoComandos.h"
 #include "Nucleo/NucleoCLI.h"
@@ -94,8 +95,19 @@ void AplicacionTui::recargarSeccionActual(bool informar) {
         estado.items = nlohmann::json::array();
         estado.error.clear();
         estado.seleccion = 0;
-        // Auto-focar la búsqueda al entrar en esta sección
+        // Al entrar se muestran primero los modelos ya descargados; si no se
+        // está a mitad de algo (búsqueda con resultados, variantes, instalación).
+        if (modelosHFEstado_ == ModeloHFEstado::LISTA_LOCALES ||
+            (modelosHFEstado_ == ModeloHFEstado::LISTA_MODELOS && modelosHFItems_.empty())) {
+            abrirModelosLocalesHF();
+        }
         enfocarModelosHF();
+        return;
+    }
+
+    // La sección Configuración muestra las rutas persistidas de la CLI.
+    if (seccion == SeccionTui::Configuracion) {
+        cargarSeccionConfiguracion(estado, informar);
         return;
     }
 
@@ -218,9 +230,12 @@ void AplicacionTui::accionar() {
             // El chat gestiona su propia entrada; Enter en una fila no
             // hace nada especial aquí.
             break;
+        case SeccionTui::ModelosHF:
+            break;
+        case SeccionTui::Configuracion:
+            accionConfiguracion(item);
+            break;
     }
 }
-
-
 
 }  // namespace funshi

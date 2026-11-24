@@ -53,7 +53,7 @@ struct Respuesta {
 
 // Versión de la API expuesta por la CLI. Se incrementa al agregar
 // funcionalidad; los campos de respuesta nuevos van al final.
-inline constexpr int kVersionApiCli = 1;
+inline constexpr int kVersionApiCli = 2;
 
 // Códigos de salida del proceso, compartidos por todos los comandos. Cada
 // comando devuelve un ResultadoComando que empaqueta la Respuesta junto con

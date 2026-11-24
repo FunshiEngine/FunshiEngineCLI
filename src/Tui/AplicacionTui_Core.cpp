@@ -6,15 +6,17 @@
 // AplicacionTui — módulo core
 #include "Tui/AplicacionTui.h"
 
-#include "Tui/TemaTui.h"
-#include "Tui/UtilTui.h"
+#include "Tui/Terminal/TemaTui.h"
+#include "Tui/Terminal/UtilTui.h"
 
 #include "Agente/Auditoria.h"
 #include "Agente/Harness.h"
 #include "Agente/Silvy.h"
-#include "Agente/LLM/HfApi.h"
-#include "Agente/LLM/HfTypes.h"
-#include "Agente/LLM/LocalInference.h"
+#include "Agente/LLM/HuggingFace/HfApi.h"
+#include "Agente/LLM/HuggingFace/HfTypes.h"
+#include "Agente/LLM/Local/LocalInference.h"
+#include "Agente/LLM/Local/LlamaBinarios.h"
+#include "Agente/LLM/Config/LlmConfig.h"
 
 #include "Nucleo/CatalogoComandos.h"
 #include "Nucleo/NucleoCLI.h"
@@ -55,6 +57,7 @@ AplicacionTui::AplicacionTui(ftxui::ScreenInteractive* pantalla,
 
     ftxui::InputOption opciones;
     opciones.content = &textoComando_;
+    opciones.cursor_position = &cursorComando_;
     opciones.placeholder = "comando del catalogo, por ejemplo project.list";
     opciones.multiline = false;
     // El comando se ejecuta al recibir Enter, no con on_enter: FTXUI difiere
@@ -111,7 +114,30 @@ AplicacionTui::AplicacionTui(ftxui::ScreenInteractive* pantalla,
         pantalla_->TrackMouse(true);
     }
 
+    // Sesiones de chat guardadas (o una nueva si no hay).
+    cargarSesiones();
+    iniciarDocumentos(false);  // indexa en segundo plano lo nuevo de la carpeta de documentos
+
     recargarSeccionActual();
+
+    // Al iniciar: descargar llama-server oficial si falta o actualizarlo si
+    // hay una versión nueva. En segundo plano y sin fallar si no hay red.
+    std::thread([estado = compartido_]() {
+        try {
+            const auto cfg = funshi::agente::llm::LlmConfig::load();
+            if (cfg.llamaServerPath.empty()) {
+                funshi::agente::llm::InstaladorLlama instalador(cfg.localInferenceDirEfectivo());
+                instalador.asegurarActualizado([estado](double, const std::string&) {
+                    std::lock_guard<std::mutex> lock(estado->mutex);
+                    if (estado->pantalla) estado->pantalla->PostEvent(ftxui::Event());
+                });
+            }
+        } catch (...) {
+            // Nunca debe tumbar la TUI.
+        }
+        std::lock_guard<std::mutex> lock(estado->mutex);
+        if (estado->pantalla) estado->pantalla->PostEvent(ftxui::Event());
+    }).detach();
 }
 
 AplicacionTui::~AplicacionTui() {
@@ -155,14 +181,20 @@ ftxui::Element AplicacionTui::OnRender() {
         atajos = " ↑↓ historial · Enter ejecuta · Esc vuelve · / JSON directo ";
     } else if (enModelosHF) {
         if (modelosHFEstado_ == ModeloHFEstado::LISTA_MODELOS) {
-            atajos = " ↑↓ mover · Enter selecciona · r reintenta · c limpia cache · Esc vuelve · / busca ";
+            atajos = focoEnCajaBusquedaModelosHF_
+                ? " / escribe y Enter busca · Esc vuelve a lista/salir "
+                : " ↑↓ mover · Enter selecciona · l locales · r reintenta · c limpia cache · Esc vuelve ";
         } else if (modelosHFEstado_ == ModeloHFEstado::LISTA_VARIANTES) {
-            atajos = " ↑↓ mover · Enter variante (auto-descarga base) · r reintenta · c limpia cache · Esc vuelve ";
+            atajos = " ↑↓ mover · Enter configurar · l locales · r reintenta · c limpia cache · Esc vuelve ";
+        } else if (modelosHFEstado_ == ModeloHFEstado::LISTA_LOCALES) {
+            atajos = " ↑↓ mover · Enter usar modelo · r recargar · Esc vuelve ";
         } else if (modelosHFEstado_ == ModeloHFEstado::CONFIGURANDO) {
-            atajos = " Instalando modelo... · Esc para volver a variantes ";
+            atajos = " Configurando modelo... · Esc para volver ";
         } else { // ERROR_CONFIG
-            atajos = " Error en instalación · Esc para volver a variantes ";
+            atajos = " Error en configuración · Esc para volver ";
         }
+    } else if (ayudaVisible_) {
+        atajos = " ↑↓ elegir comando · Enter usar ejemplo · Esc/? cerrar ayuda ";
     } else {
         atajos = textoAtajos();
     }
@@ -178,6 +210,7 @@ ftxui::Element AplicacionTui::OnRender() {
     ftxui::Elements elements;
     elements.push_back(conSeleccion(std::move(contenido)));
     elements.push_back(renderToast());
+    elements.push_back(capaSelectorColor());
     return ftxui::dbox(std::move(elements));
 }
 
@@ -185,8 +218,34 @@ bool AplicacionTui::OnEvent(ftxui::Event evento) {
     // Aviso que el render se manda a sí mismo para copiar fuera del dibujado.
     if (evento == ftxui::Event::Custom) {
         procesarCopiaPendiente();
+        aplicarAvisoDocumentos();
+        bool recargar = false;
+        std::string mensajePendiente;
+        bool errorPendiente = false;
+        {
+            std::lock_guard<std::mutex> lock(chatMutex_);
+            if (chatAplicarResultadoPendiente_) {
+                chatAplicarResultadoPendiente_ = false;
+                mensajePendiente = chatMensajePendiente_;
+                errorPendiente = chatMensajePendienteError_;
+                recargar = chatRecargarPendiente_;
+                chatRecargarPendiente_ = false;
+                chatMensajePendiente_.clear();
+            }
+        }
+        if (!mensajePendiente.empty() || recargar) {
+            if (!mensajePendiente.empty()) {
+                mensaje_ = mensajePendiente;
+                mensajeEsError_ = errorPendiente;
+            }
+            if (recargar) {
+                recargarSeccionActual(false);
+            }
+        }
         return true;
     }
+    // El selector de color es modal: recibe todo mientras está abierto.
+    if (selectorColor_.abierto) return eventoSelectorColor(evento);
     // El ratón se atiende siempre primero: la selección/copia no debe
     // depender del foco de las cajas de texto.
     if (evento.is_mouse()) {
@@ -207,9 +266,7 @@ bool AplicacionTui::OnEvent(ftxui::Event evento) {
         return eventoEnEntrada(evento);
     }
     if (ayudaVisible_) {
-        // Cualquier tecla o clic cierra la ayuda.
-        ayudaVisible_ = false;
-        return true;
+        return eventoEnAyuda(evento);
     }
     if (evento == ftxui::Event::Character('q') || evento == ftxui::Event::CtrlC ||
         evento == ftxui::Event::Character('\x03')) {
@@ -217,6 +274,8 @@ bool AplicacionTui::OnEvent(ftxui::Event evento) {
         return true;
     }
     if (evento == ftxui::Event::Escape) {
+        // En la vista de un subagente, Esc regresa a la conversación.
+        if (seccionActual() == SeccionTui::Chat && salirDeVistaSubagente()) return true;
         pantalla_->Exit();
         return true;
     }
@@ -237,9 +296,10 @@ bool AplicacionTui::OnEvent(ftxui::Event evento) {
         return true;
     }
     if (evento == ftxui::Event::Character('?')) {
-        ayudaVisible_ = true;
+        abrirAyuda();
         return true;
     }
+    if (seccionActual() == SeccionTui::Chat && desplazarChatConTecla(evento)) return true;
     if (evento == ftxui::Event::ArrowUp) {
         moverSeleccion(-1);
         return true;

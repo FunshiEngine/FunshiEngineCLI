@@ -27,3 +27,12 @@ compile_commands.json
 
 # Memoria de trabajo de agentes (no versionada)
 .agentes/
+
+# Pruebas, notas y artefactos locales (no versionados)
+.local/
+
+# Artefactos del plugin Swarm (no se usa)
+.swarm/
+
+# Artefactos de CTest
+Testing/

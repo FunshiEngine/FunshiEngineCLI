@@ -18,12 +18,14 @@
 
 #include "Agente/Harness.h"
 #include "Nucleo/Solicitud.h"
-#include "Agente/LLM/LlmTypes.h"
-#include "Agente/LLM/LlmConfig.h"
+#include "Agente/LLM/Config/LlmTypes.h"
+#include "Agente/LLM/Config/LlmConfig.h"
 #include <string>
 #include <vector>
 #include <functional>
+#include <atomic>
 #include <memory>
+#include <mutex>
 
 namespace funshi::agente::llm {
     class LlmGateway;
@@ -43,17 +45,37 @@ struct OrdenProcesada {
     std::string motivoRechazo;
 };
 
+// Estado de una conversación con el agente: su historial y el proyecto que
+// el usuario tiene activo. Cada sesión de chat tiene la suya; varias pueden
+// procesarse a la vez (cada pedido crea su propio bucle y gateway).
+struct SesionAgente {
+    std::vector<agente::llm::ChatMessage> historial;
+    std::string proyectoActivo;
+    // Poner en true cancela el pedido en curso de esta sesión.
+    std::shared_ptr<std::atomic<bool>> cancelar = std::make_shared<std::atomic<bool>>(false);
+};
+
 // Silvy: agente que recibe texto. Si empieza con '/' ejecuta comando CLI directo.
-// Si no, se lo pasa al agente LLM (si está configurado). Mantiene historial y
-// auditoría para poder responder "qué cambiaste".
+// Si no, se lo pasa al agente LLM (si está configurado), con la documentación
+// de los comandos relevantes (RAG) y la posibilidad de delegar en subagentes.
 class Silvy {
 public:
+    // Pedido sin las menciones de proyectos existentes, para buscar en la
+    // base de conocimiento (el modelo sí recibe el pedido completo).
+    static std::string consultaParaConocimiento(const std::string& pedido, const std::vector<std::string>& proyectos);
+
     explicit Silvy(Harness& harness);
 
     // Configura el agente LLM (requiere libcurl + config válida).
     // Devuelve true si se configuró correctamente.
     bool configurarLlm(const agente::llm::LlmConfig& config, bool nativeToolCalls = true);
-    bool tieneLlm() const { return agentLoop_ != nullptr; }
+
+    // Crea los gateways con `fabrica` (pruebas con un modelo falso).
+    using FabricaGateway = std::function<std::shared_ptr<agente::llm::LlmGateway>()>;
+    void configurarConFabrica(FabricaGateway fabrica, bool nativeToolCalls, int subagentesParalelos,
+                              const std::string& nombreModelo = "prueba");
+
+    bool tieneLlm() const;
 
     // Procesa una línea de texto:
     // - Si empieza con '/', ejecuta como comando CLI (project.create, etc.)
@@ -65,10 +87,15 @@ public:
         bool fueComandoCli = false;
         bool error = false;
     };
+    // Con la sesión por defecto (CLI, chat de línea).
     RespuestaProcesada procesar(const std::string& texto,
                                 std::function<void(const agente::llm::AgentEvent&)> onEvent = nullptr);
+    // Con una sesión propia (TUI con varias sesiones). Seguro entre hilos
+    // siempre que cada sesión se procese de a un pedido.
+    RespuestaProcesada procesar(const std::string& texto, SesionAgente& sesion,
+                                std::function<void(const agente::llm::AgentEvent&)> onEvent);
 
-    // Limpia el historial de conversación del agente LLM.
+    // Limpia el historial de la sesión por defecto.
     void limpiarHistorialLlm();
 
     // Devuelve el resumen de auditoría para mostrar al usuario qué se hizo.
@@ -80,21 +107,28 @@ public:
     const Harness& harness() const { return harness_; }
 
 private:
+    // Configuración del modelo compartida por todos los pedidos. Se reemplaza
+    // entera al reconfigurar; los pedidos en curso conservan la suya.
+    struct EstadoLlm {
+        FabricaGateway fabrica;
+        bool nativas = true;
+        int subagentesParalelos = 1;
+        long toolTimeoutMs = 30000;
+        std::string modelo;
+    };
+    std::shared_ptr<const EstadoLlm> estadoLlm() const;
+
     Harness& harness_;
     std::vector<OrdenProcesada> historial_;
-
-    // LLM Agent
-    std::shared_ptr<agente::llm::LlmGateway> gateway_;
-    std::shared_ptr<agente::llm::ToolRegistry> registry_;
-    std::shared_ptr<agente::llm::AgentLoop> agentLoop_;
-    std::vector<agente::llm::ChatMessage> conversationHistory_;
-    std::string modeloActivoNombre_;  // Nombre del modelo activo (para UI)
+    mutable std::mutex mutexLlm_;
+    std::shared_ptr<const EstadoLlm> llm_;
+    SesionAgente sesionPorDefecto_;
 
     bool esJsonValido(const std::string& texto) const;
     OrdenProcesada interpretarTextoPlano(const std::string& texto);
     OrdenProcesada interpretar(const std::string& texto);
     RespuestaProcesada ejecutarComandoCli(const std::string& texto);
-    RespuestaProcesada enviarAlLlm(const std::string& texto,
+    RespuestaProcesada enviarAlLlm(const std::string& texto, SesionAgente& sesion,
                                    std::function<void(const agente::llm::AgentEvent&)> onEvent);
 };
 

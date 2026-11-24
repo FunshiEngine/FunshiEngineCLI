@@ -20,10 +20,14 @@
 #include "Tui/InterfazTui.h"
 
 #include "Tui/AplicacionTui.h"
-#include "Tui/EntradaRespaldo.h"
+#include "Tui/Terminal/PreferenciasTui.h"
+#include "Agente/Documentos/Embeddings.h"
+#include "Tui/Terminal/EntradaRespaldo.h"
 
 #include "Agente/Auditoria.h"
 #include "Agente/Harness.h"
+#include "Agente/LLM/Config/LlmConfig.h"
+#include "Agente/LLM/Local/RegistroServidor.h"
 #include "Agente/Silvy.h"
 
 #include "Nucleo/NucleoCLI.h"
@@ -52,6 +56,14 @@ int ejecutarTui(int seccionInicial) {
     ftxui::ScreenInteractive pantalla = ftxui::ScreenInteractive::Fullscreen();
     // Las instancias de Agente viven durante todo el bucle de la TUI y
     // Silvy las usa para ejecutar órdenes desde la sección Chat.
+    auto llmConfig = agente::llm::LlmConfig::load();
+    llmConfig.aplicarRutasEntorno();
+    tui::cargarPreferencias();  // idioma y colores guardados
+    // Servidores que dejó una sesión anterior (cerrada o caída) y cierre del
+    // servidor si la terminal se cierra o llega una señal.
+    agente::llm::limpiarServidoresHuerfanos(llmConfig.localInferenceDirEfectivo(),
+                                            llmConfig.localInferenceDirEfectivo() / "llama-bin");
+    agente::llm::instalarCierreServidorPorSenal();
     Auditoria auditoria;
     Harness harness(auditoria);
     Silvy silvy(harness);
@@ -64,6 +76,10 @@ int ejecutarTui(int seccionInicial) {
         respaldo.iniciar(&pantalla);
     }
     pantalla.Loop(aplicacion);
+    // Al salir (Esc, q, Ctrl+C) se detienen los llama-server de esta sesión.
+    agente::documentos::ServidorEmbeddings::global().detener();
+    agente::llm::detenerServidorRegistrado(llmConfig.localInferenceDirEfectivo());
+    agente::llm::detenerServidorRegistrado(llmConfig.localInferenceDirEfectivo(), agente::llm::kRegistroEmbeddings);
     return codigosSalida::kExito;
 }
 
