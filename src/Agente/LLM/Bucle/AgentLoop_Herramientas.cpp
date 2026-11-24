@@ -21,6 +21,8 @@
 #include <cstring>
 
 #include <algorithm>
+#include <cctype>
+#include <functional>
 #include <vector>
 
 namespace funshi::agente::llm {
@@ -81,6 +83,25 @@ std::string inferirLlamadaSinNombre(const std::string& texto, const ToolRegistry
         if (todos) return nlohmann::json{{"tool", candidata}, {"arguments", obj}}.dump();
     }
     return {};
+}
+
+std::string respuestaDisfrazada(const std::string& herramienta, const nlohmann::json& args) {
+    std::string nombre = herramienta;
+    std::transform(nombre.begin(), nombre.end(), nombre.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    bool pareceRespuesta = false;
+    for (const char* clave : {"respuesta", "responder", "respond", "answer", "reply", "final", "fin de", "fin_",
+                              "completad", "confirm", "mensaje al usuario"}) {
+        pareceRespuesta = pareceRespuesta || nombre.find(clave) != std::string::npos;
+    }
+    if (!pareceRespuesta) return {};
+    // Un único texto entre los argumentos (también dentro de "argumentos").
+    std::vector<std::string> textos;
+    std::function<void(const nlohmann::json&)> juntar = [&](const nlohmann::json& j) {
+        if (j.is_string()) textos.push_back(j.get<std::string>());
+        else if (j.is_object() || j.is_array()) for (const auto& v : j) juntar(v);
+    };
+    juntar(args);
+    return textos.size() == 1 ? textos.front() : std::string();
 }
 
 }  // namespace detalle

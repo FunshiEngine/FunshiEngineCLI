@@ -284,8 +284,16 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
                 std::string toolResultsText;
                 messages.push_back(ChatMessage::assistant(accumulatedText));
                 bool toolCalled = false;
+                std::string respuestaFinal;  // de una herramienta inventada para responder
                 for (const auto& block : blocks) {
                     auto sanitized = ToolCallSanitizer::block(block);
+                    if (sanitized.ok() && !existeHerramienta(sanitized.name)) {
+                        const std::string r = detalle::respuestaDisfrazada(sanitized.name, sanitized.args);
+                        if (!r.empty()) {
+                            respuestaFinal = r;
+                            continue;
+                        }
+                    }
                     if (!sanitized.ok()) {
                         std::string err = "\n[Error parseando tool call: " + sanitized.errorReason + "]";
                         answer.text += err;
@@ -301,6 +309,12 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
                     answer.toolCalls.push_back({callId, sanitized.name, sanitized.args.dump(), result.ok(), result.render(), {}});
                     emitir(AgentEvent{AgentEvent::Type::ToolEnd, "", callId, sanitized.name, "", result.ok(), result.render()});
                     toolResultsText += std::string(kResultadoDe) + sanitized.name + ":\n" + result.render() + "\n\n";
+                }
+                if (!respuestaFinal.empty()) {
+                    // El modelo dio por terminado el turno con esa "herramienta".
+                    answer.text += sinMarcasDeSalida(respuestaFinal);
+                    messages.push_back(ChatMessage::assistant(respuestaFinal));
+                    break;
                 }
                 if (!visible.empty()) {
                     answer.text += visible;

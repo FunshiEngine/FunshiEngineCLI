@@ -107,6 +107,10 @@ namespace detalle {
 // Respuesta que es (casi) solo los argumentos de una meta-herramienta, sin su
 // nombre: devuelve la llamada reconstruida ({"tool","arguments"}) o vacío.
 std::string inferirLlamadaSinNombre(const std::string& texto, const ToolRegistry& registro);
+// Llamada a una herramienta inexistente que en realidad es la respuesta
+// final ("fin de la respuesta", "Respuesta al usuario" con un único texto):
+// devuelve ese texto, o vacío si no lo parece.
+std::string respuestaDisfrazada(const std::string& herramienta, const nlohmann::json& args);
 }  // namespace detalle
 
 /**

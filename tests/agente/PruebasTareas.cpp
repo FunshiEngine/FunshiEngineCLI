@@ -14,6 +14,8 @@
 #include "Agente/Sesiones/SesionChat.h"
 #include "Agente/Silvy.h"
 #include "Agente/Tareas/TareaAgente.h"
+#include "Agente/LLM/Bucle/AgentLoop.h"
+#include "Agente/LLM/Bucle/ToolRegistry.h"
 #include "Nucleo/NucleoCLI.h"
 
 #include <algorithm>
@@ -182,6 +184,28 @@ void probarTareas() {
     silvy.procesar("usa un comando que no existe", sesion, nullptr);
     CHECK(!sesion.tareaAnterior.resumenDelModelo && contiene(sesion.tareaAnterior.hecho.front(), "falló"),
           "silvy: sin herramientas exitosas, cierre con lo que pasó");
+
+    // Herramienta inventada para responder: es la respuesta final.
+    CHECK(llm::detalle::respuestaDisfrazada("fin de la respuesta", {{"argumentos", {{"respuesta", "Creé Cubo."}}}}) ==
+              "Creé Cubo.",
+          "respuesta disfrazada: herramienta de fin con un texto");
+    CHECK(llm::detalle::respuestaDisfrazada("Respuesta al usuario", {{"texto", "a"}, {"otro", "b"}}).empty() &&
+              llm::detalle::respuestaDisfrazada("scene.crear", {{"texto", "x"}}).empty(),
+          "respuesta disfrazada: no con varios textos ni con otros nombres");
+    {
+        auto regFin = std::make_shared<GatewayGuion::Registro>();
+        auto gFin = std::make_shared<GatewayGuion>(
+            [](const LlamadaVista&) {
+                return std::vector<llm::LlmChunk>{llm::LlmChunk::makeText(
+                    "```tool_call\n{\"tool\":\"fin de la respuesta\",\"arguments\":{\"respuesta\":\"Creé Cubo.\"}}\n```")};
+            },
+            regFin);
+        llm::AgentLoop bucleFin(gFin, std::make_shared<llm::ToolRegistry>(), false, 1000);
+        std::vector<llm::ChatMessage> msgs = {llm::ChatMessage::user("crea Cubo")};
+        const auto rFin = bucleFin.run(msgs);
+        CHECK(rFin.text == "Creé Cubo." && rFin.toolCalls.empty() && regFin->llamadas.size() == 1,
+              "bucle: la herramienta inventada de fin termina el turno con su texto (" + rFin.text + ")");
+    }
 
     funshi::agente::SesionChat chat = funshi::agente::SesionChat::nueva("tareas");
     chat.agente = sesion;
