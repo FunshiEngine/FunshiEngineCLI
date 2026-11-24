@@ -18,10 +18,46 @@
 // llamadas sin nombre.
 #include "Agente/LLM/Bucle/AgentLoop.h"
 
+#include <cstring>
+
 #include <algorithm>
+#include <cctype>
+#include <functional>
 #include <vector>
 
 namespace funshi::agente::llm {
+
+// Mensajes del modo prompt.
+
+std::string resultadosParaModelo(const std::string& resultados) {
+    return std::string(kInicioSalida) + " — mensaje automático, no lo escribió el usuario]\n"
+           "Ejecutaste estas herramientas y obtuviste:\n\n" +
+           resultados + kFinSalida +
+           "\nSi el pedido ya está cumplido, responde ahora al usuario sin más herramientas.";
+}
+
+std::string sinMarcasDeSalida(const std::string& texto) {
+    // Los modelos chicos copian las marcas del mensaje de resultados en su respuesta.
+    std::string out;
+    std::size_t ini = 0;
+    bool anteriorFueResultado = false;
+    while (ini <= texto.size()) {
+        auto fin = texto.find('\n', ini);
+        if (fin == std::string::npos) fin = texto.size();
+        const std::string linea = texto.substr(ini, fin - ini);
+        const auto t = linea.find_first_not_of(" \t\r");
+        const auto empieza = [&](const char* prefijo) {
+            return t != std::string::npos && linea.compare(t, std::strlen(prefijo), prefijo) == 0;
+        };
+        // "RESULTADO DE x:" y el JSON que lo sigue son el resultado copiado.
+        const bool copiado = empieza(kResultadoDe) || (anteriorFueResultado && empieza("{"));
+        anteriorFueResultado = empieza(kResultadoDe) || (anteriorFueResultado && empieza("{"));
+        if (!copiado && !empieza(kFinSalida) && !empieza(kInicioSalida)) out += linea + (fin < texto.size() ? "\n" : "");
+        ini = fin + 1;
+    }
+    const auto ultimo = out.find_last_not_of(" \t\r\n");
+    return ultimo == std::string::npos ? std::string() : out.substr(0, ultimo + 1);
+}
 
 namespace detalle {
 
@@ -47,6 +83,25 @@ std::string inferirLlamadaSinNombre(const std::string& texto, const ToolRegistry
         if (todos) return nlohmann::json{{"tool", candidata}, {"arguments", obj}}.dump();
     }
     return {};
+}
+
+std::string respuestaDisfrazada(const std::string& herramienta, const nlohmann::json& args) {
+    std::string nombre = herramienta;
+    std::transform(nombre.begin(), nombre.end(), nombre.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    bool pareceRespuesta = false;
+    for (const char* clave : {"respuesta", "responder", "respond", "answer", "reply", "final", "fin de", "fin_",
+                              "completad", "confirm", "mensaje al usuario"}) {
+        pareceRespuesta = pareceRespuesta || nombre.find(clave) != std::string::npos;
+    }
+    if (!pareceRespuesta) return {};
+    // Un único texto entre los argumentos (también dentro de "argumentos").
+    std::vector<std::string> textos;
+    std::function<void(const nlohmann::json&)> juntar = [&](const nlohmann::json& j) {
+        if (j.is_string()) textos.push_back(j.get<std::string>());
+        else if (j.is_object() || j.is_array()) for (const auto& v : j) juntar(v);
+    };
+    juntar(args);
+    return textos.size() == 1 ? textos.front() : std::string();
 }
 
 }  // namespace detalle

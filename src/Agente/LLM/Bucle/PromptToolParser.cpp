@@ -103,9 +103,25 @@ std::vector<std::string> PromptToolParser::llamadasSinCerco(const std::string& t
             if (c == '"') enCadena = true;
             else if (c == '{') ++profundidad;
             else if (c == '}' && --profundidad == 0) { fin = i; break; }
+            else if (c == '\n' && i > desde) {
+                // Una línea que empieza otra llamada ({"tool"…, {"comando"…)
+                // con el objeto anterior sin cerrar: a la anterior le faltan
+                // llaves (las repara el sanitizador).
+                static const std::regex inicioLlamada(R"re(^\{\s*"(tool|tool_call|name|function|herramienta|comando)")re");
+                const auto sig = texto.find_first_not_of(" \t\r", i + 1);
+                if (sig != std::string::npos && texto[sig] == '{' &&
+                    std::regex_search(texto.substr(sig, 40), inicioLlamada)) {
+                    fin = i - 1;
+                    break;
+                }
+            }
         }
-        if (fin == std::string::npos) break;
+        // Sin cierre: lo que queda es la llamada (el sanitizador cierra las llaves).
+        const bool abierta = fin == std::string::npos;
+        if (abierta) fin = texto.find_last_not_of(" \t\r\n`");
+        if (fin == std::string::npos || fin < desde) break;
         llamadas.push_back(texto.substr(desde, fin - desde + 1));
+        if (abierta) break;
         desde = fin + 1;
     }
     return llamadas;

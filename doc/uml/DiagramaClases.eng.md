@@ -141,6 +141,7 @@ classDiagram
         -SesionAgente sesionPorDefecto_
         +configurarLlm(LlmConfig, bool nativeToolCalls) bool
         +configurarConFabrica(FabricaGateway, bool, int)
+        +setTareasActivas(bool)
         +tieneLlm() bool
         +procesar(string texto, onEvent) RespuestaProcesada
         +procesar(string texto, SesionAgente, onEvent) RespuestaProcesada
@@ -151,13 +152,24 @@ classDiagram
     class SesionAgente {
         +vector~ChatMessage~ historial
         +string proyectoActivo
+        +TareaAgente tareaAnterior
         +shared_ptr~atomic bool~ cancelar
+    }
+    class TareaAgente {
+        +string pedido
+        +string objetivo
+        +vector~string~ hecho
+        +string resumen
+        +bool resumenDelModelo
+        +aJson() json
+        +desdeJson(json)$ TareaAgente
     }
     class EstadoLlm {
         +FabricaGateway fabrica
         +bool nativas
         +int subagentesParalelos
         +string modelo
+        +bool tareas
     }
     class RespuestaProcesada {
         +string texto
@@ -191,6 +203,7 @@ classDiagram
     Silvy --> Harness
     Silvy *-- EstadoLlm
     Silvy ..> SesionAgente : processes
+    SesionAgente *-- TareaAgente : previous task
     Silvy ..> AgentLoop : creates one per request
     Silvy ..> RespuestaProcesada
     Harness --> Auditoria

@@ -122,8 +122,17 @@ void Silvy::configurarConFabrica(FabricaGateway fabrica, bool nativeToolCalls, i
     estado->nativas = nativeToolCalls;
     estado->subagentesParalelos = subagentesParalelos;
     estado->modelo = nombreModelo;
+    estado->tareas = false;
     std::lock_guard<std::mutex> lock(mutexLlm_);
     llm_ = std::move(estado);
+}
+
+void Silvy::setTareasActivas(bool activas) {
+    std::lock_guard<std::mutex> lock(mutexLlm_);
+    if (!llm_) return;
+    auto copia = std::make_shared<EstadoLlm>(*llm_);
+    copia->tareas = activas;
+    llm_ = std::move(copia);
 }
 
 std::shared_ptr<const Silvy::EstadoLlm> Silvy::estadoLlm() const {
@@ -138,7 +147,10 @@ std::string Silvy::modeloActivo() const {
     return e ? e->modelo : std::string();
 }
 
-void Silvy::limpiarHistorialLlm() { sesionPorDefecto_.historial.clear(); }
+void Silvy::limpiarHistorialLlm() {
+    sesionPorDefecto_.historial.clear();
+    sesionPorDefecto_.tareaAnterior = {};
+}
 
 Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionAgente& sesion,
                                              std::function<void(const llm::AgentEvent&)> onEvent) {
@@ -157,6 +169,7 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
     const std::string proyecto = proyectoDeTrabajo(sesion.proyectoActivo, proyectos);
     harness->setProyectoPorDefecto(proyecto);
     harness->setProyectosConocidos(proyectos);
+    harness->setCorreccionesDelAgente(true);
 
     // Bucles de subagentes: perfil acotado, gateway propio, sin delegar.
     agente::FabricaBucles fabricaSub = [estado, harness](const std::string& perfil) {
@@ -204,8 +217,45 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
             }
         }
     }
+    // Tarea: el modelo escribe lo que debe hacer, con la tarea anterior a la
+    // vista; las dos van en el contexto del turno.
+    std::string trasPedido;
+    std::string objetivo;
+    if (estado->tareas) {
+        objetivo = agente::tareas::leerObjetivo(agente::tareas::consultar(
+            *estado->fabrica(), agente::tareas::pedidoDeObjetivo(sesion.tareaAnterior, mensaje, contextoTurno), proyecto));
+        const auto anterior = agente::tareas::bloqueTareaAnterior(sesion.tareaAnterior);
+        if (!anterior.empty()) contextoTurno += (contextoTurno.empty() ? "" : "\n") + anterior;
+        bucle.setEncabezadoPedido(agente::tareas::kEncabezadoTareaActual);
+        if (!objetivo.empty()) {
+            trasPedido = "Ahora: " + objetivo + "\n\nHazlo ahora (con las herramientas si hacen falta).";
+            if (onEvent) onEvent(llm::AgentEvent::estado("Tarea: " + objetivo));
+        }
+    }
     sesion.historial.push_back(llm::ChatMessage::user(mensaje));
-    const auto answer = bucle.run(sesion.historial, onEvent, contextoTurno);
+    const auto answer = bucle.run(sesion.historial, onEvent, contextoTurno, trasPedido);
+
+    // Cierre: el modelo escribe lo que hizo y un resumen. Se arma con las
+    // herramientas ejecutadas si no respeta el formato, si se canceló o si
+    // ninguna salió bien (sin acciones reales, el modelo tiende a contar lo
+    // que no hizo).
+    if (estado->tareas) {
+        agente::tareas::TareaAgente tarea;
+        tarea.pedido = mensaje;
+        tarea.objetivo = objetivo;
+        const bool cancelado = sesion.cancelar->load();
+        const bool algunaBien = std::any_of(answer.toolCalls.begin(), answer.toolCalls.end(),
+                                            [](const auto& t) { return t.ok; });
+        if (cancelado || !algunaBien || !agente::tareas::leerCierre(
+                             agente::tareas::consultar(*estado->fabrica(), agente::tareas::pedidoDeCierre(
+                                                                               mensaje, answer.toolCalls, answer.text),
+                                                       proyecto),
+                             tarea)) {
+            agente::tareas::cierreDeRespaldo(answer.toolCalls, answer.text, tarea);
+        }
+        if (onEvent) onEvent(llm::AgentEvent::estado("Resumen de la tarea: " + tarea.resumen));
+        sesion.tareaAnterior = std::move(tarea);
+    }
 
     resp.texto = answer.text.empty() ? "(sin respuesta)" : answer.text;
     return resp;

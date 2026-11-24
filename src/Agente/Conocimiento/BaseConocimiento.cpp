@@ -63,7 +63,11 @@ std::string contenidoComando(const AyudaComando& a) {
                                                 [](const ArgumentoAyuda& x) { return x.nombre == "content"; });
         if (escribeArchivo) {
             o << "\n- resumen (texto): una frase con lo que contiene y hace el archivo; la extensión "
-                 "del archivo debe ser la de su lenguaje (scripts del motor: .java o .cpp)";
+                 "del archivo debe ser la de su lenguaje (scripts del motor: .java o .cpp)"
+               << (a.comando == "project.src.create"
+                       ? "\n- sobrescribir (bool): true para reemplazar un archivo que ya existe; sin él la "
+                         "llamada falla y el archivo queda como estaba"
+                       : "");
         }
         o << "\n";
     }

@@ -20,11 +20,17 @@
 
 #include "Nucleo/AyudaComandos.h"
 
+#include <Configuracion/ProjectPaths.h>
+
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
+#include <fstream>
 #include <mutex>
+#include <set>
+#include <sstream>
 
 namespace funshi {
 
@@ -77,7 +83,9 @@ Solicitud Harness::conProyectoPorDefecto(const Solicitud& solicitud) const {
     if (!ayuda || !ayuda->usaProyecto) return solicitud;
     const auto it = solicitud.argumentos.find("project");
     const std::string valor = it != solicitud.argumentos.end() && it->is_string() ? it->get<std::string>() : "";
-    if (!valor.empty()) {
+    // "<proyecto>" es el marcador de los ejemplos, no un nombre: cuenta como ausente.
+    const bool marcador = valor.size() > 2 && valor.front() == '<' && valor.back() == '>';
+    if (!valor.empty() && !marcador) {
         // Un nombre inexistente que se refiere a uno real (ruta, mayúsculas)
         // se corrige; uno que no se reconoce llega tal cual y el comando
         // responde que no existe.
@@ -96,6 +104,93 @@ Solicitud Harness::conProyectoPorDefecto(const Solicitud& solicitud) const {
     return copia;
 }
 
+void Harness::normalizarRutasSrc(Solicitud& solicitud) const {
+    if (!correccionesAgente_ || solicitud.comando.rfind("project.src.", 0) != 0 || !solicitud.argumentos.is_object()) return;
+    for (const char* clave : {"path", "newPath"}) {
+        auto it = solicitud.argumentos.find(clave);
+        if (it == solicitud.argumentos.end() || !it->is_string()) continue;
+        std::string ruta = it->get<std::string>();
+        while (ruta.rfind("./", 0) == 0) ruta.erase(0, 2);
+        if (ruta.size() > 4 && (ruta.rfind("src/", 0) == 0 || ruta.rfind("src\\", 0) == 0)) ruta.erase(0, 4);
+        *it = ruta;
+    }
+    // "name" con "path" de carpeta (el formato de file.create): la ruta del
+    // archivo es la carpeta más el nombre. "name" no es argumento del comando.
+    auto& a = solicitud.argumentos;
+    if (solicitud.comando == "project.src.create" && a.contains("name") && a["name"].is_string()) {
+        const std::string nombre = a["name"].get<std::string>();
+        std::string ruta = a.value("path", std::string());
+        if (!nombre.empty() && (ruta.empty() || ruta.back() == '/' || ruta.back() == '\\' ||
+                                std::filesystem::path(ruta).extension().empty())) {
+            if (!ruta.empty() && ruta.back() != '/' && ruta.back() != '\\') ruta += '/';
+            a["path"] = ruta + nombre;
+        }
+        a.erase("name");
+    }
+}
+
+namespace {
+
+// true si `nuevo` conserva todas las líneas no vacías del archivo (agregar
+// un método, por ejemplo): reemplazarlo no pierde nada.
+bool conservaContenido(const std::filesystem::path& archivo, const std::string& nuevo) {
+    std::ifstream f(archivo, std::ios::binary);
+    if (!f) return false;
+    const auto recortada = [](std::string l) {
+        const auto ini = l.find_first_not_of(" \t\r");
+        if (ini == std::string::npos) return std::string();
+        return l.substr(ini, l.find_last_not_of(" \t\r") - ini + 1);
+    };
+    std::multiset<std::string> lineasNuevas;
+    {
+        std::istringstream n(nuevo);
+        for (std::string l; std::getline(n, l);) {
+            if (auto r = recortada(l); !r.empty()) lineasNuevas.insert(r);
+        }
+    }
+    for (std::string l; std::getline(f, l);) {
+        const auto r = recortada(l);
+        if (r.empty()) continue;
+        const auto it = lineasNuevas.find(r);
+        if (it == lineasNuevas.end()) return false;
+        lineasNuevas.erase(it);
+    }
+    return true;
+}
+
+}  // namespace
+
+ResultadoComando* Harness::rechazoDeArchivo(const Solicitud& solicitud, ResultadoComando& destino) const {
+    if (!correccionesAgente_ || solicitud.comando != "project.src.create" || !solicitud.argumentos.is_object()) return nullptr;
+    const auto& a = solicitud.argumentos;
+    const std::string proyecto = a.value("project", std::string());
+    const std::string ruta = a.value("path", std::string());
+    if (!a.value("file", false) || proyecto.empty() || ruta.empty()) return nullptr;
+    if (!a.value("content", std::string()).empty() && std::filesystem::path(ruta).extension().empty()) {
+        // Sugerencia con la ruta tal cual más una extensión: "path" es la ruta
+        // completa del archivo, no la carpeta.
+        std::string base = ruta;
+        while (!base.empty() && (base.back() == '/' || base.back() == '\\')) base.pop_back();
+        if (base.empty()) base = "Scripts/Archivo";
+        destino = ResultadoComando::fallo("missing_extension",
+                                          "\"" + ruta + "\" no tiene extensión. \"path\" es la ruta completa del archivo "
+                                          "con la extensión de su lenguaje, por ejemplo \"" + base + ".java\" o \"" + base +
+                                              ".cpp\".",
+                                          codigosSalida::kErrorUso);
+        return &destino;
+    }
+    std::error_code ec;
+    const std::filesystem::path completa = std::filesystem::path(ProjectPaths::directorioSrc(proyecto)) / ruta;
+    if (a.value("sobrescribir", false) || !std::filesystem::is_regular_file(completa, ec)) return nullptr;
+    if (conservaContenido(completa, a.value("content", std::string()))) return nullptr;
+    destino = ResultadoComando::fallo("file_exists",
+                                      "Ya existe " + ruta + " y su contenido se perdería. Si el usuario pidió "
+                                      "cambiarlo, repite la llamada con \"sobrescribir\": true y el contenido "
+                                      "completo; si no, no lo toques.",
+                                      codigosSalida::kErrorUso);
+    return &destino;
+}
+
 ResultadoComando Harness::ejecutar(const Solicitud& solicitud,
                                    bool modificaDisco) {
     // Un comando a la vez en todo el proceso: varias sesiones de chat y
@@ -109,8 +204,19 @@ ResultadoComando Harness::ejecutar(const Solicitud& solicitud,
         modificaDisco = auditoria_.esComandoDeEscritura(solicitud.comando);
     }
 
-    const Solicitud efectiva = conProyectoPorDefecto(solicitud);
-    ResultadoComando resultado = ejecutarSolicitud(efectiva);
+    Solicitud efectiva = conProyectoPorDefecto(solicitud);
+    if (correccionesAgente_ && efectiva.argumentos.is_object()) {
+        // Un argumento en null es un argumento ausente (los comandos esperan
+        // el tipo declarado o nada).
+        for (auto it = efectiva.argumentos.begin(); it != efectiva.argumentos.end();) {
+            it = it->is_null() ? efectiva.argumentos.erase(it) : std::next(it);
+        }
+    }
+    normalizarRutasSrc(efectiva);
+    ResultadoComando rechazo;
+    const ResultadoComando* motivo = rechazoDeArchivo(efectiva, rechazo);
+    if (efectiva.argumentos.is_object()) efectiva.argumentos.erase("sobrescribir");
+    ResultadoComando resultado = motivo ? *motivo : ejecutarSolicitud(efectiva);
 
     EntradaAuditoria entrada;
     entrada.marcaTiempo = auditoria_.ahoraIso8601();

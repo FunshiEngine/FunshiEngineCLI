@@ -70,6 +70,7 @@ Reglas:
 | `Agente/Conocimiento` | RAG: índice BM25 sobre la ayuda de los comandos, guías (incluida la de lenguajes y extensiones, armada con `TiposArchivo` del motor) y documentos del usuario | `BaseConocimiento::global()`, `contextoParaPedido()` | Nucleo/AyudaComandos |
 | `Agente/Subagentes` | Instrucciones de Silvy y subagentes; delegación de tareas | `GestorSubagentes`, `LanzarSubagentesTool`, `instruccionesPrincipal()` | Agente/LLM, Conocimiento |
 | `Agente/Sesiones` | Conversaciones independientes persistidas | `SesionChat`, `AlmacenSesiones` | Agente (SesionAgente) |
+| `Agente/Tareas` | Tarea del agente: objetivo y cierre que escribe el modelo, formato del contexto, respaldo | `TareaAgente`, `bloqueTareaAnterior()`, `pedidoDeObjetivo()`, `leerCierre()`, `consultar()` | Agente/LLM |
 | `Agente/LLM/Config` | Configuración persistida y tipos del chat | `LlmConfig`, `ChatMessage`, `AgentEvent` | — |
 | `Agente/LLM/Cliente` | Cliente HTTP OpenAI-compatible con streaming SSE; descargas | `LlmGateway`, `http::descargar()` | libcurl |
 | `Agente/LLM/Bucle` | Bucle modelo → herramientas → modelo | `AgentLoop`, `ToolRegistry`, `PromptToolParser` | Cliente, Config |
@@ -146,7 +147,22 @@ del monitor no depende de FTXUI y se prueba en `agente-tests`.
 Si la plantilla del modelo no admite tools nativas (`/props` de
 llama-server), el bucle usa el **modo prompt**: las herramientas se describen
 en el prompt de sistema y `PromptToolParser` extrae bloques ```` ```tool_call ````
-del texto.
+del texto: también llamadas sin cerco o en ```` ```json ````, varias en un mismo
+bloque (una por línea, aunque a alguna le falten llaves) y la forma
+`{"comando": …, "argumentos": …}` sin `"tool"`, que se toma como
+`ejecutar_comando`; una herramienta inexistente con nombre de respuesta («fin
+de la respuesta») y un único texto se toma como la respuesta final
+(`detalle::respuestaDisfrazada`). Los resultados vuelven al modelo entre las marcas
+`[SALIDA DE TUS HERRAMIENTAS …]` y `[FIN DE LA SALIDA]`, que se quitan de la
+respuesta final si el modelo las copia (`sinMarcasDeSalida`).
+
+El `Harness` del agente corrige y protege sus llamadas
+(`setCorreccionesDelAgente`): `"<proyecto>"` (el marcador de los ejemplos)
+cuenta como proyecto ausente y un argumento en `null`, como ausente; las rutas de `project.src.*` pierden un `src/`
+inicial; `project.src.create` sobre un archivo existente falla con
+`file_exists` salvo que la llamada traiga `"sobrescribir": true` o que el contenido nuevo conserve todas las líneas del
+archivo (argumento del agente que no llega al comando), y un archivo con contenido sin extensión
+falla con `missing_extension`.
 
 **Instalar y activar un modelo.** Sección Modelos → «Descargados» (archivo ya
 en disco) o «Buscar en Hugging Face» (búsqueda → variantes → descarga
@@ -179,6 +195,21 @@ nueva de una vez (las búsquedas no esperan). En cada pedido, Silvy agrega al
 contexto del turno los fragmentos que superan el umbral de similitud, y el
 agente tiene `buscar_documentos`. Sin embeddings, la búsqueda es léxica
 (`IndiceBm25`).
+
+**Tareas.** Con las tareas activas (`configurarLlm`; `configurarConFabrica`
+las deja apagadas salvo `setTareasActivas(true)`), `Silvy::enviarAlLlm`
+agrega al contexto del turno la tarea anterior (`bloqueTareaAnterior`: «##
+Tarea anterior / Lo que hice / Resumen»), pide al modelo en una llamada corta
+sin herramientas la línea «Ahora: …» con la documentación del turno y el
+contexto del motor (`pedidoDeObjetivo` → `consultar` → `leerObjetivo`) y
+corre el bucle con el encabezado «## Tarea actual» y el objetivo tras el
+pedido (`AgentLoop::setEncabezadoPedido`, parámetro `trasPedido`). Al
+terminar, otra llamada corta con las herramientas ejecutadas y la respuesta
+pide «Lo que hice / Resumen» (`pedidoDeCierre` → `leerCierre`); si el modelo
+no respeta el formato, el pedido se canceló o ninguna herramienta salió bien,
+`cierreDeRespaldo` lo arma con las herramientas. La tarea queda en `SesionAgente::tareaAnterior` y se
+persiste con la sesión. El objetivo en una llamada aparte evita que el modelo
+escriba el «Ahora:» y termine el turno sin actuar.
 
 **Información de los comandos para el modelo.** Los esquemas de las
 herramientas del motor se generan de `AyudaComandos` (`specDesdeAyuda`):

@@ -184,6 +184,39 @@ siendo comandos de la CLI):
 | `/cancelar` | Corta la respuesta en curso |
 | `/ayuda` | Muestra estas órdenes |
 
+#### Tareas
+
+Cada mensaje que le das a Silvy es una **tarea**, y ella misma la abre y la
+cierra:
+
+- **Al empezar**, con la tarea anterior a la vista, escribe en una línea lo
+  que debe hacer ahora; en el chat aparece como la nota `· Tarea: …`. Así
+  pedidos como «ahora ponle física» o «agrégale un método» se entienden sobre
+  lo que acaba de hacer.
+- **Al terminar**, escribe lo que hizo (una línea por acción, con ids y rutas)
+  y un resumen de qué había que hacer y cómo quedó (`· Resumen de la tarea: …`).
+  Si no lo escribe en el formato esperado, o si ninguna herramienta salió
+  bien, la lista se arma con las herramientas que ejecutó (así no queda
+  registrado algo que no pasó).
+
+Lo que recibe el modelo en cada pedido, además del historial y la
+documentación, es esto (markdown en texto plano, el formato que mejor
+respetan los modelos chicos):
+
+```
+## Tarea anterior
+Lo que hice:
+- Creé el objeto Cubo (id 1) en el proyecto Demo
+Resumen: Había que crear Cubo; quedó con id 1.
+
+## Tarea actual
+ahora ponle un RigidBody
+Ahora: agregar un RigidBody al objeto Cubo (id 1).
+```
+
+Cada tarea suma dos llamadas cortas al modelo (el objetivo y el cierre). La
+tarea anterior se guarda con la sesión y `/limpiar` la borra.
+
 #### Qué sabe Silvy de los comandos (RAG)
 
 Antes de cada pedido, Silvy busca en su base de conocimiento los comandos y
@@ -214,6 +247,14 @@ sigue sus cambios), que los scripts del motor son solo Java (`.java`) y C++
 todavía no crea ni abre esos archivos (un proyecto es su carpeta). Al
 escribir un archivo, Silvy elige la extensión del lenguaje y agrega un
 `resumen` de su contenido, que se ve en el chat y que usa en su respuesta.
+
+Silvy no reemplaza un archivo de `src/` que ya existe salvo que lo pida
+explícitamente (`"sobrescribir": true`, que usa solo si le pediste cambiar
+ese archivo) o que el contenido nuevo conserve todas las líneas del anterior
+(por ejemplo, al agregar un método): si se perdería algo, la llamada falla y
+el archivo queda como estaba. Desde
+la caja de comandos, `project.src.create` sigue reemplazando el archivo como
+siempre.
 
 #### Documentos del usuario (RAG)
 

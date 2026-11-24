@@ -63,15 +63,6 @@ std::string resumenLlamada(int ronda, const EstadisticasLlamada& e) {
 
 }  // namespace
 
-std::string resultadosParaModelo(const std::string& resultados) {
-    return "[SALIDA DE TUS HERRAMIENTAS — mensaje automático, no lo escribió el usuario]\n"
-           "Ejecutaste estas herramientas y obtuviste:\n\n" +
-           resultados +
-           "[FIN DE LA SALIDA]\n"
-           "Si falta algo, usa otra herramienta. Si terminaste, responde al usuario en primera "
-           "persona con lo que TÚ hiciste y su resultado; no le agradezcas ni digas que él lo ejecutó.";
-}
-
 AgentLoop::AgentLoop(std::shared_ptr<LlmGateway> gateway,
                      std::shared_ptr<ToolRegistry> registry,
                      bool nativeToolCalls,
@@ -116,7 +107,7 @@ std::string AgentLoop::buildSystemPrompt() const {
 
 AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
                            std::function<void(const AgentEvent&)> onEvent,
-                           const std::string& contextoTurno) {
+                           const std::string& contextoTurno, const std::string& trasPedido) {
     AgentAnswer answer;
     // El prompt de sistema se renueva en cada turno: así un cambio de
     // instrucciones o de herramientas llega también a historiales viejos.
@@ -130,10 +121,11 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
     // npos = no hay nada que restaurar (sin contexto del turno).
     std::size_t indicePedido = std::string::npos;
     std::string pedidoOriginal;
-    if (!contextoTurno.empty() && messages.back().role == "user") {
+    if ((!contextoTurno.empty() || !trasPedido.empty()) && !messages.empty() && messages.back().role == "user") {
         indicePedido = messages.size() - 1;
         pedidoOriginal = messages.back().content;
-        messages.back().content = contextoTurno + "\n[Pedido del usuario]\n" + pedidoOriginal;
+        messages.back().content = contextoTurno + (contextoTurno.empty() ? "" : "\n") + encabezadoPedido_ + "\n" +
+                                  pedidoOriginal + (trasPedido.empty() ? "" : "\n" + trasPedido);
     }
     struct Restaurar {
         std::vector<ChatMessage>& m;
@@ -260,6 +252,19 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
             std::string visible = promptParser.feed(accumulatedText);
             visible += promptParser.flush();
             auto blocks = promptParser.drain();
+            {
+                // Varias llamadas en un mismo bloque, una por línea: se separan.
+                std::vector<std::string> separados;
+                for (auto& b : blocks) {
+                    auto partes = PromptToolParser::llamadasSinCerco(b);
+                    if (partes.size() > 1) {
+                        for (auto& p : partes) separados.push_back(std::move(p));
+                    } else {
+                        separados.push_back(std::move(b));
+                    }
+                }
+                blocks = std::move(separados);
+            }
             if (blocks.empty()) {
                 // Llamada escrita sin cerco: se acepta solo si nombra una herramienta real.
                 for (auto& b : PromptToolParser::llamadasSinCerco(accumulatedText)) {
@@ -279,8 +284,16 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
                 std::string toolResultsText;
                 messages.push_back(ChatMessage::assistant(accumulatedText));
                 bool toolCalled = false;
+                std::string respuestaFinal;  // de una herramienta inventada para responder
                 for (const auto& block : blocks) {
                     auto sanitized = ToolCallSanitizer::block(block);
+                    if (sanitized.ok() && !existeHerramienta(sanitized.name)) {
+                        const std::string r = detalle::respuestaDisfrazada(sanitized.name, sanitized.args);
+                        if (!r.empty()) {
+                            respuestaFinal = r;
+                            continue;
+                        }
+                    }
                     if (!sanitized.ok()) {
                         std::string err = "\n[Error parseando tool call: " + sanitized.errorReason + "]";
                         answer.text += err;
@@ -295,7 +308,13 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
                     registrarFallo(sanitized.name, result);
                     answer.toolCalls.push_back({callId, sanitized.name, sanitized.args.dump(), result.ok(), result.render(), {}});
                     emitir(AgentEvent{AgentEvent::Type::ToolEnd, "", callId, sanitized.name, "", result.ok(), result.render()});
-                    toolResultsText += "RESULTADO DE " + sanitized.name + ":\n" + result.render() + "\n\n";
+                    toolResultsText += std::string(kResultadoDe) + sanitized.name + ":\n" + result.render() + "\n\n";
+                }
+                if (!respuestaFinal.empty()) {
+                    // El modelo dio por terminado el turno con esa "herramienta".
+                    answer.text += sinMarcasDeSalida(respuestaFinal);
+                    messages.push_back(ChatMessage::assistant(respuestaFinal));
+                    break;
                 }
                 if (!visible.empty()) {
                     answer.text += visible;
@@ -309,7 +328,7 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
                 }
             }
 
-            std::string finalText = visible.empty() ? accumulatedText : visible;
+            std::string finalText = sinMarcasDeSalida(visible.empty() ? accumulatedText : visible);
             answer.text += finalText;
             messages.push_back(ChatMessage::assistant(finalText));
             break;
