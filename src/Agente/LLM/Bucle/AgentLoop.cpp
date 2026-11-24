@@ -87,6 +87,18 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
         const std::string& original;
         ~Restaurar() { if (i < m.size()) m[i].content = original; }
     } restaurar{messages, indicePedido, pedidoOriginal};
+    // La documentación que acompañó a las aclaraciones vale solo en el turno.
+    recortesTurno_.clear();
+    struct RecortarDocumentacion {
+        std::vector<ChatMessage>& m;
+        std::vector<std::pair<std::size_t, std::size_t>>& r;
+        ~RecortarDocumentacion() {
+            for (const auto& [i, largo] : r) {
+                if (i < m.size() && m[i].content.size() > largo) m[i].content.resize(largo);
+            }
+            r.clear();
+        }
+    } recortar{messages, recortesTurno_};
 
     onEventActual_ = onEvent;
     const auto emitir = [&](const AgentEvent& e) {

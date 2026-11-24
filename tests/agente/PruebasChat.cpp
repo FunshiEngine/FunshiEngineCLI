@@ -54,6 +54,7 @@ std::vector<LlamadaVista> turnoConAclaracion(llm::FormatoAclaracion formato, llm
     llm::AgentLoop bucle(gateway, tools, false, 1000);
     bucle.setBuzon(buzon);
     bucle.setFormatoAclaracion(formato);
+    bucle.setDocumentacionAclaraciones([](const std::string& t) { return "DOC para «" + t + "»"; });
     historial = {llm::ChatMessage::user("crea un Cubo")};
     respuesta = bucle.run(historial, nullptr, "[documentación]");
     std::lock_guard<std::mutex> lock(registro->mutex);
@@ -111,6 +112,10 @@ void probarChat() {
         }
         CHECK(contiene(segunda, "que se llame Esfera"), "aclaración " + nombre + ": llega al modelo en la ronda siguiente");
         CHECK(r.aclaraciones == std::vector<std::string>{"que se llame Esfera"}, "aclaración " + nombre + ": queda en la respuesta");
+        std::string guardado;
+        for (const auto& m : historial) guardado += m.content + "\n";
+        CHECK(contiene(segunda, "DOC para «que se llame Esfera»") && !contiene(guardado, "DOC para"),
+              "aclaración " + nombre + ": su documentación llega en el turno y no queda en el historial");
         if (formato == F::EnPedido) {
             CHECK(historial.size() > 1 && contiene(historial[1].content, "Aclaración del usuario: que se llame Esfera") &&
                       !contiene(historial[1].content, "[documentación]"),

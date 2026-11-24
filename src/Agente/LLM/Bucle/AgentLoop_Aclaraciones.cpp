@@ -38,9 +38,18 @@ bool AgentLoop::incorporarAclaraciones(std::vector<ChatMessage>& messages, std::
         answer.aclaraciones.push_back(a);
         emitir(AgentEvent::estado("aclaración del usuario incorporada: " + a));
     }
+    // La documentación de lo que pide la aclaración (no siempre está en la del
+    // pedido: "ponle un RigidBody" necesita la de addcomponent).
+    const std::string doc = documentacionAclaracion_ ? documentacionAclaracion_(texto) : std::string();
+    const auto agregarDoc = [&](std::size_t indice) {
+        if (doc.empty() || indice >= messages.size()) return;
+        recortesTurno_.emplace_back(indice, messages[indice].content.size());
+        messages[indice].content += "\n\n" + doc;
+    };
     const auto comoMensaje = [&] {
         messages.push_back(ChatMessage::user(std::string(kMarcaAclaracion) + " mientras trabajabas]\n" + texto +
                                              "\nTenla en cuenta en lo que sigue de este pedido."));
+        agregarDoc(messages.size() - 1);
     };
     switch (formatoAclaracion_) {
         case FormatoAclaracion::MensajeNuevo:
@@ -51,6 +60,7 @@ bool AgentLoop::incorporarAclaraciones(std::vector<ChatMessage>& messages, std::
             if (!messages.empty() && messages.back().role == "user" &&
                 messages.back().content.rfind(kInicioSalida, 0) == 0) {
                 messages.back().content += "\n\nEl usuario agregó mientras trabajabas: " + texto;
+                agregarDoc(messages.size() - 1);
             } else {
                 comoMensaje();
             }
@@ -61,13 +71,20 @@ bool AgentLoop::incorporarAclaraciones(std::vector<ChatMessage>& messages, std::
                 messages[indicePedido].content += extra;
                 // El historial guarda el pedido sin el contexto del turno, con la aclaración.
                 if (!pedidoOriginal.empty()) pedidoOriginal += extra;
+                // Con contexto del turno, Restaurar deja el pedido sin la
+                // documentación; sin él, se recorta al terminar.
+                if (pedidoOriginal.empty()) agregarDoc(indicePedido);
+                else if (!doc.empty()) messages[indicePedido].content += "\n\n" + doc;
             } else {
                 comoMensaje();
             }
             break;
         case FormatoAclaracion::EnSistema:
             if (!messages.empty() && messages.front().role == "system") {
+                // Solo para este turno: al terminar se recorta (el sistema se rehace en cada turno).
+                recortesTurno_.emplace_back(0, messages.front().content.size());
                 messages.front().content += "\n\nACLARACIÓN DEL USUARIO (llegó mientras trabajabas): " + texto;
+                if (!doc.empty()) messages.front().content += "\n" + doc;
             } else {
                 comoMensaje();
             }

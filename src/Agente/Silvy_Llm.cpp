@@ -221,6 +221,9 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
     bucle.setResolutorAlias(aliasComando);
     bucle.setBuzon(sesion.aclaraciones);
     bucle.setFormatoAclaracion(estado->formatoAclaracion);
+    bucle.setDocumentacionAclaraciones([herramientas = nombresHerramientas(*registro)](const std::string& texto) {
+        return agente::conocimiento::BaseConocimiento::global()->contextoParaPedido(texto, herramientas, 3);
+    });
 
     std::vector<std::string> usados;
     const std::string contexto = agente::conocimiento::BaseConocimiento::global()->contextoParaPedido(

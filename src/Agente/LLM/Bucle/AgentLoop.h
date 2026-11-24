@@ -180,6 +180,10 @@ public:
     // Aclaraciones del usuario durante el turno y dónde se incorporan.
     void setBuzon(std::shared_ptr<BuzonInstrucciones> buzon) { buzon_ = std::move(buzon); }
     void setFormatoAclaracion(FormatoAclaracion f) { formatoAclaracion_ = f; }
+    // Documentación para una aclaración (la del RAG para su texto): va con
+    // ella durante el turno y no queda en el historial.
+    using DocumentacionPara = std::function<std::string(const std::string&)>;
+    void setDocumentacionAclaraciones(DocumentacionPara d) { documentacionAclaracion_ = std::move(d); }
 
 private:
     std::shared_ptr<LlmGateway> gateway_;
@@ -192,6 +196,10 @@ private:
     std::string encabezadoPedido_ = "[Pedido del usuario]";
     std::shared_ptr<BuzonInstrucciones> buzon_;
     FormatoAclaracion formatoAclaracion_ = FormatoAclaracion::MensajeNuevo;
+    DocumentacionPara documentacionAclaracion_;
+    // Mensajes a los que se agregó documentación en el turno: (índice,
+    // largo sin ella). Al terminar el turno se recortan.
+    std::vector<std::pair<std::size_t, std::size_t>> recortesTurno_;
     // Incorpora las aclaraciones pendientes; true si había alguna.
     bool incorporarAclaraciones(std::vector<ChatMessage>& messages, std::size_t indicePedido,
                                 std::string& pedidoOriginal, AgentAnswer& answer,
