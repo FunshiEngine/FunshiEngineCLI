@@ -104,7 +104,12 @@ bool Silvy::configurarLlm(const llm::LlmConfig& config, bool nativeToolCalls) {
     estado->subagentesParalelos = config.subagentesParalelosEfectivo();
     estado->toolTimeoutMs = config.toolTimeoutMs;
     estado->modelo = config.modelName;
-    if (config.isLocalhostUrl()) estado->tuneles = llm::AsignadorTuneles::paraServidor(config.remoteBaseUrl);
+    // Con un servidor local, la caché de la sesión que cede su slot se guarda
+    // en la carpeta que el servidor usa para eso (--slot-save-path).
+    if (config.isLocalhostUrl()) {
+        estado->tuneles =
+            llm::AsignadorTuneles::paraServidor(config.remoteBaseUrl, config.localInferenceDirEfectivo() / "slots");
+    }
     try {
         estado->fabrica();  // valida que el gateway se pueda crear
     } catch (const std::exception&) {

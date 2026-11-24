@@ -3,9 +3,10 @@
     Copyright 2026 Gianfranco Ivan Enrique
     SPDX-License-Identifier: Apache-2.0
 */
-// agente-tests: túneles por sesión — reserva de slots, reemplazo del menos
-// usado con vaciado, y en Silvy: cada sesión por su túnel y sin nada de la
-// conversación de otra en lo que recibe el modelo.
+// agente-tests: túneles por sesión — reserva de slots, cola FIFO con la
+// caché de la que sale guardada y restaurada al volver, y en Silvy: cada
+// sesión por su túnel y sin nada de la conversación de otra en lo que
+// recibe el modelo.
 #include "PruebasAgente.h"
 
 #include "Agente/Auditoria.h"
@@ -14,6 +15,10 @@
 #include "Agente/Silvy.h"
 
 #include <algorithm>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <set>
 
 namespace pruebas_agente {
 
@@ -30,12 +35,50 @@ void probarTuneles() {
         auto c = dos->reservar("C");
         CHECK(c.slot() == -1 && vaciados.empty(), "túneles: con todos reservados no se pisa ninguno");
     }
+
+    // Cola FIFO con la caché guardada en disco (simulado en memoria).
+    std::set<std::string> disco;
+    std::vector<std::string> pasos;
+    auto cola = std::make_shared<AsignadorTuneles>(
+        [] { return 2; },
+        [&](int s) { pasos.push_back("vaciar " + std::to_string(s)); return true; },
+        [&](int s, const std::string& ses) { disco.insert(ses); pasos.push_back("guardar " + ses + "@" + std::to_string(s)); return true; },
+        [&](int s, const std::string& ses) {
+            if (!disco.erase(ses)) return false;  // se lee una vez y se borra
+            pasos.push_back("restaurar " + ses + "@" + std::to_string(s));
+            return true;
+        });
+    { auto a = cola->reservar("A"); auto b = cola->reservar("B"); }
+    { auto c = cola->reservar("C"); CHECK(c.slot() == 0, "cola: C ocupa el slot de A, la primera en entrar"); }
+    CHECK(pasos == (std::vector<std::string>{"guardar A@0", "vaciar 0"}),
+          "cola: la que sale guarda su caché; la que entra sin archivo empieza limpia");
+    pasos.clear();
+    { auto a = cola->reservar("A"); CHECK(a.slot() == 1, "cola: A vuelve al slot de B, la siguiente en la cola"); }
+    CHECK(pasos == (std::vector<std::string>{"guardar B@1", "restaurar A@1"}) && !disco.count("A") && disco.count("B"),
+          "cola: A recupera su caché (el archivo se lee y se borra) y B guarda la suya");
+    pasos.clear();
+    { auto b = cola->reservar("B"); CHECK(b.slot() == 0, "cola: B entra por el slot de C"); }
+    CHECK(pasos == (std::vector<std::string>{"guardar C@0", "restaurar B@0"}), "cola: así con todas las sesiones");
+    CHECK(AsignadorTuneles::archivoDeSesion("sesion 1/../x") == "sesion_1____x.bin",
+          "cola: el nombre del archivo no lleva rutas");
     {
-        // A usó su slot más recientemente que B: el de B es el menos usado.
-        auto c = dos->reservar("C");
-        CHECK(c.slot() == 1 && vaciados == std::vector<int>{1}, "túneles: el menos usado cambia de dueño y se vacía");
-        auto a = dos->reservar("A");
-        CHECK(a.slot() == 0 && vaciados.size() == 1, "túneles: el dueño vuelve a su slot sin vaciar");
+        // Solo quedan las cachés guardadas más recientes.
+        const auto carpeta = std::filesystem::temp_directory_path() / "funshi-prueba-slots";
+        std::filesystem::remove_all(carpeta);
+        std::filesystem::create_directories(carpeta);
+        const auto ahora = std::filesystem::file_time_type::clock::now();
+        for (int i = 0; i < 6; ++i) {
+            const auto f = carpeta / ("s" + std::to_string(i) + ".bin");
+            std::ofstream(f) << "x";
+            std::filesystem::last_write_time(f, ahora - std::chrono::minutes(10 - i));
+        }
+        std::ofstream(carpeta / "otro.txt") << "x";
+        AsignadorTuneles::podarCachesGuardadas(carpeta, 4);
+        CHECK(!std::filesystem::exists(carpeta / "s0.bin") && !std::filesystem::exists(carpeta / "s1.bin") &&
+                  std::filesystem::exists(carpeta / "s2.bin") && std::filesystem::exists(carpeta / "s5.bin") &&
+                  std::filesystem::exists(carpeta / "otro.txt"),
+              "cola: se borran las cachés guardadas más viejas, no otros archivos");
+        std::filesystem::remove_all(carpeta);
     }
     auto sinSlots = std::make_shared<AsignadorTuneles>([] { return 0; }, [](int) { return true; });
     CHECK(sinSlots->reservar("A").slot() == -1, "túneles: servidor sin slots → sin túnel");
