@@ -32,6 +32,17 @@ const std::vector<Guia>& guiasIncluidas() {
          "3. scene.object.addcomponent {\"project\":P,\"id\":ID,\"componentType\":\"Script\",\"value\":RUTA} "
          "usando la ruta tal como la devuelve script.list.\n"
          "4. scene.script.reload {\"project\":P,\"id\":ID}."},
+        {"guia.borrar", "Borrar o eliminar un objeto, un script o un asset",
+         "borrar borra borralo bórralo eliminar elimina eliminalo elimínalo quitar quita sacar saca destruir destruye "
+         "objeto script asset sonido modelo textura imagen archivo",
+         "El usuario confirma cada borrado: si no lo autoriza, no insistas.\n"
+         "- Objeto (con sus hijos): si no sabes el id, scene.object.findbyname {\"project\":P,\"name\":\"X\"}; "
+         "luego scene.object.delete {\"project\":P,\"id\":ID}. scene.undo lo restaura.\n"
+         "- Script: script.list {\"project\":P} y script.delete {\"project\":P,\"path\":RUTA} (quita el "
+         "componente Script de los objetos que lo usan).\n"
+         "- Asset (modelo, imagen, audio, prefab, tileset, partículas, interfaz): asset.list {\"project\":P} y "
+         "asset.delete {\"project\":P,\"path\":RUTA} (quita sus componentes de los objetos que lo usan).\n"
+         "- Otro archivo o una carpeta de src/: project.src.delete {\"project\":P,\"path\":RUTA}."},
         {"guia.fisica", "Dar física a un objeto (colisión y gravedad)",
          "fisica colision collider rigidbody gravedad masa cae choca",
          "1. scene.object.addcomponent {\"project\":P,\"id\":ID,\"componentType\":\"Collider\","

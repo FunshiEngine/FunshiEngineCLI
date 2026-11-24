@@ -119,6 +119,10 @@ void probarConocimiento() {
         {"ponle la etiqueta Enemigo al objeto 3", "scene.object.settag"},
         {"agrégale un sonido de pasos", "guia.audio"},
         {"desactiva el objeto 5", "scene.object.setactive"},
+        {"elimina el objeto Cubo", "scene.object.delete"},
+        {"borra el script Jugador.java", "script.delete"},
+        {"quita el sonido salto.wav del proyecto", "asset.delete"},
+        {"bórralo", "guia.borrar"},
     };
     for (const auto& [pedido, id] : casos) {
         std::string obtenidos;
@@ -164,9 +168,27 @@ void probarHerramientas() {
     EjecutarComandoTool ejecutar(harness);
     auto r = ejecutar.execute({{"comando", "version"}}, {});
     CHECK(r.ok() && r.text.find("version") != std::string::npos, "ejecutar_comando: version");
-    r = ejecutar.execute({{"comando", "project.src.delete"}, {"argumentos", {{"path", "x"}}}}, {});
-    CHECK(!r.ok() && r.errorMessage.find("/project.src.delete") != std::string::npos,
+    r = ejecutar.execute({{"comando", "diagnostics.clear"}}, {});
+    CHECK(!r.ok() && r.errorMessage.find("/diagnostics.clear") != std::string::npos,
           "ejecutar_comando: bloquea comandos destructivos");
+    // Borrar pide confirmación: sin ella (o con un no) no se ejecuta.
+    r = ejecutar.execute({{"comando", "project.src.delete"}, {"argumentos", {{"path", "x"}}}}, {});
+    CHECK(!r.ok() && r.errorMessage.find("no autorizó borrar x de src/") != std::string::npos,
+          "ejecutar_comando: borrar sin confirmación no se ejecuta");
+    {
+        ToolContext siempre;
+        std::string pregunta;
+        siempre.requestPermission = [&](const PermissionRequest& p) {
+            pregunta = p.summary;
+            return PermissionDecision::ALLOW_ONCE;
+        };
+        r = ejecutar.execute({{"comando", "script.delete"},
+                              {"argumentos", {{"project", "NoExiste"}, {"path", "Scripts/A.java"}}}},
+                             siempre);
+        CHECK(pregunta == "borrar el script Scripts/A.java del proyecto NoExiste y quitarlo de los objetos que lo usan" &&
+                  !r.ok() && r.errorMessage.find("no autorizó") == std::string::npos,
+              "ejecutar_comando: con confirmación se ejecuta (aquí falla por el proyecto)");
+    }
     r = ejecutar.execute({{"comando", "scene.teletransportar"}}, {});
     CHECK(!r.ok() && r.errorMessage.find("buscar_comandos") != std::string::npos,
           "ejecutar_comando: comando desconocido sugiere buscar");
@@ -190,7 +212,10 @@ void probarHerramientas() {
     CHECK(!comandoPermitido("lectura", "scene.object.settransform"), "perfil lectura: no modifica");
     CHECK(comandoPermitido("escena", "scene.object.settransform"), "perfil escena: modifica");
     CHECK(!comandoPermitido("escena", "project.src.create"), "perfil escena: no toca archivos");
-    CHECK(!comandoPermitido("completo", "project.src.delete"), "perfil completo: sin destructivos");
+    CHECK(!comandoPermitido("completo", "diagnostics.clear"), "perfil completo: sin destructivos");
+    CHECK(comandoPermitido("escena", "scene.object.delete") && comandoPermitido("archivos", "asset.delete") &&
+              comandoPermitido("scripts", "script.delete") && !comandoPermitido("lectura", "asset.delete"),
+          "perfiles: borrar (con confirmación) en su perfil, no en lectura");
     auto registro = crearRegistroPerfil(harness, "lectura");
     auto via = registro->byName("ejecutar_comando");
     r = via->execute({{"comando", "scene.object.settransform"}, {"argumentos", {{"project", "X"}, {"id", 1}}}}, {});

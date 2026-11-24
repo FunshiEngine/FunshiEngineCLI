@@ -75,6 +75,9 @@ struct SesionAgente {
     // próxima ronda. Las que llegan cuando ya terminó quedan aquí.
     std::shared_ptr<agente::llm::BuzonInstrucciones> aclaraciones =
         std::make_shared<agente::llm::BuzonInstrucciones>();
+    // Pregunta al usuario si autoriza lo que el agente quiere hacer (borrar
+    // algo); bloquea hasta la respuesta. Vacío: se niega.
+    std::function<bool(const std::string& descripcion)> confirmar;
 };
 
 // Silvy: agente que recibe texto. Si empieza con '/' ejecuta comando CLI directo.
@@ -129,6 +132,10 @@ public:
     // Túneles hacia el servidor (uno por sesión). configurarLlm los crea para
     // un servidor local; aquí se reemplazan (pruebas).
     void setTuneles(std::shared_ptr<agente::llm::AsignadorTuneles> tuneles);
+    // Confirmación de la sesión por defecto (el chat de línea).
+    void setConfirmacion(std::function<bool(const std::string&)> confirmar) {
+        sesionPorDefecto_.confirmar = std::move(confirmar);
+    }
     // Dónde entra en la conversación una aclaración que llega durante el pedido.
     void setFormatoAclaracion(agente::llm::FormatoAclaracion formato);
 

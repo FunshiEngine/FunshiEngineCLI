@@ -22,7 +22,7 @@ const std::set<std::string>& comandosLectura() {
         "scene.list", "scene.objects", "scene.object.get", "scene.object.getglobalpos",
         "scene.hierarchy", "scene.object.components", "scene.object.findbytag",
         "scene.object.findbyname", "scene.object.getglobaltransform", "asset.validar",
-        "asset.extensions", "script.list", "diagnostics.list", "cli.config.get",
+        "asset.extensions", "asset.list", "script.list", "diagnostics.list", "cli.config.get",
     };
     return s;
 }
@@ -33,7 +33,7 @@ const std::set<std::string>& comandosEscena() {
         "scene.object.setparent", "scene.object.addcomponent", "scene.object.create",
         "scene.object.clone", "scene.object.removecomponent", "scene.object.unparent",
         "scene.object.settag", "scene.object.setactive", "scene.undo", "scene.redo",
-        "scene.autosave",
+        "scene.autosave", "scene.object.delete",
     };
     return s;
 }
@@ -41,7 +41,7 @@ const std::set<std::string>& comandosEscena() {
 const std::set<std::string>& comandosArchivos() {
     static const std::set<std::string> s = {
         "project.src.create", "project.src.rename", "project.dir.import", "project.fs.create",
-        "file.create", "asset.import",
+        "file.create", "asset.import", "asset.delete", "project.src.delete",
     };
     return s;
 }
@@ -49,7 +49,7 @@ const std::set<std::string>& comandosArchivos() {
 const std::set<std::string>& comandosScripts() {
     static const std::set<std::string> s = {
         "project.src.create", "script.compile", "scene.script.compile", "scene.script.reload",
-        "scene.object.setfield", "scene.object.addcomponent",
+        "scene.object.setfield", "scene.object.addcomponent", "script.delete",
     };
     return s;
 }

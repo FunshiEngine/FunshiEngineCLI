@@ -212,6 +212,11 @@ void AplicacionTui::lanzarOrdenChat(std::shared_ptr<SesionTui> sesion, const std
         sesion->ocupado = true;
         sesion->datos.agente.proyectoActivo = proyectoActivo_;
         sesion->datos.agente.id = sesion->datos.id;  // su túnel hacia el modelo
+        // Lo que el agente quiera borrar se pregunta en esta sesión.
+        sesion->datos.agente.confirmar = [this, debil = std::weak_ptr<SesionTui>(sesion)](const std::string& d) {
+            const auto s = debil.lock();
+            return s && pedirConfirmacion(s, d);
+        };
         // La primera orden le da nombre a una sesión sin título propio.
         const bool sinTitulo = sesion->datos.titulo.rfind("Sesión ", 0) == 0;
         const bool primera = std::none_of(sesion->mensajes.begin(), sesion->mensajes.end(),

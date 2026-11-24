@@ -196,6 +196,7 @@ ToolResult AgentLoop::executeTool(const std::string& name, const nlohmann::json&
     }
     ToolContext ctx; ctx.chatId = callId; ctx.outputsDir = ".agentes/outputs/" + callId;
     ctx.onEvent = onEventActual_;
+    if (solicitudPermiso_) ctx.requestPermission = solicitudPermiso_;
     try { return tool->execute(argsReales, ctx); }
     catch (const std::exception& e) { return ToolResult::error("Excepción en " + name + ": " + e.what()); }
     catch (...) { return ToolResult::error("Error desconocido en " + name); }

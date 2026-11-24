@@ -184,6 +184,10 @@ public:
     // ella durante el turno y no queda en el historial.
     using DocumentacionPara = std::function<std::string(const std::string&)>;
     void setDocumentacionAclaraciones(DocumentacionPara d) { documentacionAclaracion_ = std::move(d); }
+    // Quién decide los permisos que piden las herramientas (borrar, por
+    // ejemplo). Sin esto, se niegan.
+    using SolicitudPermiso = std::function<PermissionDecision(const PermissionRequest&)>;
+    void setSolicitudPermiso(SolicitudPermiso s) { solicitudPermiso_ = std::move(s); }
 
 private:
     std::shared_ptr<LlmGateway> gateway_;
@@ -197,6 +201,7 @@ private:
     std::shared_ptr<BuzonInstrucciones> buzon_;
     FormatoAclaracion formatoAclaracion_ = FormatoAclaracion::MensajeNuevo;
     DocumentacionPara documentacionAclaracion_;
+    SolicitudPermiso solicitudPermiso_;
     // Mensajes a los que se agregó documentación en el turno: (índice,
     // largo sin ella). Al terminar el turno se recortan.
     std::vector<std::pair<std::size_t, std::size_t>> recortesTurno_;

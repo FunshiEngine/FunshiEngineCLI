@@ -6,6 +6,8 @@
 // AplicacionTui — mensajes mientras Silvy procesa y edición de los propios:
 //   - con la sesión ocupada, un mensaje queda en espera hasta elegir
 //     agregarlo al razonamiento en curso (A) o encolarlo (E);
+//   - lo que el agente quiere borrar espera la confirmación del usuario
+//     (S sí · N no); cancelar el pedido cuenta como no;
 //   - al terminar un pedido sigue la cola (y las aclaraciones que llegaron
 //     cuando el bucle ya había cerrado);
 //   - clic en un mensaje propio: editarlo (E) o eliminarlo (D). Ambas
@@ -21,22 +23,61 @@ namespace funshi {
 
 using chat::MensajeChat;
 
+bool AplicacionTui::pedirConfirmacion(const std::shared_ptr<SesionTui>& sesion, const std::string& descripcion) {
+    std::unique_lock<std::mutex> lock(chatMutex_);
+    sesion->confirmacion = descripcion;
+    sesion->respuestaConfirmacion = -1;
+    sesion->enEspera.clear();
+    sesion->menuMensaje = -1;
+    lock.unlock();
+    mensaje_ = "Silvy (" + sesion->datos.titulo + ") pide confirmación: S sí · N no.";
+    mensajeEsError_ = false;
+    if (pantalla_) pantalla_->PostEvent(ftxui::Event());
+    lock.lock();
+    // Cancelar el pedido (Ctrl+X, editar o eliminar un mensaje) cuenta como no.
+    const auto cancelar = sesion->datos.agente.cancelar;
+    while (sesion->respuestaConfirmacion < 0 && !cancelar->load()) {
+        confirmacionCv_.wait_for(lock, std::chrono::milliseconds(200));
+    }
+    const bool si = sesion->respuestaConfirmacion == 1;
+    sesion->confirmacion.clear();
+    sesion->respuestaConfirmacion = -1;
+    return si;
+}
+
 bool AplicacionTui::eventoEnCurso(const ftxui::Event& evento) {
     std::shared_ptr<SesionTui> sesion;
     std::string espera;
+    std::string confirmacion;
     int menu = -1;
     {
         std::lock_guard<std::mutex> lock(chatMutex_);
         sesion = sesionActualSinLock();
         if (!sesion) return false;
         espera = sesion->enEspera;
+        confirmacion = sesion->confirmacion;
         menu = sesion->menuMensaje;
     }
-    if (espera.empty() && menu < 0) return false;
+    if (espera.empty() && menu < 0 && confirmacion.empty()) return false;
     const auto tecla = [&](char c) {
         return evento == ftxui::Event::Character(c) ||
                evento == ftxui::Event::Character(static_cast<char>(c - 'a' + 'A'));
     };
+
+    if (!confirmacion.empty()) {
+        // Hasta responder, las demás teclas no hacen nada.
+        const bool si = tecla('s') || tecla('y');
+        if (!si && !tecla('n') && evento != ftxui::Event::Escape) return true;
+        {
+            std::lock_guard<std::mutex> lock(chatMutex_);
+            sesion->respuestaConfirmacion = si ? 1 : 0;
+        }
+        confirmacionCv_.notify_all();
+        mensaje_ = si ? "Autorizado: " + confirmacion : "No autorizado: " + confirmacion;
+        mensajeEsError_ = false;
+        if (pantalla_) pantalla_->PostEvent(ftxui::Event());
+        return true;
+    }
 
     if (!espera.empty()) {
         if (tecla('a') || tecla('e')) {
