@@ -67,20 +67,20 @@ Reglas:
 | `Escena/` | Armazón RAII de escena y serialización a JSON | `ContextoEscena`, `sceneHierarchyJson()` | motor |
 | `Comandos/` | Un manejador por comando (`ResultadoComando f(const json&)`) | `escena*`, `proyecto*`, `script*`… | Validacion, Proyectos, Escena, motor |
 | `Agente/` | Silvy (enrutado y armado de cada pedido), Harness (ejecución auditada y serializada), Auditoría | `Silvy::procesar(texto, SesionAgente&, onEvent)`, `Harness::ejecutar()` | Nucleo, Agente/LLM |
-| `Agente/Conocimiento` | RAG: índice BM25 sobre la ayuda de los comandos, guías (incluida la de lenguajes y extensiones, armada con `TiposArchivo` del motor) y documentos del usuario | `BaseConocimiento::global()`, `contextoParaPedido()` | Nucleo/AyudaComandos |
+| `Agente/Conocimiento` | RAG: índice BM25 sobre la ayuda de los comandos, guías (incluidas la de lenguajes y extensiones, armada con `TiposArchivo` del motor, y la de scripts del motor, armada con `FileManager::plantillaScript`) y documentos del usuario; validación de scripts | `BaseConocimiento::global()`, `contextoParaPedido()`, `documentoScripts()`, `problemaDeScript()` | Nucleo/AyudaComandos, motor |
 | `Agente/Subagentes` | Instrucciones de Silvy y subagentes; delegación de tareas | `GestorSubagentes`, `LanzarSubagentesTool`, `instruccionesPrincipal()` | Agente/LLM, Conocimiento |
 | `Agente/Sesiones` | Conversaciones independientes persistidas | `SesionChat`, `AlmacenSesiones` | Agente (SesionAgente) |
 | `Agente/Tareas` | Tarea del agente: objetivo y cierre que escribe el modelo, formato del contexto, respaldo | `TareaAgente`, `bloqueTareaAnterior()`, `pedidoDeObjetivo()`, `leerCierre()`, `consultar()` | Agente/LLM |
 | `Agente/LLM/Config` | Configuración persistida y tipos del chat | `LlmConfig`, `ChatMessage`, `AgentEvent` | — |
-| `Agente/LLM/Cliente` | Cliente HTTP OpenAI-compatible con streaming SSE; descargas | `LlmGateway`, `http::descargar()` | libcurl |
-| `Agente/LLM/Bucle` | Bucle modelo → herramientas → modelo | `AgentLoop`, `ToolRegistry`, `PromptToolParser` | Cliente, Config |
+| `Agente/LLM/Cliente` | Cliente HTTP OpenAI-compatible con streaming SSE; descargas; túneles (slots) por sesión hacia un servidor local | `LlmGateway`, `LlmGateway::setTunel()`, `AsignadorTuneles`, `http::descargar()`, `http::post()` | libcurl |
+| `Agente/LLM/Bucle` | Bucle modelo → herramientas → modelo; aclaraciones del usuario durante el turno | `AgentLoop`, `ToolRegistry`, `PromptToolParser`, `BuzonInstrucciones`, `FormatoAclaracion` | Cliente, Config |
 | `Agente/LLM/Herramientas` | Comandos del motor como tools, `buscar_comandos`, `ejecutar_comando` y perfiles | `EngineTool`, `crearRegistroPerfil(harness, perfil)`, `comandoPermitido()` | Bucle, Harness, Conocimiento |
 | `Agente/LLM/HuggingFace` | Búsqueda, metadatos, variantes y descarga verificada | `HfApi` | Cliente |
 | `Agente/LLM/Local` | Binario llama-server, modelos locales, ciclo de vida del servidor | `LocalInferenceManager`, `InstaladorLlama`, `RegistroServidor` | Cliente, HuggingFace |
 | `Tui/` | Interfaz FTXUI: secciones, chat, modelos, ayuda | `ejecutarTui()`, `AplicacionTui` | Nucleo, Agente |
 | `Tui/Configuracion`, `Tui/Terminal/PreferenciasTui` | Sección Configuración: rutas (`cli.config.*`), idioma y paleta editable en vivo, persistidos en `<config>/tui.json` | `tui::coloresTema()`, `tui::fijarColor()`, `tui::cargarPreferencias()` | Agente/LLM/Config |
 | `Agente/Documentos` | RAG de documentos del usuario: extracción de texto, fragmentos, base de vectores FVDB, embeddings (cliente y servidor local Qwen3), búsqueda | `BaseDocumentos`, `AlmacenVectores`, `ServidorEmbeddings`, `extraerTexto()`, `BuscarDocumentosTool` | Agente/LLM, Conocimiento, miniz |
-| `Tui/Chat` | Modelo del chat (sesiones, mensajes, subagentes), monitor de eventos y su dibujo | `chat::SesionTui`, `chat::MonitorSesion`, `chat::MonitorTranscripcion` | Agente (eventos, sesiones) |
+| `Tui/Chat` | Modelo del chat (sesiones, mensajes, subagentes), monitor de eventos y su dibujo; mensajes durante el razonamiento (agregar o encolar) y edición o eliminación de mensajes propios | `chat::SesionTui`, `chat::MonitorSesion`, `chat::MonitorTranscripcion` | Agente (eventos, sesiones) |
 | `Util/` | Portapapeles (herramienta del sistema u OSC 52), métricas | `util::Clipboard::copiar()`, `secuenciaOsc52()`, `metricas::Cronometro` | — |
 
 ## 4. Flujos principales
@@ -150,7 +150,11 @@ en el prompt de sistema y `PromptToolParser` extrae bloques ```` ```tool_call ``
 del texto: también llamadas sin cerco o en ```` ```json ````, varias en un mismo
 bloque (una por línea, aunque a alguna le falten llaves) y la forma
 `{"comando": …, "argumentos": …}` sin `"tool"`, que se toma como
-`ejecutar_comando`; una herramienta inexistente con nombre de respuesta («fin
+`ejecutar_comando`; el código entre comillas triples (`"""…"""`) o con saltos
+de línea crudos dentro de una cadena se repara; un nombre de herramienta mal
+escrito se corrige solo si está cerca, y en un comando solo dentro de su grupo y
+por un carácter de la última parte (`scene.object.rename` no pasa a ser
+`scene.object.create`); una herramienta inexistente con nombre de respuesta («fin
 de la respuesta») y un único texto se toma como la respuesta final
 (`detalle::respuestaDisfrazada`). Los resultados vuelven al modelo entre las marcas
 `[SALIDA DE TUS HERRAMIENTAS …]` y `[FIN DE LA SALIDA]`, que se quitan de la
@@ -158,7 +162,8 @@ respuesta final si el modelo las copia (`sinMarcasDeSalida`).
 
 El `Harness` del agente corrige y protege sus llamadas
 (`setCorreccionesDelAgente`): `"<proyecto>"` (el marcador de los ejemplos)
-cuenta como proyecto ausente y un argumento en `null`, como ausente; las rutas de `project.src.*` pierden un `src/`
+cuenta como proyecto ausente y un argumento en `null`, como ausente; `"true"` o
+`"false"` como texto en un argumento booleano pasan a booleano; las rutas de `project.src.*` pierden un `src/`
 inicial; `project.src.create` sobre un archivo existente falla con
 `file_exists` salvo que la llamada traiga `"sobrescribir": true` o que el contenido nuevo conserve todas las líneas del
 archivo (argumento del agente que no llega al comando), y un archivo con contenido sin extensión
@@ -256,6 +261,35 @@ documentación de los comandos que nombran.
   las transferencias usan `CURLOPT_NOSIGNAL`.
 - **Cancelación** de una respuesta en curso: `LlmGateway::setCancelFlag()`
   (el callback de progreso de cURL aborta la transferencia).
+- **Túneles por sesión**: con un servidor local, `Silvy::enviarAlLlm` reserva
+  con `AsignadorTuneles` el slot de la sesión (`SesionAgente::id`) para todo
+  el pedido (objetivo, bucle, subagentes y cierre) y cada gateway lo manda
+  como `id_slot`. Así una sesión no reaprovecha la caché KV de otra (con
+  `--cache-reuse`, el servidor desplaza trozos calculados atendiendo a la
+  conversación anterior). Las sesiones hacen cola: si no hay slot libre, cede el
+  suyo la sesión que entró primero entre las no reservadas (FIFO); su caché se
+  guarda (`POST /slots/<i>?action=save`, `<sesión>.bin` en `slots/`) y la que
+  entra restaura la suya si la tiene (`action=restore`, el archivo se borra) o
+  el slot se vacía (`action=erase`). Con todos reservados el pedido va sin
+  túnel. Se conservan las `kMaxCachesGuardadas` (4) cachés más recientes. El
+  servidor arranca con `-np 2 --kv-unified --slot-save-path <slots>
+  --no-cache-idle-slots` (sin esta última, con KV unificado el servidor vacía
+  los slots ociosos y no queda caché que guardar); cada opción se agrega solo
+  si el binario la admite (`llama-server --help`).
+- **Aclaraciones durante el turno**: la TUI deja el mensaje en el
+  `BuzonInstrucciones` de la sesión (seguro entre hilos); `AgentLoop` las toma
+  al empezar cada ronda y las incorpora según `FormatoAclaracion` (por defecto
+  `MensajeNuevo`, un mensaje propio del usuario: el que mejor atendió el modelo
+  en las pruebas) junto con la documentación del RAG para su texto
+  (`setDocumentacionAclaraciones`), que se recorta al terminar el turno; si iba
+  a terminar, da una ronda más. Las que llegan cuando el bucle ya cerró van como
+  el pedido siguiente, antes de la cola.
+- **Edición o eliminación de mensajes**: el hilo de la UI recorta los mensajes
+  del chat y sube `SesionTui::generacion`; el hilo del pedido cancelado
+  compara la generación antes de cada escritura y deja de escribir. El
+  historial del modelo lo usa ese hilo, así que el recorte
+  (`SesionAgente::descartarPedidos`, que también vuelve a la tarea
+  correspondiente) se aplica cuando termina (`pedidosADescartar`).
 
 ## 6. Datos en disco
 

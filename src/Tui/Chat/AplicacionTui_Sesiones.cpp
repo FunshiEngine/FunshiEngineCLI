@@ -209,6 +209,7 @@ bool AplicacionTui::ordenDeSesion(const std::string& linea) {
             sesion->mensajes.clear();
             sesion->datos.agente.historial.clear();
             sesion->datos.agente.tareaAnterior = {};
+            sesion->datos.agente.tareasPrevias.clear();
         }
         guardarSesion(sesion);
         informar("Conversación vaciada.");

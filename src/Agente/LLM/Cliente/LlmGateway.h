@@ -108,6 +108,11 @@ public:
 
     // Estadísticas de la última llamada a chatStream (aunque haya fallado).
     virtual EstadisticasLlamada ultimaLlamada() const { return {}; }
+
+    // Túnel (slot de llama-server) por el que van las peticiones: cada
+    // sesión usa el suyo para no compartir la caché KV con otra. -1 = el
+    // servidor elige. Los servidores remotos lo ignoran.
+    virtual void setTunel(int slot) { (void)slot; }
 };
 
 /**
@@ -134,6 +139,7 @@ public:
     std::vector<std::string> listModels() override;
     void close() override;
     EstadisticasLlamada ultimaLlamada() const override { return ultima_; }
+    void setTunel(int slot) override { tunel_ = slot; }
 
     // Bandera de cancelación compartida: si pasa a true, la respuesta en curso
     // se aborta (LlmException "Cancelado por el usuario").
@@ -152,6 +158,7 @@ private:
     std::string power_;
     int effectiveMaxTokens_;
     std::shared_ptr<std::atomic<bool>> cancel_;
+    int tunel_ = -1;
     EstadisticasLlamada ultima_;
     mutable std::string toolsKey_;      // cache del array "tools" serializado
     mutable nlohmann::json toolsJson_;

@@ -113,6 +113,15 @@ std::string ToolCallSanitizer::repairJson(const std::string& raw) {
         out += s[i];
     }
     s = std::move(out);
+    // Texto entre comillas triples (estilo Python, típico para el código de
+    // un archivo): pasa a una cadena JSON con todo escapado.
+    for (std::size_t ini; (ini = s.find("\"\"\"")) != std::string::npos;) {
+        const std::size_t fin = s.find("\"\"\"", ini + 3);
+        if (fin == std::string::npos) break;
+        std::string texto = s.substr(ini + 3, fin - ini - 3);
+        if (!texto.empty() && texto.front() == '\n') texto.erase(0, 1);
+        s.replace(ini, fin + 3 - ini, nlohmann::json(texto).dump());
+    }
     s = std::regex_replace(s, std::regex(R"(,\s*([}\]]))"), "$1");
     s = std::regex_replace(s, std::regex(R"(: NaN)"), ": 0");
     s = std::regex_replace(s, std::regex(R"(: Infinite)"), ": 0");
@@ -130,6 +139,12 @@ std::string ToolCallSanitizer::repairJson(const std::string& raw) {
     bool enCadena = false, escape = false;
     for (char c : s) {
         if (enCadena) {
+            // Saltos de línea y tabulaciones crudos dentro de una cadena (código
+            // escrito tal cual): JSON los exige escapados.
+            if (!escape && (c == '\n' || c == '\t' || c == '\r')) {
+                if (c != '\r') reconstruido += (c == '\n') ? "\\n" : "\\t";
+                continue;
+            }
             reconstruido += c;
             if (escape) escape = false;
             else if (c == '\\') escape = true;

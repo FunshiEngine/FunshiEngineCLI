@@ -51,7 +51,12 @@ void AplicacionTui::partirMensajeChat(const MensajeChat& m, int ancho,
     }
     using Rol = MensajeChat::Rol;
     switch (m.rol) {
-        case Rol::Usuario: prefijo = "Tú:    "; color = kAcento; bold = true; break;
+        case Rol::Usuario:
+            // "aclaracion": lo que el usuario agregó a un razonamiento en curso.
+            prefijo = m.ref == "aclaracion" ? "Tú +   " : "Tú:    ";
+            color = kAcento;
+            bold = true;
+            break;
         case Rol::Silvy:
             prefijo = "Silvy: ";
             if (m.enCurso && texto.empty()) texto = "...";
@@ -101,6 +106,19 @@ void AplicacionTui::partirMensajeChat(const MensajeChat& m, int ancho,
         if (fin == texto.size()) break;
         inicio = fin + 1;
     }
+    // El razonamiento se muestra plegado: sus primeras líneas y un clic para
+    // verlo entero (o volver a plegarlo).
+    if (m.rol == Rol::Pensamiento && salida.size() > kLineasPensamientoPlegado) {
+        if (!m.expandido) {
+            const std::size_t ocultas = salida.size() - kLineasPensamientoPlegado;
+            salida.resize(kLineasPensamientoPlegado);
+            salida.push_back({sangria + "… " + std::to_string(ocultas) + (ocultas == 1 ? " línea más" : " líneas más") +
+                                  " · clic para ver el razonamiento",
+                              kAcento, false, true});
+        } else {
+            salida.push_back({sangria + "(clic para plegar el razonamiento)", kAcento, false, true});
+        }
+    }
 }
 
 ftxui::Element AplicacionTui::panelChat() {
@@ -116,6 +134,7 @@ ftxui::Element AplicacionTui::panelChat() {
     std::vector<std::string> refs;  // a qué se refiere cada línea (para el clic)
     std::string cabeceraSub;        // vista de subagente: su título y estado
     bool ocupado = false;
+    std::string opciones;     // elección pendiente (mensaje en espera o menú de un mensaje)
     bool desplazado = false;  // mirando más arriba del final
     int total = 0;
     int inicio = 0;
@@ -135,6 +154,12 @@ ftxui::Element AplicacionTui::panelChat() {
                           sub->datos.estado;
         }
         ocupado = sesion && sesion->ocupado;
+        if (sesion && !sesion->enEspera.empty()) {
+            opciones = " ⏸ «" + recortar(sesion->enEspera, 40) +
+                       "»  A: agregar a lo que está pensando · E: encolar · Esc: seguir editando ";
+        } else if (sesion && sesion->menuMensaje >= 0) {
+            opciones = " Tu mensaje: E editar · D eliminar (también lo que vino después) · Esc cancelar ";
+        }
         for (auto& m : mensajes) {
             if (m.versionCache != m.version || m.anchoCache != ancho) {
                 partirMensajeChat(m, ancho, m.lineasCache);
@@ -168,7 +193,8 @@ ftxui::Element AplicacionTui::panelChat() {
                               m.lineasCache.begin() + hasta);
                 std::string ref;
                 if (m.rol == MensajeChat::Rol::Subagente && !m.ref.empty()) ref = "sub:" + m.ref;
-                else if (!m.detalle.empty()) ref = "msg:" + std::to_string(i);
+                else if (!m.detalle.empty() || m.rol == MensajeChat::Rol::Pensamiento) ref = "msg:" + std::to_string(i);
+                else if (m.rol == MensajeChat::Rol::Usuario && !sub && m.ref.empty()) ref = "usr:" + std::to_string(i);
                 refs.insert(refs.end(), static_cast<std::size_t>(hasta - desde), ref);
             }
             cursor += n;
@@ -229,6 +255,9 @@ ftxui::Element AplicacionTui::panelChat() {
     }
 
     filas.push_back(ftxui::separator());
+    if (!opciones.empty()) {
+        filas.push_back(ftxui::text(opciones) | ftxui::bold | ftxui::color(kFondoPanel) | ftxui::bgcolor(kAdvertencia));
+    }
 
     ftxui::Element entradaChat = entradaChat_->Render();
     filas.push_back(ftxui::hbox({

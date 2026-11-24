@@ -22,6 +22,7 @@
 #include "Agente/LLM/Bucle/ToolRegistry.h"
 #include <nlohmann/json.hpp>
 #include <string>
+#include <mutex>
 #include <vector>
 #include <functional>
 #include <memory>
@@ -101,6 +102,7 @@ std::string resultadosParaModelo(const std::string& resultados);
 inline constexpr const char* kInicioSalida = "[SALIDA DE TUS HERRAMIENTAS";
 inline constexpr const char* kFinSalida = "[FIN DE LA SALIDA]";
 inline constexpr const char* kResultadoDe = "RESULTADO DE ";
+inline constexpr const char* kMarcaAclaracion = "[Aclaración del usuario";
 std::string sinMarcasDeSalida(const std::string& texto);
 
 namespace detalle {
@@ -116,6 +118,28 @@ std::string respuestaDisfrazada(const std::string& herramienta, const nlohmann::
 /**
  * Bucle principal: modelo → tool → modelo → tool...
  */
+// Instrucciones que el usuario manda mientras el bucle trabaja: se
+// incorporan al empezar la ronda siguiente (y si el bucle iba a terminar, da
+// una ronda más para atenderlas). Seguro entre hilos.
+class BuzonInstrucciones {
+public:
+    void agregar(std::string texto);
+    std::vector<std::string> tomar();
+    bool vacio() const;
+
+private:
+    mutable std::mutex mutex_;
+    std::vector<std::string> pendientes_;
+};
+
+// Dónde entra una aclaración en la conversación del turno.
+//   MensajeNuevo  mensaje propio del usuario después de lo último;
+//   EnResultados  junto a los resultados de herramientas (modo prompt) o, si
+//                 no hay, como mensaje nuevo;
+//   EnPedido      agregada al pedido del turno (queda en el historial);
+//   EnSistema     agregada a las instrucciones del sistema del turno.
+enum class FormatoAclaracion { MensajeNuevo, EnResultados, EnPedido, EnSistema };
+
 class AgentLoop {
 public:
     AgentLoop(std::shared_ptr<LlmGateway> gateway,
@@ -153,6 +177,13 @@ public:
     void setResolutorAlias(ResolutorAlias r) { alias_ = std::move(r); }
     // Cancela el turno en curso (el gateway corta la transferencia).
     void setCancelFlag(std::shared_ptr<std::atomic<bool>> flag) { cancel_ = std::move(flag); }
+    // Aclaraciones del usuario durante el turno y dónde se incorporan.
+    void setBuzon(std::shared_ptr<BuzonInstrucciones> buzon) { buzon_ = std::move(buzon); }
+    void setFormatoAclaracion(FormatoAclaracion f) { formatoAclaracion_ = f; }
+    // Documentación para una aclaración (la del RAG para su texto): va con
+    // ella durante el turno y no queda en el historial.
+    using DocumentacionPara = std::function<std::string(const std::string&)>;
+    void setDocumentacionAclaraciones(DocumentacionPara d) { documentacionAclaracion_ = std::move(d); }
 
 private:
     std::shared_ptr<LlmGateway> gateway_;
@@ -163,6 +194,17 @@ private:
         "Eres un asistente que controla el motor FunshiEngine. "
         "Puedes usar herramientas para crear proyectos, escenas, objetos, scripts, etc.";
     std::string encabezadoPedido_ = "[Pedido del usuario]";
+    std::shared_ptr<BuzonInstrucciones> buzon_;
+    FormatoAclaracion formatoAclaracion_ = FormatoAclaracion::MensajeNuevo;
+    DocumentacionPara documentacionAclaracion_;
+    // Mensajes a los que se agregó documentación en el turno: (índice,
+    // largo sin ella). Al terminar el turno se recortan.
+    std::vector<std::pair<std::size_t, std::size_t>> recortesTurno_;
+    // Incorpora las aclaraciones pendientes; true si había alguna.
+    bool incorporarAclaraciones(std::vector<ChatMessage>& messages, std::size_t indicePedido,
+                                std::string& pedidoOriginal, AgentAnswer& answer,
+                                const std::function<void(const AgentEvent&)>& emitir);
+    bool hayAclaraciones() const { return buzon_ && !buzon_->vacio(); }
     std::shared_ptr<std::atomic<bool>> cancel_;
     std::function<void(const AgentEvent&)> onEventActual_;  // durante run()
     ResolutorAlias alias_;

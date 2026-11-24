@@ -19,6 +19,7 @@
 #include "Agente/Harness.h"
 
 #include "Nucleo/AyudaComandos.h"
+#include "Agente/Conocimiento/GuiaScripts.h"
 
 #include <Configuracion/ProjectPaths.h>
 
@@ -179,6 +180,18 @@ ResultadoComando* Harness::rechazoDeArchivo(const Solicitud& solicitud, Resultad
                                           codigosSalida::kErrorUso);
         return &destino;
     }
+    // Un script con la estructura de otro lado no lo carga el motor: el error
+    // trae la plantilla del motor para esa clase.
+    const std::string contenido = a.value("content", std::string());
+    if (const std::string problema = contenido.empty() ? std::string() : agente::conocimiento::problemaDeScript(ruta, contenido);
+        !problema.empty()) {
+        destino = ResultadoComando::fallo("invalid_script",
+                                          "El script no sirve para el motor: " + problema +
+                                              ". Estructura que espera el motor:\n" +
+                                              agente::conocimiento::plantillaDeScript(ruta),
+                                          codigosSalida::kErrorUso);
+        return &destino;
+    }
     std::error_code ec;
     const std::filesystem::path completa = std::filesystem::path(ProjectPaths::directorioSrc(proyecto)) / ruta;
     if (a.value("sobrescribir", false) || !std::filesystem::is_regular_file(completa, ec)) return nullptr;
@@ -210,6 +223,16 @@ ResultadoComando Harness::ejecutar(const Solicitud& solicitud,
         // el tipo declarado o nada).
         for (auto it = efectiva.argumentos.begin(); it != efectiva.argumentos.end();) {
             it = it->is_null() ? efectiva.argumentos.erase(it) : std::next(it);
+        }
+        // "true"/"false" escritos como texto en un argumento booleano (el
+        // comando espera el tipo y, si no, termina en una excepción de JSON).
+        if (const AyudaComando* ayuda = buscarAyudaComando(efectiva.comando)) {
+            for (const auto& arg : ayuda->argumentos) {
+                auto it = efectiva.argumentos.find(arg.nombre);
+                if (it == efectiva.argumentos.end() || !it->is_string() || arg.tipo.find("true") == std::string::npos) continue;
+                const std::string v = it->get<std::string>();
+                if (v == "true" || v == "false") *it = (v == "true");
+            }
         }
     }
     normalizarRutasSrc(efectiva);

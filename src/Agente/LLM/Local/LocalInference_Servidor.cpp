@@ -34,6 +34,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -124,6 +125,56 @@ bool waitForServerHealth(const std::string& url, int pid, int timeoutMs = 120000
 }
 
 } // namespace
+namespace {
+
+// true si `llama-server --help` menciona la opción (los binarios viejos no
+// tienen todas; pasar una desconocida impide arrancar).
+bool admiteOpcion(const std::filesystem::path& binario, const std::string& opcion) {
+    static std::mutex mutex;
+    static std::map<std::string, std::string> ayudas;  // binario → salida de --help
+    std::lock_guard<std::mutex> lock(mutex);
+    auto it = ayudas.find(binario.string());
+    if (it == ayudas.end()) {
+        std::string salida;
+#ifdef _WIN32
+        const std::string cmd = "\"\"" + binario.string() + "\" --help 2>&1\"";
+        FILE* p = _popen(cmd.c_str(), "r");
+#else
+        const std::string cmd = "\"" + binario.string() + "\" --help 2>&1";
+        FILE* p = popen(cmd.c_str(), "r");
+#endif
+        if (p) {
+            char buf[4096];
+            std::size_t n;
+            while ((n = fread(buf, 1, sizeof(buf), p)) > 0) salida.append(buf, n);
+#ifdef _WIN32
+            _pclose(p);
+#else
+            pclose(p);
+#endif
+        }
+        it = ayudas.emplace(binario.string(), std::move(salida)).first;
+    }
+    return it->second.find(opcion) != std::string::npos;
+}
+
+// Túneles de las sesiones de chat: dos slots bastan, porque las sesiones
+// hacen cola y la caché de la que cede su slot se guarda en `carpetaSlots`.
+// --kv-unified: los slots comparten un búfer de -c tokens (cada uno puede
+// usar el contexto entero). --no-cache-idle-slots: sin esto el servidor
+// vacía los slots ociosos y no queda caché que guardar.
+std::string opcionesTuneles(const std::filesystem::path& binario, const std::filesystem::path& carpetaSlots) {
+    std::string o = " -np 2";
+    if (admiteOpcion(binario, "--kv-unified")) o += " --kv-unified";
+    if (admiteOpcion(binario, "--slot-save-path")) {
+        o += " --slot-save-path \"" + carpetaSlots.string() + "\"";
+        if (admiteOpcion(binario, "--cache-idle-slots")) o += " --no-cache-idle-slots";
+    }
+    return o;
+}
+
+}  // namespace
+
 bool LocalInferenceManager::startServer(const std::filesystem::path& modelPath,
                                         int port,
                                         int gpuLayers,
@@ -163,14 +214,20 @@ bool LocalInferenceManager::startServer(const std::filesystem::path& modelPath,
     setState(LocalInferenceState::STARTING_SERVER, 
              "Iniciando llama-server en puerto " + std::to_string(actualPort));
     
+    // Cachés guardadas de las sesiones que cedieron su slot.
+    const std::filesystem::path carpetaSlots = baseDir_ / "slots";
+    if (!modoEmbeddings_) {
+        std::error_code ecSlots;
+        std::filesystem::create_directories(carpetaSlots, ecSlots);
+    }
+
     std::ostringstream cmd;
     cmd << "\"" << llamaServerBinary_.string() << "\""
         << " -m \"" << modelPath.string() << "\""
         << " -c " << contextSize
         << " --port " << actualPort
         << " --host 127.0.0.1"
-        // Un solo slot: con -np automático el contexto se reparte entre varios.
-        << " -np 1";
+        << (modoEmbeddings_ ? " -np 1" : opcionesTuneles(llamaServerBinary_, carpetaSlots));
     if (modoEmbeddings_) {
         // Qwen3-Embedding: el vector es el del último token. El lote físico
         // (-ub) debe alcanzar el texto más largo que se embebe de una vez.

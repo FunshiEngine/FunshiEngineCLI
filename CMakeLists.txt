@@ -102,6 +102,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Sesiones.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Subagentes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Documentos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_EnCurso.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/ModeloChat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/MonitorChat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/MonitorSesion.cpp
@@ -136,6 +137,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/EngineToolFactory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/AgentLoop.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/AgentLoop_Herramientas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/AgentLoop_Aclaraciones.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/SeparadorPensamiento.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/ToolCallSanitizer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/PromptToolParser.cpp
@@ -159,6 +161,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/BaseConocimiento.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/GuiasAgente.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/Lenguajes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/GuiaScripts.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/GuiasEjecutables.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/ExtractorTexto.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/ExtractorTexto_Pdf.cpp
@@ -170,6 +173,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/PerfilesHerramientas.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/EsquemasHerramientas.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Tareas/TareaAgente.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Cliente/AsignadorTuneles.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/PlantillasAgente.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/GestorSubagentes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/HerramientaSubagentes.cpp
@@ -300,6 +304,8 @@ add_executable(agente-tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasUsoComandos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasDocumentos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasTareas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasTuneles.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasChat.cpp
 )
 target_link_libraries(agente-tests PRIVATE funshi_cli_core)
 add_test(NAME agente-tests COMMAND agente-tests)

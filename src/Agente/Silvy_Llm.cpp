@@ -104,6 +104,12 @@ bool Silvy::configurarLlm(const llm::LlmConfig& config, bool nativeToolCalls) {
     estado->subagentesParalelos = config.subagentesParalelosEfectivo();
     estado->toolTimeoutMs = config.toolTimeoutMs;
     estado->modelo = config.modelName;
+    // Con un servidor local, la caché de la sesión que cede su slot se guarda
+    // en la carpeta que el servidor usa para eso (--slot-save-path).
+    if (config.isLocalhostUrl()) {
+        estado->tuneles =
+            llm::AsignadorTuneles::paraServidor(config.remoteBaseUrl, config.localInferenceDirEfectivo() / "slots");
+    }
     try {
         estado->fabrica();  // valida que el gateway se pueda crear
     } catch (const std::exception&) {
@@ -125,6 +131,22 @@ void Silvy::configurarConFabrica(FabricaGateway fabrica, bool nativeToolCalls, i
     estado->tareas = false;
     std::lock_guard<std::mutex> lock(mutexLlm_);
     llm_ = std::move(estado);
+}
+
+void Silvy::setTuneles(std::shared_ptr<llm::AsignadorTuneles> tuneles) {
+    std::lock_guard<std::mutex> lock(mutexLlm_);
+    if (!llm_) return;
+    auto copia = std::make_shared<EstadoLlm>(*llm_);
+    copia->tuneles = std::move(tuneles);
+    llm_ = std::move(copia);
+}
+
+void Silvy::setFormatoAclaracion(llm::FormatoAclaracion formato) {
+    std::lock_guard<std::mutex> lock(mutexLlm_);
+    if (!llm_) return;
+    auto copia = std::make_shared<EstadoLlm>(*llm_);
+    copia->formatoAclaracion = formato;
+    llm_ = std::move(copia);
 }
 
 void Silvy::setTareasActivas(bool activas) {
@@ -150,6 +172,7 @@ std::string Silvy::modeloActivo() const {
 void Silvy::limpiarHistorialLlm() {
     sesionPorDefecto_.historial.clear();
     sesionPorDefecto_.tareaAnterior = {};
+    sesionPorDefecto_.tareasPrevias.clear();
 }
 
 Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionAgente& sesion,
@@ -161,6 +184,16 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
         resp.error = true;
         return resp;
     }
+    // Túnel de la sesión hacia el servidor: todas las llamadas del pedido
+    // (objetivo, bucle, subagentes y cierre) usan su slot y su caché.
+    const auto reserva = estado->tuneles ? estado->tuneles->reservar(sesion.id.empty() ? "cli" : sesion.id)
+                                         : llm::AsignadorTuneles::Reserva{};
+    const int tunel = reserva.slot();
+    const auto crearGateway = [estado, tunel]() {
+        auto g = estado->fabrica();
+        if (g) g->setTunel(tunel);
+        return g;
+    };
     auto harness = std::make_shared<Harness>(harness_);
     // Proyecto de trabajo: el activo de la sesión o, si no hay, el único que
     // existe. Los comandos que no traen "project" lo usan (los modelos chicos
@@ -172,11 +205,11 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
     harness->setCorreccionesDelAgente(true);
 
     // Bucles de subagentes: perfil acotado, gateway propio, sin delegar.
-    agente::FabricaBucles fabricaSub = [estado, harness](const std::string& perfil) {
+    agente::FabricaBucles fabricaSub = [estado, harness, crearGateway](const std::string& perfil) {
         agente::BucleCreado b;
         auto registro = llm::crearRegistroPerfil(harness, perfil);
         b.herramientas = nombresHerramientas(*registro);
-        b.bucle = std::make_shared<llm::AgentLoop>(estado->fabrica(), registro, estado->nativas,
+        b.bucle = std::make_shared<llm::AgentLoop>(crearGateway(), registro, estado->nativas,
                                                    estado->toolTimeoutMs);
         b.bucle->setResolutorAlias(aliasComando);
         return b;
@@ -185,12 +218,17 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
 
     auto registro = llm::crearRegistroPerfil(harness, "completo");
     registro->add(std::make_shared<agente::LanzarSubagentesTool>(gestor));
-    llm::AgentLoop bucle(estado->fabrica(), registro, estado->nativas, estado->toolTimeoutMs);
+    llm::AgentLoop bucle(crearGateway(), registro, estado->nativas, estado->toolTimeoutMs);
     bucle.setMaxIterations(10);
     bucle.setInstrucciones(agente::instruccionesPrincipal(true, proyecto));
     sesion.cancelar->store(false);
     bucle.setCancelFlag(sesion.cancelar);
     bucle.setResolutorAlias(aliasComando);
+    bucle.setBuzon(sesion.aclaraciones);
+    bucle.setFormatoAclaracion(estado->formatoAclaracion);
+    bucle.setDocumentacionAclaraciones([herramientas = nombresHerramientas(*registro)](const std::string& texto) {
+        return agente::conocimiento::BaseConocimiento::global()->contextoParaPedido(texto, herramientas, 3);
+    });
 
     std::vector<std::string> usados;
     const std::string contexto = agente::conocimiento::BaseConocimiento::global()->contextoParaPedido(
@@ -223,7 +261,7 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
     std::string objetivo;
     if (estado->tareas) {
         objetivo = agente::tareas::leerObjetivo(agente::tareas::consultar(
-            *estado->fabrica(), agente::tareas::pedidoDeObjetivo(sesion.tareaAnterior, mensaje, contextoTurno), proyecto));
+            *crearGateway(), agente::tareas::pedidoDeObjetivo(sesion.tareaAnterior, mensaje, contextoTurno), proyecto));
         const auto anterior = agente::tareas::bloqueTareaAnterior(sesion.tareaAnterior);
         if (!anterior.empty()) contextoTurno += (contextoTurno.empty() ? "" : "\n") + anterior;
         bucle.setEncabezadoPedido(agente::tareas::kEncabezadoTareaActual);
@@ -241,19 +279,26 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
     // que no hizo).
     if (estado->tareas) {
         agente::tareas::TareaAgente tarea;
-        tarea.pedido = mensaje;
+        tarea.pedido = mensaje;  // con las aclaraciones que llegaron durante el turno
+        for (const auto& a : answer.aclaraciones) tarea.pedido += "\nAclaración: " + a;
         tarea.objetivo = objetivo;
         const bool cancelado = sesion.cancelar->load();
         const bool algunaBien = std::any_of(answer.toolCalls.begin(), answer.toolCalls.end(),
                                             [](const auto& t) { return t.ok; });
         if (cancelado || !algunaBien || !agente::tareas::leerCierre(
-                             agente::tareas::consultar(*estado->fabrica(), agente::tareas::pedidoDeCierre(
-                                                                               mensaje, answer.toolCalls, answer.text),
+                             agente::tareas::consultar(*crearGateway(), agente::tareas::pedidoDeCierre(
+                                                                               tarea.pedido, answer.toolCalls, answer.text),
                                                        proyecto),
                              tarea)) {
             agente::tareas::cierreDeRespaldo(answer.toolCalls, answer.text, tarea);
         }
         if (onEvent) onEvent(llm::AgentEvent::estado("Resumen de la tarea: " + tarea.resumen));
+        if (!sesion.tareaAnterior.vacia()) {
+            sesion.tareasPrevias.push_back(std::move(sesion.tareaAnterior));
+            if (sesion.tareasPrevias.size() > SesionAgente::kMaxTareasPrevias) {
+                sesion.tareasPrevias.erase(sesion.tareasPrevias.begin());
+            }
+        }
         sesion.tareaAnterior = std::move(tarea);
     }
 

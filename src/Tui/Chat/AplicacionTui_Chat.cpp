@@ -73,6 +73,7 @@ bool AplicacionTui::eventoEnChat(ftxui::Event evento) {
         pantalla_->Exit();
         return true;
     }
+    if (eventoEnCurso(evento)) return true;  // elección pendiente: agregar/encolar o editar/eliminar
     if (evento == ftxui::Event::Escape) {
         if (!salirDeVistaSubagente()) desenfocarChat();
         return true;
@@ -121,8 +122,10 @@ void AplicacionTui::procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const s
     // con argumentos y resultado, notas de progreso y un resumen por
     // subagente (cuya transcripción queda aparte, ver /sub N).
     chat::MonitorSesion monitor(*sesion);
+    unsigned generacion = 0;  // si cambia, el usuario descartó este pedido
     {
         std::lock_guard<std::mutex> lock(chatMutex_);
+        generacion = sesion->generacion;
         monitor.esperar();
     }
     if (pantalla_) pantalla_->PostEvent(ftxui::Event());
@@ -131,6 +134,7 @@ void AplicacionTui::procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const s
         using Tipo = agente::llm::AgentEvent::Type;
         {
             std::lock_guard<std::mutex> lock(chatMutex_);
+            if (sesion->generacion != generacion) return;  // sus líneas ya se borraron
             monitor.aplicar(evento);
         }
         // Los fragmentos de texto llegan muy seguido: redibujo limitado.
@@ -157,7 +161,7 @@ void AplicacionTui::procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const s
 
     {
         std::lock_guard<std::mutex> lock(chatMutex_);
-        monitor.cerrar(textoFinal, respuesta.error);
+        if (sesion->generacion == generacion) monitor.cerrar(textoFinal, respuesta.error);
         sesion->ocupado = false;
         chatAplicarResultadoPendiente_ = true;
         chatMensajePendiente_ = "Silvy (" + sesion->datos.titulo + "): " +
@@ -165,7 +169,7 @@ void AplicacionTui::procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const s
         chatMensajePendienteError_ = respuesta.error;
         chatRecargarPendiente_ = true;
     }
-    guardarSesion(sesion);
+    siguienteDeLaCola(sesion);  // descartes pendientes, aclaraciones tardías y la cola
     if (pantalla_) pantalla_->PostEvent(ftxui::Event::Custom);
 }
 
@@ -190,22 +194,35 @@ void AplicacionTui::ejecutarOrdenChat() {
     {
         std::lock_guard<std::mutex> lock(chatMutex_);
         if (sesion->ocupado) {
-            textoChat_ = linea;  // no se pierde lo escrito
-            mensaje_ = "Esta sesión está procesando. Espera, cancela con Ctrl+X o abre otra con Ctrl+N.";
-            mensajeEsError_ = true;
+            // Mientras piensa: el usuario elige agregarlo a ese razonamiento o encolarlo.
+            sesion->enEspera = linea;
+            sesion->menuMensaje = -1;
+            mensaje_ = "Silvy está pensando: A agrega tu mensaje a lo que está haciendo, E lo encola.";
+            mensajeEsError_ = false;
+            if (pantalla_) pantalla_->PostEvent(ftxui::Event());
             return;
         }
+    }
+    lanzarOrdenChat(sesion, linea);
+}
+
+void AplicacionTui::lanzarOrdenChat(std::shared_ptr<SesionTui> sesion, const std::string& linea, bool agregarLinea) {
+    {
+        std::lock_guard<std::mutex> lock(chatMutex_);
         sesion->ocupado = true;
         sesion->datos.agente.proyectoActivo = proyectoActivo_;
+        sesion->datos.agente.id = sesion->datos.id;  // su túnel hacia el modelo
         // La primera orden le da nombre a una sesión sin título propio.
         const bool sinTitulo = sesion->datos.titulo.rfind("Sesión ", 0) == 0;
         const bool primera = std::none_of(sesion->mensajes.begin(), sesion->mensajes.end(),
                                           [](const MensajeChat& m) { return m.rol == MensajeChat::Rol::Usuario; });
         if (sinTitulo && primera) sesion->datos.titulo = agente::SesionChat::tituloDesde(linea);
-        MensajeChat usuario;
-        usuario.rol = MensajeChat::Rol::Usuario;
-        usuario.texto = linea;
-        sesion->mensajes.push_back(std::move(usuario));
+        if (agregarLinea) {
+            MensajeChat usuario;
+            usuario.rol = MensajeChat::Rol::Usuario;
+            usuario.texto = linea;
+            sesion->mensajes.push_back(std::move(usuario));
+        }
         sesion->desplazamiento = 0;
     }
     mensaje_ = "Silvy: procesando...";

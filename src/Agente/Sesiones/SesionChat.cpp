@@ -76,11 +76,13 @@ nlohmann::json SesionChat::aJson() const {
     }
     nlohmann::json hist = nlohmann::json::array();
     for (const auto& m : agente.historial) hist.push_back(mensajeLlmAJson(m));
+    nlohmann::json previas = nlohmann::json::array();
+    for (const auto& t : agente.tareasPrevias) previas.push_back(t.aJson());
     return {{"version", 1},          {"id", id},
             {"titulo", titulo},      {"creada", creada},
             {"actualizada", actualizada}, {"proyectoActivo", agente.proyectoActivo},
             {"mensajes", mens},      {"subagentes", subs},
-            {"historialLlm", hist}, {"tareaAnterior", agente.tareaAnterior.aJson()}};
+            {"historialLlm", hist}, {"tareaAnterior", agente.tareaAnterior.aJson()}, {"tareasPrevias", previas}};
 }
 
 SesionChat SesionChat::desdeJson(const nlohmann::json& j) {
@@ -91,6 +93,9 @@ SesionChat SesionChat::desdeJson(const nlohmann::json& j) {
     s.actualizada = j.value("actualizada", s.creada);
     s.agente.proyectoActivo = j.value("proyectoActivo", std::string());
     s.agente.tareaAnterior = agente::tareas::TareaAgente::desdeJson(j.value("tareaAnterior", nlohmann::json::object()));
+    for (const auto& t : j.value("tareasPrevias", nlohmann::json::array())) {
+        s.agente.tareasPrevias.push_back(agente::tareas::TareaAgente::desdeJson(t));
+    }
     s.mensajes = mensajesDesdeJson(j.value("mensajes", nlohmann::json::array()));
     for (const auto& sa : j.value("subagentes", nlohmann::json::array())) {
         if (!sa.is_object()) continue;

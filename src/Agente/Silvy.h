@@ -17,6 +17,8 @@
 #pragma once
 
 #include "Agente/Tareas/TareaAgente.h"
+#include "Agente/LLM/Cliente/AsignadorTuneles.h"
+#include "Agente/LLM/Bucle/AgentLoop.h"
 #include "Agente/Harness.h"
 #include "Nucleo/Solicitud.h"
 #include "Agente/LLM/Config/LlmTypes.h"
@@ -50,13 +52,29 @@ struct OrdenProcesada {
 // el usuario tiene activo y la última tarea. Cada sesión de chat tiene la suya; varias pueden
 // procesarse a la vez (cada pedido crea su propio bucle y gateway).
 struct SesionAgente {
+    // Identifica la sesión ante el servidor del modelo: cada una va por su
+    // propio túnel (slot y caché). Vacío = la sesión de la CLI.
+    std::string id;
     std::vector<agente::llm::ChatMessage> historial;
     std::string proyectoActivo;
     // Última tarea cerrada (lo que el modelo hizo y su resumen): contexto
     // del pedido siguiente.
     agente::tareas::TareaAgente tareaAnterior;
+    // Las tareas de antes (la más vieja primero, hasta kMaxTareasPrevias):
+    // al descartar pedidos se vuelve a la que correspondía.
+    std::vector<agente::tareas::TareaAgente> tareasPrevias;
+    static constexpr std::size_t kMaxTareasPrevias = 20;
+
+    // Descarta los últimos `pedidos` pedidos al modelo (el historial desde el
+    // más viejo de ellos, sus resultados y aclaraciones) y vuelve a la tarea
+    // anterior a ellos. Para editar o borrar un mensaje del chat.
+    void descartarPedidos(std::size_t pedidos);
     // Poner en true cancela el pedido en curso de esta sesión.
     std::shared_ptr<std::atomic<bool>> cancelar = std::make_shared<std::atomic<bool>>(false);
+    // Aclaraciones para el pedido en curso: el bucle las incorpora en su
+    // próxima ronda. Las que llegan cuando ya terminó quedan aquí.
+    std::shared_ptr<agente::llm::BuzonInstrucciones> aclaraciones =
+        std::make_shared<agente::llm::BuzonInstrucciones>();
 };
 
 // Silvy: agente que recibe texto. Si empieza con '/' ejecuta comando CLI directo.
@@ -108,6 +126,12 @@ public:
     // apagadas salvo que se activen aquí.
     void setTareasActivas(bool activas);
 
+    // Túneles hacia el servidor (uno por sesión). configurarLlm los crea para
+    // un servidor local; aquí se reemplazan (pruebas).
+    void setTuneles(std::shared_ptr<agente::llm::AsignadorTuneles> tuneles);
+    // Dónde entra en la conversación una aclaración que llega durante el pedido.
+    void setFormatoAclaracion(agente::llm::FormatoAclaracion formato);
+
     // Devuelve el resumen de auditoría para mostrar al usuario qué se hizo.
     std::string resumenQueHice(std::size_t n = 10) const;
 
@@ -126,6 +150,8 @@ private:
         long toolTimeoutMs = 30000;
         std::string modelo;
         bool tareas = true;
+        std::shared_ptr<agente::llm::AsignadorTuneles> tuneles;  // nulo: sin túneles
+        agente::llm::FormatoAclaracion formatoAclaracion = agente::llm::FormatoAclaracion::MensajeNuevo;
     };
     std::shared_ptr<const EstadoLlm> estadoLlm() const;
 

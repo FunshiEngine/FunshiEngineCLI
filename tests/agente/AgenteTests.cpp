@@ -40,6 +40,8 @@ int main() {
     pruebas_agente::probarUsoDeComandos();
     pruebas_agente::probarDocumentos();
     pruebas_agente::probarTareas();
+    pruebas_agente::probarTuneles();
+    pruebas_agente::probarChat();
 
     std::error_code ec;
     fs::current_path(fs::temp_directory_path(), ec);

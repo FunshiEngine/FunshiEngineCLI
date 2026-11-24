@@ -5,6 +5,7 @@
 */
 #include "Agente/Conocimiento/BaseConocimiento.h"
 #include "Agente/Conocimiento/Lenguajes.h"
+#include "Agente/Conocimiento/GuiaScripts.h"
 #include "Agente/Conocimiento/GuiasEjecutables.h"
 
 #include "Agente/LLM/Config/LlmConfig.h"
@@ -111,6 +112,22 @@ BaseConocimiento::BaseConocimiento(const fs::path& dirUsuario) {
                        " lenguaje lenguajes extension extensiones lenguaje extension tipo archivo archivos formato "
                        "codigo programar escribir clase script scripts java cpp c++ csharp c# python "
                        "lua javascript shader proyecto fnep " + d.contenido);
+    }
+    {
+        // Estructura de los scripts, con la plantilla del motor enlazado.
+        Documento d;
+        d.tipo = Documento::Tipo::Guia;
+        d.id = "guia.scripts-motor";
+        d.titulo = "Scripts del motor: estructura, API y ejemplos (Java y C++)";
+        d.contenido = "## Guía: " + d.titulo + "\n" + documentoScripts();
+        // Se indexa sin el contenido: es largo y diluiría el puntaje de sus
+        // palabras clave frente a documentos cortos.
+        agregar(d, d.titulo + " " + d.titulo +
+                       " script script scripts scripts codigo código clase clase metodo método metodos funcion "
+                       "comportamiento java java cpp c++ escribir programar crear agregar agrégale mover mueva mueve "
+                       "movimiento rotar rote gire girar saltar salte disparar dispare atacar imprimir imprima consola "
+                       "teclado tecla teclas wasd espacio colision choque jugador enemigo plantilla estructura api "
+                       "nativo iniciar actualizar onstart onupdate");
     }
     if (!dirUsuario.empty()) cargarDocumentosUsuario(dirUsuario);
     indice_.construir();

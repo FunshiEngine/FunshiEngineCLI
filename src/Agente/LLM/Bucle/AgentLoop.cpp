@@ -30,20 +30,6 @@ namespace funshi::agente::llm {
 
 namespace {
 
-// ":texto", ":entero", ":[x,y,z]"… para la firma compacta del modo prompt.
-std::string tipoCorto(const nlohmann::ordered_json& def) {
-    const std::string t = def.is_object() ? def.value("type", std::string()) : std::string();
-    if (t == "string") return ":texto";
-    if (t == "integer") return ":entero";
-    if (t == "number") return ":número";
-    if (t == "boolean") return ":bool";
-    // Arreglos y valores mixtos: el formato va entre paréntesis al final de la descripción.
-    const std::string d = def.is_object() ? def.value("description", std::string()) : std::string();
-    const auto ini = d.rfind(" (");
-    if (ini != std::string::npos && d.back() == ')') return ":" + d.substr(ini + 2, d.size() - ini - 3);
-    return t == "array" ? ":lista" : t == "object" ? ":objeto" : "";
-}
-
 std::string segundos(long ms) {
     char buf[32];
     std::snprintf(buf, sizeof(buf), "%.1f s", static_cast<double>(ms) / 1000.0);
@@ -70,41 +56,6 @@ AgentLoop::AgentLoop(std::shared_ptr<LlmGateway> gateway,
     : gateway_(std::move(gateway)), registry_(std::move(registry)),
       nativeToolCalls_(nativeToolCalls), toolTimeoutMs_(toolTimeoutMs) {}
 
-std::string AgentLoop::buildSystemPrompt() const {
-    std::ostringstream oss;
-    oss << instrucciones_ << "\n\n";
-    if (!nativeToolCalls_) {
-        // Firma compacta (nombre(arg*, arg): descripción) en lugar del esquema
-        // JSON completo: el prompt se procesa en cada llamada y en CPU cada
-        // token cuenta. * = obligatorio.
-        oss << "HERRAMIENTAS DISPONIBLES (* = argumento obligatorio):\n";
-        for (const auto& spec : registry_->specs()) {
-            // ordered_json: los argumentos en el orden del esquema (project primero).
-            const auto esquema = nlohmann::ordered_json::parse(spec.parametersSchema, nullptr, false);
-            std::string firma;
-            if (esquema.is_object() && esquema.contains("properties") && esquema["properties"].is_object()) {
-                const auto req = esquema.value("required", nlohmann::ordered_json::array());
-                for (const auto& [arg, def] : esquema["properties"].items()) {
-                    const bool obligatorio = std::find(req.begin(), req.end(), arg) != req.end();
-                    if (!firma.empty()) firma += ", ";
-                    firma += arg + (obligatorio ? "*" : "") + tipoCorto(def);
-                }
-            }
-            oss << "- " << spec.name << "(" << firma << "): " << spec.description << "\n";
-        }
-        oss << "PARA USAR UNA HERRAMIENTA, responde SOLO con este bloque exacto:\n"
-            << "```tool_call\n{\"tool\":\"nombre\",\"arguments\":{...}}\n```\n"
-            << "Las herramientas las ejecutas TÚ. Sus resultados te llegan en un mensaje que "
-               "empieza con [SALIDA DE TUS HERRAMIENTAS]: no lo escribió el usuario. Al responder, "
-               "cuenta en primera persona lo que hiciste (\"Creé…\", \"Moví…\"); nunca le agradezcas "
-               "al usuario ni digas que él ejecutó algo.\n"
-            << "Si NO necesitas una herramienta, responde normalmente sin ningún bloque.\n"
-            << "NUNCA describas en texto lo que vas a llamar ni digas \"ahora lanzaré\": si hace "
-               "falta una herramienta, escribe el bloque ```tool_call``` en esta misma respuesta.\n";
-    }
-    return oss.str();
-}
-
 AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
                            std::function<void(const AgentEvent&)> onEvent,
                            const std::string& contextoTurno, const std::string& trasPedido) {
@@ -121,6 +72,9 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
     // npos = no hay nada que restaurar (sin contexto del turno).
     std::size_t indicePedido = std::string::npos;
     std::string pedidoOriginal;
+    // El pedido del turno, con o sin contexto (para las aclaraciones EnPedido).
+    const std::size_t indicePedidoTurno =
+        !messages.empty() && messages.back().role == "user" ? messages.size() - 1 : std::string::npos;
     if ((!contextoTurno.empty() || !trasPedido.empty()) && !messages.empty() && messages.back().role == "user") {
         indicePedido = messages.size() - 1;
         pedidoOriginal = messages.back().content;
@@ -133,6 +87,18 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
         const std::string& original;
         ~Restaurar() { if (i < m.size()) m[i].content = original; }
     } restaurar{messages, indicePedido, pedidoOriginal};
+    // La documentación que acompañó a las aclaraciones vale solo en el turno.
+    recortesTurno_.clear();
+    struct RecortarDocumentacion {
+        std::vector<ChatMessage>& m;
+        std::vector<std::pair<std::size_t, std::size_t>>& r;
+        ~RecortarDocumentacion() {
+            for (const auto& [i, largo] : r) {
+                if (i < m.size() && m[i].content.size() > largo) m[i].content.resize(largo);
+            }
+            r.clear();
+        }
+    } recortar{messages, recortesTurno_};
 
     onEventActual_ = onEvent;
     const auto emitir = [&](const AgentEvent& e) {
@@ -166,6 +132,7 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
             emitir(AgentEvent::estado("Cancelado por el usuario"));
             break;
         }
+        incorporarAclaraciones(messages, indicePedidoTurno, pedidoOriginal, answer, emitir);
         std::string accumulatedText;
         std::vector<SanitizedToolCall> pendingNativeCalls;
         const std::string idRonda = "ronda-" + std::to_string(iteration + 1);
@@ -331,11 +298,13 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
             std::string finalText = sinMarcasDeSalida(visible.empty() ? accumulatedText : visible);
             answer.text += finalText;
             messages.push_back(ChatMessage::assistant(finalText));
+            if (hayAclaraciones()) continue;  // una ronda más para atenderlas
             break;
         }
 
         answer.text += accumulatedText;
         messages.push_back(ChatMessage::assistant(accumulatedText));
+        if (hayAclaraciones()) continue;
         break;
     }
 

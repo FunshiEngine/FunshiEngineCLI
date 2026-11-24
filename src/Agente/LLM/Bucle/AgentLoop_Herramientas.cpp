@@ -23,9 +23,63 @@
 #include <algorithm>
 #include <cctype>
 #include <functional>
+#include <sstream>
 #include <vector>
 
 namespace funshi::agente::llm {
+
+namespace {
+
+// ":texto", ":entero", ":[x,y,z]"… para la firma compacta del modo prompt.
+std::string tipoCorto(const nlohmann::ordered_json& def) {
+    const std::string t = def.is_object() ? def.value("type", std::string()) : std::string();
+    if (t == "string") return ":texto";
+    if (t == "integer") return ":entero";
+    if (t == "number") return ":número";
+    if (t == "boolean") return ":bool";
+    // Arreglos y valores mixtos: el formato va entre paréntesis al final de la descripción.
+    const std::string d = def.is_object() ? def.value("description", std::string()) : std::string();
+    const auto ini = d.rfind(" (");
+    if (ini != std::string::npos && d.back() == ')') return ":" + d.substr(ini + 2, d.size() - ini - 3);
+    return t == "array" ? ":lista" : t == "object" ? ":objeto" : "";
+}
+
+}  // namespace
+
+std::string AgentLoop::buildSystemPrompt() const {
+    std::ostringstream oss;
+    oss << instrucciones_ << "\n\n";
+    if (!nativeToolCalls_) {
+        // Firma compacta (nombre(arg*, arg): descripción) en lugar del esquema
+        // JSON completo: el prompt se procesa en cada llamada y en CPU cada
+        // token cuenta. * = obligatorio.
+        oss << "HERRAMIENTAS DISPONIBLES (* = argumento obligatorio):\n";
+        for (const auto& spec : registry_->specs()) {
+            // ordered_json: los argumentos en el orden del esquema (project primero).
+            const auto esquema = nlohmann::ordered_json::parse(spec.parametersSchema, nullptr, false);
+            std::string firma;
+            if (esquema.is_object() && esquema.contains("properties") && esquema["properties"].is_object()) {
+                const auto req = esquema.value("required", nlohmann::ordered_json::array());
+                for (const auto& [arg, def] : esquema["properties"].items()) {
+                    const bool obligatorio = std::find(req.begin(), req.end(), arg) != req.end();
+                    if (!firma.empty()) firma += ", ";
+                    firma += arg + (obligatorio ? "*" : "") + tipoCorto(def);
+                }
+            }
+            oss << "- " << spec.name << "(" << firma << "): " << spec.description << "\n";
+        }
+        oss << "PARA USAR UNA HERRAMIENTA, responde SOLO con este bloque exacto:\n"
+            << "```tool_call\n{\"tool\":\"nombre\",\"arguments\":{...}}\n```\n"
+            << "Las herramientas las ejecutas TÚ. Sus resultados te llegan en un mensaje que "
+               "empieza con [SALIDA DE TUS HERRAMIENTAS]: no lo escribió el usuario. Al responder, "
+               "cuenta en primera persona lo que hiciste (\"Creé…\", \"Moví…\"); nunca le agradezcas "
+               "al usuario ni digas que él ejecutó algo.\n"
+            << "Si NO necesitas una herramienta, responde normalmente sin ningún bloque.\n"
+            << "NUNCA describas en texto lo que vas a llamar ni digas \"ahora lanzaré\": si hace "
+               "falta una herramienta, escribe el bloque ```tool_call``` en esta misma respuesta.\n";
+    }
+    return oss.str();
+}
 
 // Mensajes del modo prompt.
 
@@ -52,7 +106,9 @@ std::string sinMarcasDeSalida(const std::string& texto) {
         // "RESULTADO DE x:" y el JSON que lo sigue son el resultado copiado.
         const bool copiado = empieza(kResultadoDe) || (anteriorFueResultado && empieza("{"));
         anteriorFueResultado = empieza(kResultadoDe) || (anteriorFueResultado && empieza("{"));
-        if (!copiado && !empieza(kFinSalida) && !empieza(kInicioSalida)) out += linea + (fin < texto.size() ? "\n" : "");
+        if (!copiado && !empieza(kFinSalida) && !empieza(kInicioSalida) && !empieza(kMarcaAclaracion)) {
+            out += linea + (fin < texto.size() ? "\n" : "");
+        }
         ini = fin + 1;
     }
     const auto ultimo = out.find_last_not_of(" \t\r\n");
@@ -158,7 +214,16 @@ std::string AgentLoop::nombreParecido(const std::string& nombre) const {
         }
     }
     const std::size_t tope = std::max<std::size_t>(2, mejor.size() / 5);
-    return mejorDist <= tope ? mejor : std::string();
+    if (mejorDist > tope) return {};
+    // Un comando (con puntos) solo se corrige dentro de su grupo y por un
+    // carácter en la última parte: "rename" no es "create" ni "setname" es
+    // "settag", aunque estén a pocas letras.
+    const auto punto = mejor.rfind('.');
+    if (punto != std::string::npos) {
+        if (nombre.size() <= punto || nombre.compare(0, punto + 1, mejor, 0, punto + 1) != 0) return {};
+        if (distancia(nombre.substr(punto + 1), mejor.substr(punto + 1)) > 1) return {};
+    }
+    return mejor;
 }
 
 bool AgentLoop::existeHerramienta(const std::string& nombre) const {

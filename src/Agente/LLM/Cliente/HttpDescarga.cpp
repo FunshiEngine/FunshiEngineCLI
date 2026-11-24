@@ -155,6 +155,43 @@ ResultadoHttp get(const std::string& url, std::string& respuesta,
     return r;
 }
 
+ResultadoHttp post(const std::string& url, const std::string& cuerpo, std::string& respuesta, long timeoutMs) {
+    inicializarCurl();
+    ResultadoHttp r;
+    respuesta.clear();
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        r.error = "No se pudo inicializar cURL";
+        return r;
+    }
+    curl_slist* lista = curl_slist_append(nullptr, "Content-Type: application/json");
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, cuerpo.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(cuerpo.size()));
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, escribirMemoria);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &respuesta);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, lista);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeoutMs);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, std::min(timeoutMs, 10000L));
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    const CURLcode res = curl_easy_perform(curl);
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &r.codigoHttp);
+    curl_slist_free_all(lista);
+    curl_easy_cleanup(curl);
+    if (res != CURLE_OK) {
+        r.sinConexion = esErrorDeRed(res);
+        r.error = r.sinConexion ? mensajeSinConexion() : "cURL: " + std::string(curl_easy_strerror(res));
+        return r;
+    }
+    if (r.codigoHttp < 200 || r.codigoHttp >= 300) {
+        r.error = "HTTP " + std::to_string(r.codigoHttp);
+        return r;
+    }
+    r.ok = true;
+    return r;
+}
+
 ResultadoHttp descargar(const std::string& url, const fs::path& destino,
                         const OpcionesDescarga& opciones, const ProgresoBytes& progreso) {
     inicializarCurl();

@@ -157,6 +157,16 @@ void probarUsoDeComandos() {
         CHECK(sc.ok() && sc.name == "ejecutar_comando" && sc.args.value("comando", "") == "scene.list" &&
                   sc.args["argumentos"].value("project", "") == "Pdef",
               "sanitizador: {\"comando\"…} sin tool → ejecutar_comando");
+        // Código con comillas triples o con saltos de línea crudos dentro de la cadena.
+        const auto triples = llm::ToolCallSanitizer::block(
+            "```json\n{\"tool\":\"project.src.create\",\"arguments\":{\"path\":\"A.java\",\"content\": \"\"\"\n"
+            "public class A {\n    String s = \"hola\";\n}\n\"\"\"}}\n```");
+        CHECK(triples.ok() && triples.args.value("content", "") == "public class A {\n    String s = \"hola\";\n}\n",
+              "sanitizador: contenido entre comillas triples");
+        const auto crudo = llm::ToolCallSanitizer::block(
+            "{\"tool\":\"project.src.create\",\"arguments\":{\"path\":\"A.java\",\"content\":\"linea 1\n\tlinea 2\"}}");
+        CHECK(crudo.ok() && crudo.args.value("content", "") == "linea 1\n\tlinea 2",
+              "sanitizador: saltos de línea crudos dentro de una cadena");
         // Dos llamadas en un bloque, una por línea, la primera sin cerrar.
         const auto partes = llm::PromptToolParser::llamadasSinCerco(
             "```json\n{\"tool\":\"ejecutar_comando\",\"arguments\":{\"comando\":\"a\",\"argumentos\":{\"x\":1}}\n"
@@ -180,7 +190,7 @@ void probarUsoDeComandos() {
     // 4c. Protección de archivos: no se reemplaza uno existente sin permiso.
     {
         harness->setCorreccionesDelAgente(true);
-        const nlohmann::json crear = {{"project", "Pdef"}, {"path", "Scripts/A.cpp"}, {"file", true}, {"content", "original"}};
+        const nlohmann::json crear = {{"project", "Pdef"}, {"path", "Datos/notas.txt"}, {"file", true}, {"content", "original"}};
         CHECK(harness->ejecutarTexto("project.src.create", crear).respuesta.correcta, "protección: crea un archivo nuevo");
         auto pisar = crear;
         pisar["content"] = "otro";
@@ -189,7 +199,7 @@ void probarUsoDeComandos() {
                   r.respuesta.mensajeError.find("sobrescribir") != std::string::npos,
               "protección: rechaza reemplazar sin sobrescribir");
         const auto leer = [] {
-            std::ifstream f(std::filesystem::path(ProjectPaths::directorioSrc("Pdef")) / "Scripts/A.cpp");
+            std::ifstream f(std::filesystem::path(ProjectPaths::directorioSrc("Pdef")) / "Datos/notas.txt");
             return std::string(std::istreambuf_iterator<char>(f), {});
         };
         CHECK(leer().find("original") != std::string::npos, "protección: el archivo queda como estaba");
@@ -201,6 +211,12 @@ void probarUsoDeComandos() {
         pisar["sobrescribir"] = true;
         CHECK(harness->ejecutarTexto("project.src.create", pisar).respuesta.correcta && leer().find("otro") != std::string::npos,
               "protección: con sobrescribir lo reemplaza");
+        const auto malScript = harness->ejecutarTexto(
+            "project.src.create", {{"project", "Pdef"}, {"path", "Scripts/Bola.java"}, {"file", true},
+                                   {"content", "using UnityEngine; public class Bola : MonoBehaviour { void Update() {} }"}});
+        CHECK(!malScript.respuesta.correcta && malScript.respuesta.codigoError == "invalid_script" &&
+                  malScript.respuesta.mensajeError.find("public class Bola implements Comportamiento") != std::string::npos,
+              "scripts: el agente no escribe un script de otro motor; el error trae la plantilla del motor");
         // "src/" delante: se quita (si no, crearía src/src/...).
         const auto conSrc = harness->ejecutarTexto(
             "project.src.create", {{"project", "Pdef"}, {"path", "src/Scripts/C.java"}, {"file", true}, {"content", "class C {}"}});
@@ -220,6 +236,10 @@ void probarUsoDeComandos() {
                                      {{"project", "Pdef"}, {"path", "Scripts/D.java"}, {"file", true}, {"content", nullptr}})
                   .respuesta.correcta,
               "correcciones: un argumento en null cuenta como ausente");
+        const auto boolTexto = harness->ejecutarTexto(
+            "project.src.create", {{"project", "Pdef"}, {"path", "Datos/b.txt"}, {"file", "true"}, {"content", "x"}});
+        CHECK(boolTexto.respuesta.correcta && boolTexto.respuesta.resultado.value("type", "") == "file",
+              "correcciones: \"true\" como texto en un argumento booleano");
         harness->setProyectoPorDefecto("Pdef");
         CHECK(harness->ejecutarTexto("scene.list", {{"project", "<proyecto>"}}).respuesta.correcta,
               "correcciones: el marcador <proyecto> usa el proyecto de trabajo");

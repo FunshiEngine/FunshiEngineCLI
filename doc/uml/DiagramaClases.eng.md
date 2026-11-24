@@ -150,10 +150,26 @@ classDiagram
         -enviarAlLlm(string, SesionAgente, onEvent) RespuestaProcesada
     }
     class SesionAgente {
+        +string id
         +vector~ChatMessage~ historial
         +string proyectoActivo
         +TareaAgente tareaAnterior
+        +vector~TareaAgente~ tareasPrevias
         +shared_ptr~atomic bool~ cancelar
+        +shared_ptr~BuzonInstrucciones~ aclaraciones
+        +descartarPedidos(size_t)
+    }
+    class BuzonInstrucciones {
+        +agregar(string)
+        +tomar() vector~string~
+        +vacio() bool
+    }
+    class AsignadorTuneles {
+        +paraServidor(string baseUrl, path carpetaSlots)$ shared_ptr~AsignadorTuneles~
+        +archivoDeSesion(string)$ string
+        +podarCachesGuardadas(path, size_t)$
+        +reservar(string sesion) Reserva
+        +total() int
     }
     class TareaAgente {
         +string pedido
@@ -204,6 +220,9 @@ classDiagram
     Silvy *-- EstadoLlm
     Silvy ..> SesionAgente : processes
     SesionAgente *-- TareaAgente : previous task
+    SesionAgente *-- BuzonInstrucciones : inbox
+    AgentLoop ..> BuzonInstrucciones
+    Silvy ..> AsignadorTuneles : session tunnels
     Silvy ..> AgentLoop : creates one per request
     Silvy ..> RespuestaProcesada
     Harness --> Auditoria
@@ -220,8 +239,11 @@ classDiagram
         -shared_ptr~ToolRegistry~ registry_
         -bool nativeToolCalls_
         +int maxIterations = 8
-        +run(mensajes, onEvent, contextoTurno) AgentAnswer
+        +run(mensajes, onEvent, contextoTurno, trasPedido) AgentAnswer
         +setInstrucciones(string)
+        +setEncabezadoPedido(string)
+        +setBuzon(shared_ptr~BuzonInstrucciones~)
+        +setFormatoAclaracion(FormatoAclaracion)
         +setResolutorAlias(ResolutorAlias)
         +setCancelFlag(shared_ptr~atomic bool~)
         +setNativeToolCalls(bool)
@@ -276,6 +298,7 @@ classDiagram
         +chat(mensajes)* string
         +listModels()* vector~string~
         +close()*
+        +setTunel(int slot)
     }
     class OpenAiCompatibleGateway {
         -CURL* curl_
@@ -698,6 +721,10 @@ classDiagram
         +bool ocupado
         +int desplazamiento
         +int lineasDibujadas
+        +string enEspera
+        +deque~string~ cola
+        +int menuMensaje
+        +unsigned generacion
         +subagente(id) SubagenteTui
         +cargarDesdeDatos()
         +volcarEnDatos()
