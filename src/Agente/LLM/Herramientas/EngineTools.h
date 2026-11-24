@@ -18,6 +18,7 @@
 
 #include "Agente/LLM/Bucle/ToolRegistry.h"
 #include "Agente/Harness.h"
+#include "Agente/Conocimiento/BaseConocimiento.h"
 #include <nlohmann/json.hpp>
 #include <string>
 #include <memory>
@@ -70,6 +71,15 @@ protected:
             }
             error += ". \"project\" debe ser el nombre exacto de un proyecto existente: " +
                      (nombres.empty() ? std::string("no hay proyectos") : nombres) + ".";
+            const std::string dado = sol.argumentos.value("project", std::string());
+            if (dado.find('/') != std::string::npos || dado.find('\\') != std::string::npos) {
+                error += " Pasaste una ruta: usa solo el nombre.";
+            }
+        } else if (resultado.respuesta.codigoError == "invalid_request") {
+            // Argumentos mal: se devuelve cómo se usa el comando, para corregir
+            // en el siguiente intento en lugar de repetir la misma llamada.
+            const std::string uso = conocimiento::BaseConocimiento::usoDeComando(command);
+            if (!uso.empty()) error += "\n" + uso;
         }
         return ToolResult::error(error);
     }

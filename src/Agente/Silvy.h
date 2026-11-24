@@ -60,6 +60,10 @@ struct SesionAgente {
 // de los comandos relevantes (RAG) y la posibilidad de delegar en subagentes.
 class Silvy {
 public:
+    // Pedido sin las menciones de proyectos existentes, para buscar en la
+    // base de conocimiento (el modelo sí recibe el pedido completo).
+    static std::string consultaParaConocimiento(const std::string& pedido, const std::vector<std::string>& proyectos);
+
     explicit Silvy(Harness& harness);
 
     // Configura el agente LLM (requiere libcurl + config válida).

@@ -74,6 +74,10 @@ public:
                                    std::size_t k = 4,
                                    std::vector<std::string>* usados = nullptr) const;
 
+    // "Uso correcto de <comando>": argumentos y ejemplo listo para usar.
+    // Vacío si el comando no existe.
+    static std::string usoDeComando(const std::string& comando);
+
     // Texto de un documento para devolverlo como resultado de herramienta.
     static std::string formatear(const Documento& d, const std::set<std::string>& herramientas);
 

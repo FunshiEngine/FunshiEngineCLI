@@ -159,6 +159,12 @@ std::string ToolCallSanitizer::repairJson(const std::string& raw) {
 
 SanitizedToolCall ToolCallSanitizer::validateShape(const nlohmann::json& obj, const std::string* expectedName) {
     if (!obj.is_object()) return SanitizedToolCall::invalid("No es un objeto JSON");
+    // Llamada envuelta: {"tool_call": {"tool": …, "arguments": …}}.
+    for (const char* envoltorio : {"tool_call", "function_call", "call"}) {
+        if (obj.size() == 1 && obj.contains(envoltorio) && obj[envoltorio].is_object()) {
+            return validateShape(obj[envoltorio], expectedName);
+        }
+    }
     std::string name;
     // Claves que usan los modelos para el nombre (la pedida es "tool").
     for (const char* clave : {"tool", "name", "tool_call", "function", "herramienta"}) {

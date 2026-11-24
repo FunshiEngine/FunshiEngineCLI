@@ -30,6 +30,20 @@ namespace funshi::agente::llm {
 
 namespace {
 
+// ":texto", ":entero", ":[x,y,z]"… para la firma compacta del modo prompt.
+std::string tipoCorto(const nlohmann::ordered_json& def) {
+    const std::string t = def.is_object() ? def.value("type", std::string()) : std::string();
+    if (t == "string") return ":texto";
+    if (t == "integer") return ":entero";
+    if (t == "number") return ":número";
+    if (t == "boolean") return ":bool";
+    // Arreglos y valores mixtos: el formato va entre paréntesis al final de la descripción.
+    const std::string d = def.is_object() ? def.value("description", std::string()) : std::string();
+    const auto ini = d.rfind(" (");
+    if (ini != std::string::npos && d.back() == ')') return ":" + d.substr(ini + 2, d.size() - ini - 3);
+    return t == "array" ? ":lista" : t == "object" ? ":objeto" : "";
+}
+
 std::string segundos(long ms) {
     char buf[32];
     std::snprintf(buf, sizeof(buf), "%.1f s", static_cast<double>(ms) / 1000.0);
@@ -74,24 +88,28 @@ std::string AgentLoop::buildSystemPrompt() const {
         // token cuenta. * = obligatorio.
         oss << "HERRAMIENTAS DISPONIBLES (* = argumento obligatorio):\n";
         for (const auto& spec : registry_->specs()) {
-            const auto esquema = nlohmann::json::parse(spec.parametersSchema, nullptr, false);
+            // ordered_json: los argumentos en el orden del esquema (project primero).
+            const auto esquema = nlohmann::ordered_json::parse(spec.parametersSchema, nullptr, false);
             std::string firma;
             if (esquema.is_object() && esquema.contains("properties") && esquema["properties"].is_object()) {
-                const auto req = esquema.value("required", nlohmann::json::array());
+                const auto req = esquema.value("required", nlohmann::ordered_json::array());
                 for (const auto& [arg, def] : esquema["properties"].items()) {
                     const bool obligatorio = std::find(req.begin(), req.end(), arg) != req.end();
                     if (!firma.empty()) firma += ", ";
-                    firma += arg + (obligatorio ? "*" : "");
+                    firma += arg + (obligatorio ? "*" : "") + tipoCorto(def);
                 }
             }
             oss << "- " << spec.name << "(" << firma << "): " << spec.description << "\n";
         }
-        oss << "PARA USAR UNA HERRAMIENTA, respondé SOLO con este bloque exacto:\n"
+        oss << "PARA USAR UNA HERRAMIENTA, responde SOLO con este bloque exacto:\n"
             << "```tool_call\n{\"tool\":\"nombre\",\"arguments\":{...}}\n```\n"
-            << "Cuando recibas el RESULTADO DE LA HERRAMIENTA, respondé al usuario normalmente.\n"
-            << "Si NO necesitás una herramienta, respondé normalmente sin ningún bloque.\n"
+            << "Las herramientas las ejecutas TÚ. Sus resultados te llegan en un mensaje que "
+               "empieza con [SALIDA DE TUS HERRAMIENTAS]: no lo escribió el usuario. Al responder, "
+               "cuenta en primera persona lo que hiciste (\"Creé…\", \"Moví…\"); nunca le agradezcas "
+               "al usuario ni digas que él ejecutó algo.\n"
+            << "Si NO necesitas una herramienta, responde normalmente sin ningún bloque.\n"
             << "NUNCA describas en texto lo que vas a llamar ni digas \"ahora lanzaré\": si hace "
-               "falta una herramienta, escribí el bloque ```tool_call``` en esta misma respuesta.\n";
+               "falta una herramienta, escribe el bloque ```tool_call``` en esta misma respuesta.\n";
     }
     return oss.str();
 }

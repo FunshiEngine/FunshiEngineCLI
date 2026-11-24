@@ -159,6 +159,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/BaseConocimiento.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/GuiasAgente.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/Lenguajes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/GuiasEjecutables.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/ExtractorTexto.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/ExtractorTexto_Pdf.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/AlmacenVectores.cpp
@@ -167,6 +168,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/HerramientaDocumentos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/HerramientasConocimiento.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/PerfilesHerramientas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/EsquemasHerramientas.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/PlantillasAgente.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/GestorSubagentes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/HerramientaSubagentes.cpp

@@ -78,7 +78,14 @@ ToolResult EjecutarComandoTool::execute(const nlohmann::json& args, const ToolCo
         return ToolResult::error("El agente no puede ejecutar " + comando +
                                  " por su cuenta. Pídele al usuario que lo ejecute con /" + comando + ".");
     }
-    nlohmann::json argumentos = args.contains("argumentos") ? args["argumentos"] : nlohmann::json::object();
+    // "argumentos" es la clave pedida; los modelos también usan las inglesas.
+    nlohmann::json argumentos = nlohmann::json::object();
+    for (const char* clave : {"argumentos", "arguments", "args", "parameters", "parametros"}) {
+        if (args.contains(clave)) {
+            argumentos = args[clave];
+            break;
+        }
+    }
     if (argumentos.is_string()) {
         // Algunos modelos mandan el objeto como texto JSON.
         argumentos = nlohmann::json::parse(argumentos.get<std::string>(), nullptr, false);

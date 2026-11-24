@@ -17,7 +17,10 @@ const char* kReglasBase =
     "qué comando usar o con qué argumentos, llama a buscar_comandos.\n"
     "- Los comandos sin herramienta propia se ejecutan con ejecutar_comando "
     "{\"comando\":\"nombre.exacto\",\"argumentos\":{...}}.\n"
-    "- Casi todos los comandos necesitan \"project\" (el nombre del proyecto).\n"
+    "- Casi todos los comandos necesitan \"project\": el NOMBRE del proyecto, nunca su ruta.\n"
+    "- Si el pedido trata de información que el usuario guardó en sus documentos (diseño, reglas, "
+    "especificaciones), usa buscar_documentos y di de qué archivo sale.\n"
+    "- Haz solo lo que se pidió: no agregues objetos, componentes ni archivos que nadie pidió.\n"
     "- Si un comando falla, lee el error y corrige los argumentos; no repitas lo mismo.\n"
     "- Al escribir un archivo (project.src.create, file.create): usa la extensión del lenguaje "
     "del código (guía de lenguajes; los scripts del motor son .java o .cpp) y agrega "
@@ -62,9 +65,11 @@ std::string instruccionesPrincipal(bool conSubagentes, const std::string& proyec
     s += kReglasBase;
     if (!proyectoActivo.empty()) {
         s += "- Proyecto activo del usuario: \"" + proyectoActivo +
-             "\". Úsalo cuando el pedido no nombre otro.\n";
+             "\". Es el proyecto de trabajo: si omites \"project\" en un comando se usa este. "
+             "No crees proyectos (project.create) salvo que el usuario lo pida con esas palabras.\n";
     } else {
-        s += "- Si el usuario no nombra un proyecto, usa project.list; si hay varios, pregúntale cuál.\n";
+        s += "- Si el usuario no nombra un proyecto, usa project.list; si hay varios, pregúntale cuál. "
+             "No crees proyectos (project.create) salvo que el usuario lo pida con esas palabras.\n";
     }
     if (conSubagentes) s += kReglasSubagentes;
     s += kReglasRespuesta;
@@ -79,7 +84,8 @@ std::string instruccionesSubagente(const TareaSubagente& tarea, const std::strin
     s += "INSTRUCCIONES: " + tarea.instrucciones + "\n";
     if (!tarea.contexto.empty()) s += "CONTEXTO: " + tarea.contexto + "\n";
     if (!proyectoActivo.empty()) {
-        s += "PROYECTO ACTIVO del usuario: \"" + proyectoActivo + "\" (úsalo si el contexto no nombra otro).\n";
+        s += "PROYECTO ACTIVO del usuario: \"" + proyectoActivo +
+             "\" (úsalo si el contexto no nombra otro; si omites \"project\" se usa este).\n";
     }
     s += "\n";
     s += kReglasBase;

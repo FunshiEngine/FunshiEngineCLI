@@ -22,7 +22,10 @@
 #include "Agente/Subagentes/PlantillasAgente.h"
 #include "Nucleo/CatalogoComandos.h"
 
+#include <algorithm>
+#include <cctype>
 #include <set>
+#include <vector>
 
 namespace funshi {
 
@@ -47,7 +50,46 @@ bool aliasComando(const std::string& nombre, const nlohmann::json& args, std::st
     return true;
 }
 
+std::vector<std::string> nombresDeProyectos(Harness& harness) {
+    Solicitud lista;
+    lista.comando = "project.list";
+    const auto r = harness.ejecutar(lista);
+    std::vector<std::string> nombres;
+    if (!r.respuesta.correcta) return nombres;
+    for (const auto& p : r.respuesta.resultado.value("projects", nlohmann::json::array())) {
+        nombres.push_back(p.value("name", std::string()));
+    }
+    return nombres;
+}
+
+std::string proyectoDeTrabajo(const std::string& activo, const std::vector<std::string>& proyectos) {
+    if (!activo.empty()) return activo;
+    return proyectos.size() == 1 ? proyectos.front() : std::string();
+}
+
 }  // namespace
+
+// Consulta para el RAG sin "en el proyecto X" de un proyecto que ya existe:
+// esas palabras hacían subir project.create y compañía en pedidos que no
+// tratan de proyectos ("crea un objeto Cubo en el proyecto Demo").
+std::string Silvy::consultaParaConocimiento(const std::string& pedido, const std::vector<std::string>& proyectos) {
+    std::string bajo = pedido;
+    std::transform(bajo.begin(), bajo.end(), bajo.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    std::string out = pedido;
+    for (std::string nombre : proyectos) {
+        if (nombre.empty()) continue;
+        std::transform(nombre.begin(), nombre.end(), nombre.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        for (const std::string& frase : {"del proyecto " + nombre, "en el proyecto " + nombre, "al proyecto " + nombre,
+                                         "proyecto " + nombre}) {
+            std::size_t pos;
+            while ((pos = bajo.find(frase)) != std::string::npos) {
+                bajo.replace(pos, frase.size(), std::string(frase.size(), ' '));
+                out.replace(pos, frase.size(), std::string(frase.size(), ' '));
+            }
+        }
+    }
+    return out;
+}
 
 bool Silvy::configurarLlm(const llm::LlmConfig& config, bool nativeToolCalls) {
     if (!config.validate().empty()) return false;
@@ -108,6 +150,13 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
         return resp;
     }
     auto harness = std::make_shared<Harness>(harness_);
+    // Proyecto de trabajo: el activo de la sesión o, si no hay, el único que
+    // existe. Los comandos que no traen "project" lo usan (los modelos chicos
+    // lo olvidan aunque el prompt lo diga).
+    const std::vector<std::string> proyectos = nombresDeProyectos(*harness);
+    const std::string proyecto = proyectoDeTrabajo(sesion.proyectoActivo, proyectos);
+    harness->setProyectoPorDefecto(proyecto);
+    harness->setProyectosConocidos(proyectos);
 
     // Bucles de subagentes: perfil acotado, gateway propio, sin delegar.
     agente::FabricaBucles fabricaSub = [estado, harness](const std::string& perfil) {
@@ -119,21 +168,20 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
         b.bucle->setResolutorAlias(aliasComando);
         return b;
     };
-    auto gestor = std::make_shared<agente::GestorSubagentes>(fabricaSub, estado->subagentesParalelos,
-                                                             sesion.proyectoActivo);
+    auto gestor = std::make_shared<agente::GestorSubagentes>(fabricaSub, estado->subagentesParalelos, proyecto);
 
     auto registro = llm::crearRegistroPerfil(harness, "completo");
     registro->add(std::make_shared<agente::LanzarSubagentesTool>(gestor));
     llm::AgentLoop bucle(estado->fabrica(), registro, estado->nativas, estado->toolTimeoutMs);
     bucle.setMaxIterations(10);
-    bucle.setInstrucciones(agente::instruccionesPrincipal(true, sesion.proyectoActivo));
+    bucle.setInstrucciones(agente::instruccionesPrincipal(true, proyecto));
     sesion.cancelar->store(false);
     bucle.setCancelFlag(sesion.cancelar);
     bucle.setResolutorAlias(aliasComando);
 
     std::vector<std::string> usados;
     const std::string contexto = agente::conocimiento::BaseConocimiento::global()->contextoParaPedido(
-        mensaje, nombresHerramientas(*registro), 4, &usados);
+        consultaParaConocimiento(mensaje, proyectos), nombresHerramientas(*registro), 4, &usados);
     if (onEvent) {
         std::string lista;
         for (const auto& id : usados) lista += (lista.empty() ? "" : ", ") + id;

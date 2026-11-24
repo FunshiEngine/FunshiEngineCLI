@@ -5,6 +5,7 @@
 */
 #include "Agente/Conocimiento/BaseConocimiento.h"
 #include "Agente/Conocimiento/Lenguajes.h"
+#include "Agente/Conocimiento/GuiasEjecutables.h"
 
 #include "Agente/LLM/Config/LlmConfig.h"
 #include "Nucleo/AyudaComandos.h"
@@ -27,12 +28,23 @@ constexpr std::size_t kMaxDocumentoUsuario = 1500;
 
 // Ejemplo de la ayuda ("cmd a=1 b=x") → llamada JSON de ejecutar_comando.
 std::string ejemploJson(const AyudaComando& a) {
-    nlohmann::json args = nlohmann::json::object();
+    nlohmann::json leidos = nlohmann::json::object();
     std::string error;
     const auto tokens = tokenizar(a.ejemplo);
-    if (!construirArgumentos(tokens, args, error)) args = nlohmann::json::object();
-    if (a.usaProyecto && !args.contains("project")) args["project"] = "<proyecto>";
-    return nlohmann::json{{"comando", a.comando}, {"argumentos", args}}.dump();
+    if (!construirArgumentos(tokens, leidos, error)) leidos = nlohmann::json::object();
+    // En el orden de la documentación: project, luego los del comando.
+    nlohmann::ordered_json args = nlohmann::ordered_json::object();
+    if (a.usaProyecto) args["project"] = leidos.value("project", std::string("<proyecto>"));
+    for (const auto& arg : a.argumentos) {
+        if (leidos.contains(arg.nombre)) args[arg.nombre] = leidos[arg.nombre];
+    }
+    for (const auto& [k, v] : leidos.items()) {
+        if (!args.contains(k)) args[k] = v;
+    }
+    nlohmann::ordered_json ejemplo = nlohmann::ordered_json::object();
+    ejemplo["comando"] = a.comando;
+    ejemplo["argumentos"] = args;
+    return ejemplo.dump();
 }
 
 std::string contenidoComando(const AyudaComando& a) {
@@ -172,7 +184,20 @@ const Documento* BaseConocimiento::comando(const std::string& nombre) const {
     return nullptr;
 }
 
+std::string BaseConocimiento::usoDeComando(const std::string& comando) {
+    const AyudaComando* a = buscarAyudaComando(comando);
+    if (!a) return {};
+    std::string s = contenidoComando(*a);
+    s.replace(0, s.find('\n') + 1, "Uso correcto de " + a->comando + ":\n");
+    return s;
+}
+
 std::string BaseConocimiento::formatear(const Documento& d, const std::set<std::string>& herramientas) {
+    if (d.tipo == Documento::Tipo::Guia) {
+        return guiaEjecutable(d.contenido, herramientas) +
+               "\n(Reemplaza los <marcadores> por valores reales; los ids salen de resultados anteriores. "
+               "Si omites \"project\" se usa el proyecto activo.)";
+    }
     if (d.tipo != Documento::Tipo::Comando) return d.contenido;
     return d.contenido + (herramientas.count(d.id)
                               ? "\nHerramienta propia: " + d.id + " (mismos argumentos)."
@@ -189,12 +214,29 @@ std::string BaseConocimiento::contextoParaPedido(const std::string& pedido,
     if (resultados.empty() || resultados.front().puntaje < 2.0) return {};
     const double corte = resultados.front().puntaje * 0.45;
     std::string out =
-        "[Documentación recuperada para este pedido. Úsala si sirve; si falta algo, "
-        "llama a buscar_comandos.]\n";
+        "[Documentación de referencia para este pedido. Úsala para saber cómo se llaman los "
+        "comandos y sus argumentos; haz SOLO lo que pidió el usuario (no sigas pasos de una guía "
+        "que el pedido no necesita). Si falta algo, llama a buscar_comandos.]\n";
+    std::set<std::string> incluidos;
+    std::vector<std::string> deGuias;  // comandos que nombran las guías incluidas
     for (const auto& r : resultados) {
         if (r.puntaje < corte) break;
         out += "\n" + formatear(*r.documento, herramientas) + "\n";
+        incluidos.insert(r.documento->id);
+        if (r.documento->tipo == Documento::Tipo::Guia) guiaEjecutable(r.documento->contenido, herramientas, &deGuias);
         if (usados) usados->push_back(r.documento->id);
+    }
+    // La documentación de los comandos de la guía también va: con la guía
+    // sola el modelo conoce los pasos pero no todos los argumentos.
+    int agregados = 0;
+    for (const auto& c : deGuias) {
+        if (agregados >= 3 || incluidos.count(c)) continue;
+        if (const Documento* d = comando(c)) {
+            out += "\n" + formatear(*d, herramientas) + "\n";
+            incluidos.insert(c);
+            ++agregados;
+            if (usados) usados->push_back(c);
+        }
     }
     return out;
 }

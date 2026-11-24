@@ -6,6 +6,7 @@
 #include "Agente/LLM/Herramientas/PerfilesHerramientas.h"
 
 #include "Agente/LLM/Herramientas/EngineToolFactory.h"
+#include "Agente/LLM/Herramientas/EsquemasHerramientas.h"
 #include "Agente/Documentos/HerramientaDocumentos.h"
 #include "Agente/LLM/Herramientas/HerramientasConocimiento.h"
 
@@ -113,7 +114,7 @@ std::shared_ptr<ToolRegistry> crearRegistroPerfil(std::shared_ptr<Harness> harne
     for (const auto& tool : completo->all()) {
         const std::string nombre = tool->spec().name;
         if (!comandoPermitido(perfil, nombre)) continue;
-        registro->add(tool);
+        registro->add(conEsquemaDeAyuda(tool));
         nombres.insert(nombre);
     }
     registro->add(std::make_shared<BuscarComandosTool>(nombres));
