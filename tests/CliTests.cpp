@@ -56,6 +56,7 @@ int main(int argc, char** argv) {
     probarConfiguracion(env);
     probarEscenaYArchivos(env);
     probarAgente(env);
+    probarBorrado(env);
 
     std::cout << (fallos == 0 ? "OK" : "FALLOS") << ": "
               << total << " comprobaciones, " << fallos << " fallos\n";

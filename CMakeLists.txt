@@ -87,6 +87,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Escena/ComandosEscenaScripts.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Escena/ComandosEscenaHistorial.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosAssets.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosBorrado.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosScripts.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosConfig.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosDiagnosticos.cpp
@@ -277,6 +278,7 @@ add_executable(cli-tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/PruebasCliComun.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/PruebasCliBasicas.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/PruebasCliAisladas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/PruebasCliBorrado.cpp
 )
 # TempPruebas.h puede vivir en tests/ o en .local/tests/ según el checkout del motor.
 set(FUNSHI_ENGINE_TESTS_DIR "${FUNSHI_ENGINE_ROOT}/tests")

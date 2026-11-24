@@ -22,6 +22,11 @@
 #include <Objetos/Componentes/Render/Model.h>
 #include <Objetos/Componentes/Scripting/Script.h>
 #include <Objetos/Componentes/Escena/Transform.h>
+#include <Objetos/Componentes/Audio/AudioSource.h>
+#include <Objetos/Componentes/Interfaz/InterfaceComponent.h>
+#include <Objetos/Componentes/Juego2D/Tilemap.h>
+#include <Objetos/Componentes/Render/Material.h>
+#include <Objetos/Componentes/Render/SpriteRenderer.h>
 
 #include <functional>
 #include <typeinfo>
@@ -59,6 +64,22 @@ nlohmann::json componenteJson(Component* comp) {
     } else if (auto* color = dynamic_cast<Color*>(comp)) {
         const float* c = color->getColor();
         if (c) result["color"] = {c[0], c[1], c[2], c[3]};
+    } else if (auto* audio = dynamic_cast<AudioSource*>(comp)) {
+        result["clip"] = audio->getRutaClip();
+    } else if (auto* interfaz = dynamic_cast<InterfaceComponent*>(comp)) {
+        result["html"] = interfaz->getRutaHtml();
+    } else if (auto* sprite = dynamic_cast<SpriteRenderer*>(comp)) {
+        result["texture"] = sprite->getRutaTextura();
+    } else if (auto* tilemap = dynamic_cast<Tilemap*>(comp)) {
+        result["tileset"] = tilemap->getRutaTileset();
+    } else if (auto* material = dynamic_cast<Material*>(comp)) {
+        // Solo los mapas que tiene (texturas que usa).
+        for (const auto& [clave, ruta] : {std::pair<const char*, const std::string*>{"diffuseMap", &material->getDiffuseMapPath()},
+                                          {"specularMap", &material->getSpecularMapPath()},
+                                          {"normalMap", &material->getNormalMapPath()},
+                                          {"emissionMap", &material->getEmissionMapPath()}}) {
+            if (!ruta->empty()) result[clave] = *ruta;
+        }
     }
     // Otros componentes: solo el tipo.
 

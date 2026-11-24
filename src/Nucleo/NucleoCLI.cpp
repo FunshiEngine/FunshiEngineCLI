@@ -21,6 +21,7 @@
 #include "Comandos/ComandosAgente.h"
 #include "Comandos/Archivos/ComandosArchivos.h"
 #include "Comandos/ComandosAssets.h"
+#include "Comandos/ComandosBorrado.h"
 #include "Comandos/ComandosConfig.h"
 #include "Comandos/ComandosDiagnosticos.h"
 #include "Comandos/Escena/ComandosEscena.h"
@@ -131,6 +132,14 @@ ResultadoComando ejecutarSolicitud(const Solicitud& solicitud) {
                 return escenaObjetoGetGlobalTransform(argumentos);
             case ComandoCLI::AssetImportar:
                 return assetImportar(argumentos);
+            case ComandoCLI::AssetListar:
+                return assetListar(argumentos);
+            case ComandoCLI::AssetBorrar:
+                return assetBorrar(argumentos);
+            case ComandoCLI::ScriptBorrar:
+                return scriptBorrar(argumentos);
+            case ComandoCLI::EscenaObjetoBorrar:
+                return escenaObjetoBorrar(argumentos);
             case ComandoCLI::AssetValidar:
                 return assetValidar(argumentos);
             case ComandoCLI::AssetListarExtensiones:

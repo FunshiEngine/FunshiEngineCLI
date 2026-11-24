@@ -65,5 +65,7 @@ void probarRecorridoProyecto(const fs::path& bin, const fs::path& tmp);
 void probarConfiguracion(const EntornoAislado& env);
 void probarEscenaYArchivos(const EntornoAislado& env);
 void probarAgente(const EntornoAislado& env);
+// PruebasCliBorrado.cpp
+void probarBorrado(const EntornoAislado& env);
 
 }  // namespace pruebas_cli

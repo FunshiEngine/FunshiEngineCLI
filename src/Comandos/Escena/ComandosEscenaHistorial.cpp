@@ -44,6 +44,7 @@
 #include <fstream>
 
 #include "Comandos/Escena/ComandosEscenaInterno.h"
+#include "Comandos/ComandosBorrado.h"
 namespace funshi {
 // ---------------------------------------------------------------------------
 // Historial de undo/redo (almacenado en <proyecto>/Memory/undo_history.json)
@@ -94,6 +95,15 @@ ResultadoComando escenaUndo(const nlohmann::json& argumentos) {
         if (padre) { registro->reparent(obj, padre); exito = true; }
     } else if (tipo == "create" || tipo == "clone") {
         if (obj) { registro->deleteObjectByID(idObjeto); exito = true; }
+    } else if (tipo == "delete") {
+        // Vuelve a instanciar la copia guardada; tiene un id nuevo, que es el
+        // que usará scene.redo para borrarlo otra vez.
+        const int nuevo = restaurarObjetoBorrado(contexto, antes);
+        if (nuevo >= 0) {
+            idObjeto = nuevo;
+            operacion["id"] = nuevo;
+            exito = true;
+        }
     }
 
     // Mover al historial de redo
@@ -163,6 +173,8 @@ ResultadoComando escenaRedo(const nlohmann::json& argumentos) {
         if (raiz) { registro->reparent(obj, raiz); exito = true; }
     } else if (tipo == "create" || tipo == "clone") {
         // No se puede rehacer fácilmente (perdería el nuevo id)
+    } else if (tipo == "delete" && obj) {
+        exito = borrarConDescendientes(contexto, obj);
     }
 
     // Mover al historial de undo
