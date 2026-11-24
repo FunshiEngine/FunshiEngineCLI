@@ -236,6 +236,10 @@ void probarUsoDeComandos() {
                                      {{"project", "Pdef"}, {"path", "Scripts/D.java"}, {"file", true}, {"content", nullptr}})
                   .respuesta.correcta,
               "correcciones: un argumento en null cuenta como ausente");
+        const auto boolTexto = harness->ejecutarTexto(
+            "project.src.create", {{"project", "Pdef"}, {"path", "Datos/b.txt"}, {"file", "true"}, {"content", "x"}});
+        CHECK(boolTexto.respuesta.correcta && boolTexto.respuesta.resultado.value("type", "") == "file",
+              "correcciones: \"true\" como texto en un argumento booleano");
         harness->setProyectoPorDefecto("Pdef");
         CHECK(harness->ejecutarTexto("scene.list", {{"project", "<proyecto>"}}).respuesta.correcta,
               "correcciones: el marcador <proyecto> usa el proyecto de trabajo");

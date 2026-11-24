@@ -224,6 +224,16 @@ ResultadoComando Harness::ejecutar(const Solicitud& solicitud,
         for (auto it = efectiva.argumentos.begin(); it != efectiva.argumentos.end();) {
             it = it->is_null() ? efectiva.argumentos.erase(it) : std::next(it);
         }
+        // "true"/"false" escritos como texto en un argumento booleano (el
+        // comando espera el tipo y, si no, termina en una excepción de JSON).
+        if (const AyudaComando* ayuda = buscarAyudaComando(efectiva.comando)) {
+            for (const auto& arg : ayuda->argumentos) {
+                auto it = efectiva.argumentos.find(arg.nombre);
+                if (it == efectiva.argumentos.end() || !it->is_string() || arg.tipo.find("true") == std::string::npos) continue;
+                const std::string v = it->get<std::string>();
+                if (v == "true" || v == "false") *it = (v == "true");
+            }
+        }
     }
     normalizarRutasSrc(efectiva);
     ResultadoComando rechazo;
