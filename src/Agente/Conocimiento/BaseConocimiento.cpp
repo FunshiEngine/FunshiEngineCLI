@@ -4,6 +4,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 #include "Agente/Conocimiento/BaseConocimiento.h"
+#include "Agente/Conocimiento/Lenguajes.h"
 
 #include "Agente/LLM/Config/LlmConfig.h"
 #include "Nucleo/AyudaComandos.h"
@@ -74,6 +75,18 @@ BaseConocimiento::BaseConocimiento(const fs::path& dirUsuario) {
         d.titulo = g.titulo;
         d.contenido = std::string("## Guía: ") + g.titulo + "\n" + g.pasos;
         agregar(std::move(d), std::string(g.titulo) + " " + g.titulo + " " + g.palabrasClave + " " + g.pasos);
+    }
+    {
+        // Lenguajes y extensiones, con lo que reconoce el motor enlazado.
+        Documento d;
+        d.tipo = Documento::Tipo::Guia;
+        d.id = "guia.lenguajes";
+        d.titulo = "Lenguajes, extensiones y archivos del motor";
+        d.contenido = "## Guía: " + d.titulo + "\n" + documentoLenguajes();
+        agregar(d, d.titulo + " " + d.titulo +
+                       " lenguaje lenguajes extension extensiones lenguaje extension tipo archivo archivos formato "
+                       "codigo programar escribir clase script scripts java cpp c++ csharp c# python "
+                       "lua javascript shader proyecto fnep " + d.contenido);
     }
     if (!dirUsuario.empty()) cargarDocumentosUsuario(dirUsuario);
     indice_.construir();
