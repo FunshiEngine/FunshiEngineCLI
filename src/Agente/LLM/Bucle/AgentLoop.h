@@ -97,6 +97,11 @@ private:
 // Mensaje con el que vuelven al modelo los resultados de sus herramientas en
 // modo prompt (sin tools nativas, llegan como rol user).
 std::string resultadosParaModelo(const std::string& resultados);
+// Marcas de ese mensaje; sinMarcasDeSalida las quita de una respuesta que las copió.
+inline constexpr const char* kInicioSalida = "[SALIDA DE TUS HERRAMIENTAS";
+inline constexpr const char* kFinSalida = "[FIN DE LA SALIDA]";
+inline constexpr const char* kResultadoDe = "RESULTADO DE ";
+std::string sinMarcasDeSalida(const std::string& texto);
 
 namespace detalle {
 // Respuesta que es (casi) solo los argumentos de una meta-herramienta, sin su

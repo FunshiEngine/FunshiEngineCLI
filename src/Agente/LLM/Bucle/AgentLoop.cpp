@@ -63,15 +63,6 @@ std::string resumenLlamada(int ronda, const EstadisticasLlamada& e) {
 
 }  // namespace
 
-std::string resultadosParaModelo(const std::string& resultados) {
-    return "[SALIDA DE TUS HERRAMIENTAS — mensaje automático, no lo escribió el usuario]\n"
-           "Ejecutaste estas herramientas y obtuviste:\n\n" +
-           resultados +
-           "[FIN DE LA SALIDA]\n"
-           "Si falta algo, usa otra herramienta. Si terminaste, responde al usuario en primera "
-           "persona con lo que TÚ hiciste y su resultado; no le agradezcas ni digas que él lo ejecutó.";
-}
-
 AgentLoop::AgentLoop(std::shared_ptr<LlmGateway> gateway,
                      std::shared_ptr<ToolRegistry> registry,
                      bool nativeToolCalls,
@@ -308,7 +299,7 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
                     registrarFallo(sanitized.name, result);
                     answer.toolCalls.push_back({callId, sanitized.name, sanitized.args.dump(), result.ok(), result.render(), {}});
                     emitir(AgentEvent{AgentEvent::Type::ToolEnd, "", callId, sanitized.name, "", result.ok(), result.render()});
-                    toolResultsText += "RESULTADO DE " + sanitized.name + ":\n" + result.render() + "\n\n";
+                    toolResultsText += std::string(kResultadoDe) + sanitized.name + ":\n" + result.render() + "\n\n";
                 }
                 if (!visible.empty()) {
                     answer.text += visible;
@@ -322,7 +313,7 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
                 }
             }
 
-            std::string finalText = visible.empty() ? accumulatedText : visible;
+            std::string finalText = sinMarcasDeSalida(visible.empty() ? accumulatedText : visible);
             answer.text += finalText;
             messages.push_back(ChatMessage::assistant(finalText));
             break;

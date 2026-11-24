@@ -161,6 +161,12 @@ void probarUsoDeComandos() {
         const auto lista = llm::PromptToolParser::llamadasSinCerco(
             "{\"tool\":\"lanzar_subagentes\",\"arguments\":{\"tareas\":[\n{\"titulo\":\"a\"},\n{\"titulo\":\"b\"}]}}");
         CHECK(lista.size() == 1, "parser: objetos de una lista no se toman como llamadas");
+        CHECK(llm::sinMarcasDeSalida("Creé el Cubo.\n\n[FIN DE LA SALIDA]\n") == "Creé el Cubo." &&
+                  llm::sinMarcasDeSalida("[SALIDA DE TUS HERRAMIENTAS — x]\nListo") == "Listo",
+              "respuesta: sin las marcas copiadas del mensaje de resultados");
+        CHECK(llm::sinMarcasDeSalida("Creé Enemigo.java.\n\nRESULTADO DE scene.object.create:\n{\"id\":3}\n\nListo.") ==
+                  "Creé Enemigo.java.\n\n\nListo.",
+              "respuesta: sin el resultado copiado");
     }
 
     // 5. Guías convertidas en llamadas y documentación de sus comandos.
