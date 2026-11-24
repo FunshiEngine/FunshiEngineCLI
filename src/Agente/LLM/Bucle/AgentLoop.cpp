@@ -107,7 +107,7 @@ std::string AgentLoop::buildSystemPrompt() const {
 
 AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
                            std::function<void(const AgentEvent&)> onEvent,
-                           const std::string& contextoTurno) {
+                           const std::string& contextoTurno, const std::string& trasPedido) {
     AgentAnswer answer;
     // El prompt de sistema se renueva en cada turno: así un cambio de
     // instrucciones o de herramientas llega también a historiales viejos.
@@ -121,10 +121,11 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
     // npos = no hay nada que restaurar (sin contexto del turno).
     std::size_t indicePedido = std::string::npos;
     std::string pedidoOriginal;
-    if (!contextoTurno.empty() && messages.back().role == "user") {
+    if ((!contextoTurno.empty() || !trasPedido.empty()) && !messages.empty() && messages.back().role == "user") {
         indicePedido = messages.size() - 1;
         pedidoOriginal = messages.back().content;
-        messages.back().content = contextoTurno + "\n[Pedido del usuario]\n" + pedidoOriginal;
+        messages.back().content = contextoTurno + (contextoTurno.empty() ? "" : "\n") + encabezadoPedido_ + "\n" +
+                                  pedidoOriginal + (trasPedido.empty() ? "" : "\n" + trasPedido);
     }
     struct Restaurar {
         std::vector<ChatMessage>& m;

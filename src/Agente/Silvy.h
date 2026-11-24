@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "Agente/Tareas/TareaAgente.h"
 #include "Agente/Harness.h"
 #include "Nucleo/Solicitud.h"
 #include "Agente/LLM/Config/LlmTypes.h"
@@ -45,12 +46,15 @@ struct OrdenProcesada {
     std::string motivoRechazo;
 };
 
-// Estado de una conversación con el agente: su historial y el proyecto que
-// el usuario tiene activo. Cada sesión de chat tiene la suya; varias pueden
+// Estado de una conversación con el agente: su historial, el proyecto que
+// el usuario tiene activo y la última tarea. Cada sesión de chat tiene la suya; varias pueden
 // procesarse a la vez (cada pedido crea su propio bucle y gateway).
 struct SesionAgente {
     std::vector<agente::llm::ChatMessage> historial;
     std::string proyectoActivo;
+    // Última tarea cerrada (lo que el modelo hizo y su resumen): contexto
+    // del pedido siguiente.
+    agente::tareas::TareaAgente tareaAnterior;
     // Poner en true cancela el pedido en curso de esta sesión.
     std::shared_ptr<std::atomic<bool>> cancelar = std::make_shared<std::atomic<bool>>(false);
 };
@@ -95,8 +99,14 @@ public:
     RespuestaProcesada procesar(const std::string& texto, SesionAgente& sesion,
                                 std::function<void(const agente::llm::AgentEvent&)> onEvent);
 
-    // Limpia el historial de la sesión por defecto.
+    // Limpia el historial y la tarea anterior de la sesión por defecto.
     void limpiarHistorialLlm();
+
+    // Tareas: antes de cada pedido el modelo escribe lo que debe hacer
+    // (con la tarea anterior a la vista) y al terminar, lo que hizo y un
+    // resumen. Activas con configurarLlm; configurarConFabrica las deja
+    // apagadas salvo que se activen aquí.
+    void setTareasActivas(bool activas);
 
     // Devuelve el resumen de auditoría para mostrar al usuario qué se hizo.
     std::string resumenQueHice(std::size_t n = 10) const;
@@ -115,6 +125,7 @@ private:
         int subagentesParalelos = 1;
         long toolTimeoutMs = 30000;
         std::string modelo;
+        bool tareas = true;
     };
     std::shared_ptr<const EstadoLlm> estadoLlm() const;
 

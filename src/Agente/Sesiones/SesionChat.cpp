@@ -80,7 +80,7 @@ nlohmann::json SesionChat::aJson() const {
             {"titulo", titulo},      {"creada", creada},
             {"actualizada", actualizada}, {"proyectoActivo", agente.proyectoActivo},
             {"mensajes", mens},      {"subagentes", subs},
-            {"historialLlm", hist}};
+            {"historialLlm", hist}, {"tareaAnterior", agente.tareaAnterior.aJson()}};
 }
 
 SesionChat SesionChat::desdeJson(const nlohmann::json& j) {
@@ -90,6 +90,7 @@ SesionChat SesionChat::desdeJson(const nlohmann::json& j) {
     s.creada = j.value("creada", std::int64_t{0});
     s.actualizada = j.value("actualizada", s.creada);
     s.agente.proyectoActivo = j.value("proyectoActivo", std::string());
+    s.agente.tareaAnterior = agente::tareas::TareaAgente::desdeJson(j.value("tareaAnterior", nlohmann::json::object()));
     s.mensajes = mensajesDesdeJson(j.value("mensajes", nlohmann::json::array()));
     for (const auto& sa : j.value("subagentes", nlohmann::json::array())) {
         if (!sa.is_object()) continue;

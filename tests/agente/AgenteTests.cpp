@@ -39,6 +39,7 @@ int main() {
     pruebas_agente::probarPreferencias();
     pruebas_agente::probarUsoDeComandos();
     pruebas_agente::probarDocumentos();
+    pruebas_agente::probarTareas();
 
     std::error_code ec;
     fs::current_path(fs::temp_directory_path(), ec);

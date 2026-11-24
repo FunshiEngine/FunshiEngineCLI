@@ -208,6 +208,7 @@ bool AplicacionTui::ordenDeSesion(const std::string& linea) {
             std::lock_guard<std::mutex> lock(chatMutex_);
             sesion->mensajes.clear();
             sesion->datos.agente.historial.clear();
+            sesion->datos.agente.tareaAnterior = {};
         }
         guardarSesion(sesion);
         informar("Conversación vaciada.");

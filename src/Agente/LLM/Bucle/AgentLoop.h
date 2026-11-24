@@ -127,10 +127,11 @@ public:
      */
     // `contextoTurno`: texto que acompaña solo a este pedido (p. ej. la
     // documentación recuperada por el RAG). Se antepone al último mensaje del
-    // usuario mientras dura el turno y no queda en el historial.
+    // usuario mientras dura el turno y no queda en el historial: el mensaje
+    // queda "<contexto>\n<encabezado del pedido>\n<pedido>\n<trasPedido>".
     AgentAnswer run(std::vector<ChatMessage>& messages,
                     std::function<void(const AgentEvent&)> onEvent = nullptr,
-                    const std::string& contextoTurno = "");
+                    const std::string& contextoTurno = "", const std::string& trasPedido = "");
 
     // Config
     void setNativeToolCalls(bool v) { nativeToolCalls_ = v; }
@@ -138,6 +139,8 @@ public:
     // Instrucciones del prompt de sistema (rol y reglas). En modo prompt se
     // les agrega la lista de herramientas y el formato de llamada.
     void setInstrucciones(std::string texto) { instrucciones_ = std::move(texto); }
+    // Encabezado que separa el contexto del turno del pedido.
+    void setEncabezadoPedido(std::string texto) { encabezadoPedido_ = std::move(texto); }
     // Alias de herramientas: si el modelo pide una que no existe, este
     // resolutor puede traducirla (p. ej. un comando del catálogo → la llamada
     // equivalente a ejecutar_comando). Devuelve false si no la reconoce.
@@ -155,6 +158,7 @@ private:
     std::string instrucciones_ =
         "Eres un asistente que controla el motor FunshiEngine. "
         "Puedes usar herramientas para crear proyectos, escenas, objetos, scripts, etc.";
+    std::string encabezadoPedido_ = "[Pedido del usuario]";
     std::shared_ptr<std::atomic<bool>> cancel_;
     std::function<void(const AgentEvent&)> onEventActual_;  // durante run()
     ResolutorAlias alias_;

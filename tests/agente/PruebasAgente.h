@@ -78,5 +78,6 @@ void probarMonitor();
 void probarPreferencias();
 void probarUsoDeComandos();
 void probarDocumentos();
+void probarTareas();
 
 }  // namespace pruebas_agente
