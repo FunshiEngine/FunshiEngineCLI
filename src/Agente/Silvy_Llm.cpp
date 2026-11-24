@@ -136,6 +136,14 @@ void Silvy::setTuneles(std::shared_ptr<llm::AsignadorTuneles> tuneles) {
     llm_ = std::move(copia);
 }
 
+void Silvy::setFormatoAclaracion(llm::FormatoAclaracion formato) {
+    std::lock_guard<std::mutex> lock(mutexLlm_);
+    if (!llm_) return;
+    auto copia = std::make_shared<EstadoLlm>(*llm_);
+    copia->formatoAclaracion = formato;
+    llm_ = std::move(copia);
+}
+
 void Silvy::setTareasActivas(bool activas) {
     std::lock_guard<std::mutex> lock(mutexLlm_);
     if (!llm_) return;
@@ -210,6 +218,8 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
     sesion.cancelar->store(false);
     bucle.setCancelFlag(sesion.cancelar);
     bucle.setResolutorAlias(aliasComando);
+    bucle.setBuzon(sesion.aclaraciones);
+    bucle.setFormatoAclaracion(estado->formatoAclaracion);
 
     std::vector<std::string> usados;
     const std::string contexto = agente::conocimiento::BaseConocimiento::global()->contextoParaPedido(
@@ -260,14 +270,15 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
     // que no hizo).
     if (estado->tareas) {
         agente::tareas::TareaAgente tarea;
-        tarea.pedido = mensaje;
+        tarea.pedido = mensaje;  // con las aclaraciones que llegaron durante el turno
+        for (const auto& a : answer.aclaraciones) tarea.pedido += "\nAclaración: " + a;
         tarea.objetivo = objetivo;
         const bool cancelado = sesion.cancelar->load();
         const bool algunaBien = std::any_of(answer.toolCalls.begin(), answer.toolCalls.end(),
                                             [](const auto& t) { return t.ok; });
         if (cancelado || !algunaBien || !agente::tareas::leerCierre(
                              agente::tareas::consultar(*crearGateway(), agente::tareas::pedidoDeCierre(
-                                                                               mensaje, answer.toolCalls, answer.text),
+                                                                               tarea.pedido, answer.toolCalls, answer.text),
                                                        proyecto),
                              tarea)) {
             agente::tareas::cierreDeRespaldo(answer.toolCalls, answer.text, tarea);

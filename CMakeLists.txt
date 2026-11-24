@@ -102,6 +102,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Sesiones.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Subagentes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Documentos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_EnCurso.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/ModeloChat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/MonitorChat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/MonitorSesion.cpp
@@ -136,6 +137,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/EngineToolFactory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/AgentLoop.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/AgentLoop_Herramientas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/AgentLoop_Aclaraciones.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/SeparadorPensamiento.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/ToolCallSanitizer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Bucle/PromptToolParser.cpp

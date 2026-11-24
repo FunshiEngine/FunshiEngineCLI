@@ -18,6 +18,7 @@
 
 #include "Agente/Tareas/TareaAgente.h"
 #include "Agente/LLM/Cliente/AsignadorTuneles.h"
+#include "Agente/LLM/Bucle/AgentLoop.h"
 #include "Agente/Harness.h"
 #include "Nucleo/Solicitud.h"
 #include "Agente/LLM/Config/LlmTypes.h"
@@ -61,6 +62,10 @@ struct SesionAgente {
     agente::tareas::TareaAgente tareaAnterior;
     // Poner en true cancela el pedido en curso de esta sesión.
     std::shared_ptr<std::atomic<bool>> cancelar = std::make_shared<std::atomic<bool>>(false);
+    // Aclaraciones para el pedido en curso: el bucle las incorpora en su
+    // próxima ronda. Las que llegan cuando ya terminó quedan aquí.
+    std::shared_ptr<agente::llm::BuzonInstrucciones> aclaraciones =
+        std::make_shared<agente::llm::BuzonInstrucciones>();
 };
 
 // Silvy: agente que recibe texto. Si empieza con '/' ejecuta comando CLI directo.
@@ -115,6 +120,8 @@ public:
     // Túneles hacia el servidor (uno por sesión). configurarLlm los crea para
     // un servidor local; aquí se reemplazan (pruebas).
     void setTuneles(std::shared_ptr<agente::llm::AsignadorTuneles> tuneles);
+    // Dónde entra en la conversación una aclaración que llega durante el pedido.
+    void setFormatoAclaracion(agente::llm::FormatoAclaracion formato);
 
     // Devuelve el resumen de auditoría para mostrar al usuario qué se hizo.
     std::string resumenQueHice(std::size_t n = 10) const;
@@ -135,6 +142,7 @@ private:
         std::string modelo;
         bool tareas = true;
         std::shared_ptr<agente::llm::AsignadorTuneles> tuneles;  // nulo: sin túneles
+        agente::llm::FormatoAclaracion formatoAclaracion = agente::llm::FormatoAclaracion::MensajeNuevo;
     };
     std::shared_ptr<const EstadoLlm> estadoLlm() const;
 

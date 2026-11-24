@@ -121,6 +121,9 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
     // npos = no hay nada que restaurar (sin contexto del turno).
     std::size_t indicePedido = std::string::npos;
     std::string pedidoOriginal;
+    // El pedido del turno, con o sin contexto (para las aclaraciones EnPedido).
+    const std::size_t indicePedidoTurno =
+        !messages.empty() && messages.back().role == "user" ? messages.size() - 1 : std::string::npos;
     if ((!contextoTurno.empty() || !trasPedido.empty()) && !messages.empty() && messages.back().role == "user") {
         indicePedido = messages.size() - 1;
         pedidoOriginal = messages.back().content;
@@ -166,6 +169,7 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
             emitir(AgentEvent::estado("Cancelado por el usuario"));
             break;
         }
+        incorporarAclaraciones(messages, indicePedidoTurno, pedidoOriginal, answer, emitir);
         std::string accumulatedText;
         std::vector<SanitizedToolCall> pendingNativeCalls;
         const std::string idRonda = "ronda-" + std::to_string(iteration + 1);
@@ -331,11 +335,13 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
             std::string finalText = sinMarcasDeSalida(visible.empty() ? accumulatedText : visible);
             answer.text += finalText;
             messages.push_back(ChatMessage::assistant(finalText));
+            if (hayAclaraciones()) continue;  // una ronda más para atenderlas
             break;
         }
 
         answer.text += accumulatedText;
         messages.push_back(ChatMessage::assistant(accumulatedText));
+        if (hayAclaraciones()) continue;
         break;
     }
 

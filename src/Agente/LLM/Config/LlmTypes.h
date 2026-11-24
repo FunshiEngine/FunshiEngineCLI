@@ -126,6 +126,8 @@ struct AgentAnswer {
         std::vector<std::string> artifacts; // Rutas de archivos producidos
     };
     std::vector<ExecutedTool> toolCalls;
+    // Instrucciones que el usuario agregó mientras el bucle trabajaba.
+    std::vector<std::string> aclaraciones;
 };
 
 /**

@@ -51,7 +51,12 @@ void AplicacionTui::partirMensajeChat(const MensajeChat& m, int ancho,
     }
     using Rol = MensajeChat::Rol;
     switch (m.rol) {
-        case Rol::Usuario: prefijo = "Tú:    "; color = kAcento; bold = true; break;
+        case Rol::Usuario:
+            // "aclaracion": lo que el usuario agregó a un razonamiento en curso.
+            prefijo = m.ref == "aclaracion" ? "Tú +   " : "Tú:    ";
+            color = kAcento;
+            bold = true;
+            break;
         case Rol::Silvy:
             prefijo = "Silvy: ";
             if (m.enCurso && texto.empty()) texto = "...";
@@ -129,6 +134,7 @@ ftxui::Element AplicacionTui::panelChat() {
     std::vector<std::string> refs;  // a qué se refiere cada línea (para el clic)
     std::string cabeceraSub;        // vista de subagente: su título y estado
     bool ocupado = false;
+    std::string opciones;     // elección pendiente (mensaje en espera)
     bool desplazado = false;  // mirando más arriba del final
     int total = 0;
     int inicio = 0;
@@ -148,6 +154,10 @@ ftxui::Element AplicacionTui::panelChat() {
                           sub->datos.estado;
         }
         ocupado = sesion && sesion->ocupado;
+        if (sesion && !sesion->enEspera.empty()) {
+            opciones = " ⏸ «" + recortar(sesion->enEspera, 40) +
+                       "»  A: agregar a lo que está pensando · E: encolar · Esc: seguir editando ";
+        }
         for (auto& m : mensajes) {
             if (m.versionCache != m.version || m.anchoCache != ancho) {
                 partirMensajeChat(m, ancho, m.lineasCache);
@@ -242,6 +252,9 @@ ftxui::Element AplicacionTui::panelChat() {
     }
 
     filas.push_back(ftxui::separator());
+    if (!opciones.empty()) {
+        filas.push_back(ftxui::text(opciones) | ftxui::bold | ftxui::color(kFondoPanel) | ftxui::bgcolor(kAdvertencia));
+    }
 
     ftxui::Element entradaChat = entradaChat_->Render();
     filas.push_back(ftxui::hbox({

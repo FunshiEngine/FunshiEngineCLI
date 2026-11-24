@@ -13,6 +13,7 @@
 
 #include <ftxui/screen/color.hpp>
 
+#include <deque>
 #include <memory>
 #include <string>
 #include <vector>
@@ -81,6 +82,10 @@ struct SesionTui {
     bool ocupado = false;
     int desplazamiento = 0;     // líneas desde el final (0 = siguiendo lo nuevo)
     int lineasDibujadas = -1;   // total del último frame, para anclar la vista
+    // Mensajes que llegan mientras procesa: `enEspera` espera que el usuario
+    // elija agregarlo al razonamiento en curso o encolarlo en `cola`.
+    std::string enEspera;
+    std::deque<std::string> cola;
 
     std::shared_ptr<SubagenteTui> subagente(const std::string& id) const;
     // Pasa de/hacia el formato persistido (mensajes y subagentes).

@@ -185,6 +185,10 @@ class AplicacionTui : public ftxui::ComponentBase {
     void agregarMensajeChat(SesionTui& sesion, const std::string& texto, MensajeChat::Rol rol,
                             bool enCurso = false);
     void procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const std::string& linea);
+    // Mensajes durante el razonamiento (Chat/AplicacionTui_EnCurso.cpp).
+    void lanzarOrdenChat(std::shared_ptr<SesionTui> sesion, const std::string& linea, bool agregarLinea = true);
+    bool eventoEnCurso(const ftxui::Event& evento);
+    void siguienteDeLaCola(std::shared_ptr<SesionTui> sesion);
     ftxui::Element barraSesiones(int ancho);
     // Vista de un subagente (AplicacionTui_Subagentes.cpp): clic en su
     // resumen o /sub N la abre; Esc o /volver regresa a la conversación.
