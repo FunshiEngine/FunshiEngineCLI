@@ -14,6 +14,7 @@
 #include <Scenes/Editor/EditorController.h>
 
 #include "Comandos/Escena/ComandosEscenaInterno.h"
+#include "Comandos/ComandosPapelera.h"
 #include "Escena/SerializacionEscena.h"
 #include "Nucleo/Registro.h"
 #include "Validacion/ValidacionArgs.h"
@@ -46,13 +47,6 @@ public:
 private:
     std::string anterior_;
 };
-
-fs::path carpetaPapelera(const std::string& proyecto) {
-    const fs::path dir = fs::path(rutaHistorialUndo(proyecto)).parent_path() / "papelera";
-    std::error_code ec;
-    fs::create_directories(dir, ec);
-    return dir;
-}
 
 std::string minusculas(std::string s) {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -93,7 +87,7 @@ bool archivoDeSrc(const nlohmann::json& argumentos, std::string& proyecto, std::
     return true;
 }
 
-// Quita las referencias al archivo en la escena, guarda si cambió y borra el archivo.
+// Quita las referencias al archivo en la escena, guarda si cambió y lo mueve a la papelera.
 ResultadoComando borrarArchivoConReferencias(const std::string& proyecto, const std::string& rel, const fs::path& abs,
                                             const std::string& tipo) {
     nlohmann::json quitadas = nlohmann::json::array();
@@ -102,16 +96,17 @@ ResultadoComando borrarArchivoConReferencias(const std::string& proyecto, const 
         quitadas = quitarReferenciasA(&contexto.registro(), rel, abs.string());
         if (!quitadas.empty()) guardarEscena(contexto, proyecto);
     }
-    std::error_code ec;
-    if (!fs::remove(abs, ec) || ec) {
-        const std::string mensaje = "No se pudo borrar " + rel + (ec ? ": " + ec.message() : std::string());
-        registrarErrorOperacional("delete_failed", mensaje);
-        return ResultadoComando::fallo("delete_failed", mensaje, codigosSalida::kFalloEscritura);
+    std::string error;
+    const int enPapelera = moverAPapelera(proyecto, rel, abs, tipo, quitadas, error);
+    if (enPapelera < 0) {
+        registrarErrorOperacional("delete_failed", error);
+        return ResultadoComando::fallo("delete_failed", error, codigosSalida::kFalloEscritura);
     }
     return ResultadoComando::exito({{"project", proyecto},
                                     {"path", rel},
                                     {"type", tipo},
                                     {"deleted", true},
+                                    {"trashId", enPapelera},
                                     {"referencesRemoved", quitadas}});
 }
 
@@ -216,18 +211,18 @@ ResultadoComando escenaObjetoBorrar(const nlohmann::json& argumentos) {
         registrarErrorOperacional("delete_failed", "No se pudo borrar el objeto id=" + std::to_string(id));
         return ResultadoComando::fallo("delete_failed", "No se pudo borrar el objeto", codigosSalida::kFalloGeneral);
     }
+    int enPapelera = -1;
     if (conCopia) {
         registrarOperacionUndo(proyecto, "delete", id,
                                nlohmann::json{{"prefab", copia.string()}, {"parentId", padreId}, {"name", nombre}},
                                nlohmann::json::object());
+        enPapelera = anotarObjetoEnPapelera(proyecto, nombre, id, padreId, copia.string());
     }
     guardarEscena(contexto, proyecto);
-    return ResultadoComando::exito({{"project", proyecto},
-                                    {"id", id},
-                                    {"name", nombre},
-                                    {"deleted", true},
-                                    {"deletedIds", ids},
-                                    {"undoable", conCopia}});
+    nlohmann::json respuesta = {{"project", proyecto}, {"id", id},          {"name", nombre},
+                                {"deleted", true},     {"deletedIds", ids}, {"undoable", conCopia}};
+    if (enPapelera >= 0) respuesta["trashId"] = enPapelera;
+    return ResultadoComando::exito(respuesta);
 }
 
 // De las hojas hacia arriba: SceneRegistry::deleteObject solo saca el nodo

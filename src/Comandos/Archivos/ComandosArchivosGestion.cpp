@@ -18,6 +18,10 @@
 */
 // Importación, listado, borrado y renombrado dentro de src/.
 #include "Comandos/Archivos/ComandosArchivos.h"
+#include "Comandos/ComandosBorrado.h"
+#include "Comandos/ComandosPapelera.h"
+#include "Comandos/Escena/ComandosEscenaInterno.h"
+#include <Assets/AssetPath.h>
 
 #include <Configuracion/ProjectManager.h>
 #include <Configuracion/ProjectPaths.h>
@@ -234,27 +238,30 @@ ResultadoComando proyectoSrcBorrar(const nlohmann::json& argumentos) {
         return ResultadoComando::fallo("not_found", mensaje, codigosSalida::kRecursoNoEncontrado);
     }
 
+    // A la papelera; un archivo que algún objeto usa se quita de esos objetos.
     bool esDirectorio = std::filesystem::is_directory(rutaCompleta, ec);
-    if (esDirectorio) {
-        const bool removido = fs::remove_all(rutaCompleta) > 0;
-        if (!removido) {
-            registrarErrorOperacional("remove_failed", "No se pudo eliminar el directorio");
-            return ResultadoComando::fallo("remove_failed", "No se pudo eliminar el directorio", codigosSalida::kFalloEscritura);
-        }
-    } else {
-        const bool removido = fs::remove(rutaCompleta);
-        if (!removido) {
-            registrarErrorOperacional("remove_failed", "No se pudo eliminar el archivo");
-            return ResultadoComando::fallo("remove_failed", "No se pudo eliminar el archivo", codigosSalida::kFalloEscritura);
-        }
+    nlohmann::json quitadas = nlohmann::json::array();
+    if (!esDirectorio) {
+        ContextoEscena contexto(nombreProyecto);
+        quitadas = quitarReferenciasA(&contexto.registro(), AssetPath::normalize(rutaRelativa), rutaCompleta.string());
+        if (!quitadas.empty()) guardarEscena(contexto, nombreProyecto);
+    }
+    std::string error;
+    const int enPapelera = moverAPapelera(nombreProyecto, AssetPath::normalize(rutaRelativa), rutaCompleta,
+                                          esDirectorio ? "directory" : "file", quitadas, error);
+    if (enPapelera < 0) {
+        registrarErrorOperacional("remove_failed", error);
+        return ResultadoComando::fallo("remove_failed", error, codigosSalida::kFalloEscritura);
     }
 
-    registrarErrorOperacional("src_deleted", "Eliminado de src: " + rutaRelativa);
+    registrarErrorOperacional("src_deleted", "Eliminado de src (a la papelera): " + rutaRelativa);
     return ResultadoComando::exito({
         {"project", nombreProyecto},
         {"path", rutaRelativa},
         {"type", esDirectorio ? "directory" : "file"},
-        {"deleted", true}
+        {"deleted", true},
+        {"trashId", enPapelera},
+        {"referencesRemoved", quitadas}
     });
 }
 

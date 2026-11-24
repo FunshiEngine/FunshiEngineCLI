@@ -65,6 +65,9 @@ const std::unordered_map<std::string, ComandoCLI>& mapaComandos() {
         {"asset.delete", ComandoCLI::AssetBorrar},
         {"script.delete", ComandoCLI::ScriptBorrar},
         {"scene.object.delete", ComandoCLI::EscenaObjetoBorrar},
+        {"trash.list", ComandoCLI::PapeleraListar},
+        {"trash.restore", ComandoCLI::PapeleraRestaurar},
+        {"trash.empty", ComandoCLI::PapeleraVaciar},
         {"asset.validar", ComandoCLI::AssetValidar},
         {"asset.extensions", ComandoCLI::AssetListarExtensiones},
         {"script.list", ComandoCLI::ScriptListar},
@@ -131,6 +134,9 @@ std::string textoDesdeComando(ComandoCLI comando) {
         case ComandoCLI::AssetBorrar: return "asset.delete";
         case ComandoCLI::ScriptBorrar: return "script.delete";
         case ComandoCLI::EscenaObjetoBorrar: return "scene.object.delete";
+        case ComandoCLI::PapeleraListar: return "trash.list";
+        case ComandoCLI::PapeleraRestaurar: return "trash.restore";
+        case ComandoCLI::PapeleraVaciar: return "trash.empty";
         case ComandoCLI::AssetValidar: return "asset.validar";
         case ComandoCLI::AssetListarExtensiones: return "asset.extensions";
         case ComandoCLI::ScriptListar: return "script.list";
@@ -190,6 +196,9 @@ const std::vector<ComandoCLI>& todosLosComandos() {
         ComandoCLI::AssetBorrar,
         ComandoCLI::ScriptBorrar,
         ComandoCLI::EscenaObjetoBorrar,
+        ComandoCLI::PapeleraListar,
+        ComandoCLI::PapeleraRestaurar,
+        ComandoCLI::PapeleraVaciar,
         ComandoCLI::AssetValidar,
         ComandoCLI::AssetListarExtensiones,
         ComandoCLI::ScriptListar,

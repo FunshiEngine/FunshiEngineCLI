@@ -4,7 +4,8 @@
     SPDX-License-Identifier: Apache-2.0
 */
 // cli-tests: borrado de objetos (con hijos, deshacer y rehacer), scripts y
-// assets (quitando las referencias de los objetos), y listado de assets.
+// assets (quitando las referencias de los objetos), listado de assets y la
+// papelera (recuperar con referencias, conflictos, objetos, vaciar).
 #include "PruebasCli.h"
 
 #include <fstream>
@@ -102,6 +103,30 @@ void probarBorrado(const EntornoAislado& env) {
     j = ejecutar("borrado-assets-vacio", "asset.list", nlohmann::json::object());
     CHECK(esRespuestaOk(j) && j["result"].value("count", -1) == 0, "asset.delete: el archivo ya no está");
 
+    // Papelera: lo borrado se lista y se recupera con sus referencias.
+    j = ejecutar("papelera-lista", "trash.list", nlohmann::json::object());
+    CHECK(esRespuestaOk(j) && j["result"].value("count", 0) == 2, "trash.list: el script y el sonido borrados");
+    int idScript = -1, idSonido = -1;
+    for (const auto& item : j["result"].value("items", nlohmann::json::array())) {
+        if (item.value("path", "") == "Scripts/Jugador.java") idScript = item.value("id", -1);
+        if (item.value("path", "") == "Sonidos/salto.wav") idSonido = item.value("id", -1);
+    }
+    j = ejecutar("papelera-restaura-script", "trash.restore", {{"id", idScript}});
+    CHECK(esRespuestaOk(j) && j["result"]["referencesRestored"].size() == 1 &&
+              tieneComponente(ejecutar("papelera-comp-hijo", "scene.object.components", {{"id", hijo}}), "Script"),
+          "trash.restore: vuelve el script y su componente en el objeto");
+    j = ejecutar("papelera-restaura-dos-veces", "trash.restore", {{"id", idScript}});
+    CHECK(codigoError(j) == "not_in_trash", "trash.restore: lo restaurado ya no está en la papelera");
+    // Conflicto: ya hay otro archivo con esa ruta.
+    std::ofstream(wav) << "RIFF2";
+    ejecutar("papelera-otro-sonido", "asset.import", {{"source", wav.string()}});
+    j = ejecutar("papelera-conflicto", "trash.restore", {{"id", idSonido}});
+    CHECK(codigoError(j) == "destination_exists", "trash.restore: no pisa un archivo que ya existe");
+    j = ejecutar("papelera-reemplaza", "trash.restore", {{"id", idSonido}, {"overwrite", true}});
+    CHECK(esRespuestaOk(j) && j["result"]["referencesRestored"].size() == 1 &&
+              tieneComponente(ejecutar("papelera-comp-padre", "scene.object.components", {{"id", padre}}), "Audio"),
+          "trash.restore: con overwrite reemplaza y vuelve el AudioSource");
+
     // scene.object.delete: con sus hijos, deshacer y rehacer.
     j = ejecutar("borrado-raiz", "scene.object.delete", {{"id", 0}});
     CHECK(codigoError(j) == "invalid_request", "scene.object.delete: la raíz no se borra");
@@ -120,6 +145,27 @@ void probarBorrado(const EntornoAislado& env) {
     ids = escena();
     CHECK(esRespuestaOk(j) && j["result"].value("redone", false) && hay(ids, "Padre") < 0,
           "scene.redo: lo borra otra vez");
+
+    // Un objeto borrado también se recupera desde la papelera.
+    j = ejecutar("papelera-objetos", "trash.list", nlohmann::json::object());
+    int idObjeto = -1;
+    for (const auto& item : j["result"].value("items", nlohmann::json::array())) {
+        if (item.value("name", "") == "Padre") idObjeto = item.value("id", -1);
+    }
+    CHECK(idObjeto > 0 && j["result"].value("count", 0) == 1, "trash.list: el objeto borrado (una sola vez pese al undo/redo)");
+    j = ejecutar("papelera-restaura-objeto", "trash.restore", {{"id", idObjeto}});
+    ids = escena();
+    CHECK(esRespuestaOk(j) && hay(ids, "Padre") > 0 && hay(ids, "Hijo") > 0, "trash.restore: vuelve el objeto con su hijo");
+    j = ejecutar("papelera-undo-ya-no", "scene.undo", nlohmann::json::object());
+    CHECK(!j["result"].value("undone", false) || j["result"].value("type", "") != "delete",
+          "trash.restore: el borrado sale del historial (scene.undo no lo duplica)");
+
+    // trash.empty: definitivo.
+    ejecutar("papelera-borra-otra-vez", "asset.delete", {{"path", "Sonidos/salto.wav"}});
+    j = ejecutar("papelera-vaciar", "trash.empty", nlohmann::json::object());
+    CHECK(esRespuestaOk(j) && j["result"].value("emptied", 0) == 1, "trash.empty: vacía la papelera");
+    j = ejecutar("papelera-vacia", "trash.list", nlohmann::json::object());
+    CHECK(esRespuestaOk(j) && j["result"].value("count", -1) == 0, "trash.empty: no queda nada");
 }
 
 }  // namespace pruebas_cli

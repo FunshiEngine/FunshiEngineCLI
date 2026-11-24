@@ -45,6 +45,7 @@
 
 #include "Comandos/Escena/ComandosEscenaInterno.h"
 #include "Comandos/ComandosBorrado.h"
+#include "Comandos/ComandosPapelera.h"
 namespace funshi {
 // ---------------------------------------------------------------------------
 // Historial de undo/redo (almacenado en <proyecto>/Memory/undo_history.json)
@@ -103,6 +104,7 @@ ResultadoComando escenaUndo(const nlohmann::json& argumentos) {
             idObjeto = nuevo;
             operacion["id"] = nuevo;
             exito = true;
+            quitarDePapeleraPorPrefab(nombreProyecto, antes.value("prefab", ""));  // volvió: ya no está borrado
         }
     }
 
@@ -175,6 +177,11 @@ ResultadoComando escenaRedo(const nlohmann::json& argumentos) {
         // No se puede rehacer fácilmente (perdería el nuevo id)
     } else if (tipo == "delete" && obj) {
         exito = borrarConDescendientes(contexto, obj);
+        if (exito) {
+            const nlohmann::json& borrado = operacion["before"];
+            anotarObjetoEnPapelera(nombreProyecto, borrado.value("name", ""), idObjeto, borrado.value("parentId", 0),
+                                   borrado.value("prefab", ""));
+        }
     }
 
     // Mover al historial de undo

@@ -88,6 +88,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/Escena/ComandosEscenaHistorial.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosAssets.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosBorrado.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosPapelera.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosScripts.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosConfig.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Comandos/ComandosDiagnosticos.cpp

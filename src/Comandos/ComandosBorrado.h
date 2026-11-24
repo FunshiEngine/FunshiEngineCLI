@@ -8,10 +8,11 @@
 
 // Borrado de objetos de la escena, scripts y assets, y listado de assets.
 //
-// Un objeto se borra con sus hijos; antes se guarda como prefab en
-// <proyecto>/Memory/papelera para que scene.undo lo vuelva a instanciar.
-// Un script o un asset que algún objeto usa se borra igual: los componentes
-// que lo referencian se quitan de esos objetos y se informan.
+// Todo lo borrado va a la papelera del proyecto (ComandosPapelera). Un
+// objeto se borra con sus hijos; su copia es un prefab que scene.undo o
+// trash.restore vuelven a instanciar. Un script o un asset que algún objeto
+// usa se borra igual: los componentes que lo referencian se quitan de esos
+// objetos, se informan y trash.restore los vuelve a poner.
 
 #include "Nucleo/Respuesta.h"
 
