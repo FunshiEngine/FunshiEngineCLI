@@ -184,6 +184,18 @@ SanitizedToolCall ToolCallSanitizer::validateShape(const nlohmann::json& obj, co
             }
             return SanitizedToolCall::valid(*expectedName, args, *expectedName);
         }
+        // El formato de los argumentos de ejecutar_comando escrito como si
+        // fuera la llamada: {"comando": "x", "argumentos": {...}}.
+        if (obj.contains("comando") && obj["comando"].is_string()) {
+            nlohmann::json args = {{"comando", obj["comando"]}, {"argumentos", nlohmann::json::object()}};
+            for (const char* clave : {"argumentos", "arguments", "args", "parameters", "parametros"}) {
+                if (obj.contains(clave) && obj[clave].is_object()) {
+                    args["argumentos"] = obj[clave];
+                    break;
+                }
+            }
+            return SanitizedToolCall::valid("ejecutar_comando", args, "ejecutar_comando");
+        }
         return SanitizedToolCall::invalid("Falta el campo \"tool\" con el nombre de la herramienta.");
     }
     nlohmann::json args = nlohmann::json::object();

@@ -141,6 +141,16 @@ void probarUsoDeComandos() {
         CHECK(sc.ok() && reg->byName("ejecutar_comando")->execute(sc.args, ctx).ok(), "ejecutar_comando: acepta \"arguments\"");
     }
 
+    // 4b. Formatos de llamada de modelos chicos.
+    {
+        // Los argumentos de ejecutar_comando escritos como la llamada, y sin la última llave.
+        const auto sc = llm::ToolCallSanitizer::block(
+            "```tool_call\n{\"comando\":\"scene.list\",\"argumentos\":{\"project\":\"Pdef\"}\n```");
+        CHECK(sc.ok() && sc.name == "ejecutar_comando" && sc.args.value("comando", "") == "scene.list" &&
+                  sc.args["argumentos"].value("project", "") == "Pdef",
+              "sanitizador: {\"comando\"…} sin tool → ejecutar_comando");
+    }
+
     // 5. Guías convertidas en llamadas y documentación de sus comandos.
     std::vector<std::string> comandos;
     const std::string g = con::guiaEjecutable(
