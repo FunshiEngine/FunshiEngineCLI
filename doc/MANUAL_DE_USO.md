@@ -117,7 +117,8 @@ Agente conversacional que unifica **comandos CLI** y **lenguaje natural (LLM)**.
 |---|---|
 | `/` | Enfoca la caja de chat |
 | `↑` / `↓` | Historial de órdenes propias |
-| `RePág` / `AvPág` | Scroll de la conversación |
+| `RePág` / `AvPág`, `Ctrl+↑` / `Ctrl+↓`, rueda del ratón | Recorren la conversación |
+| `↑` / `↓`, `Inicio` / `Fin` (chat sin foco, tras `Esc`) | Recorren la conversación, línea a línea o hasta un extremo |
 | `Enter` | Ejecuta la orden escrita |
 | `Ctrl+N` | Sesión nueva |
 | `Ctrl+←` / `Ctrl+→` (o `Ctrl+P` / `Ctrl+O`) | Sesión anterior / siguiente |
@@ -137,8 +138,13 @@ pedido:
 | `· ronda 2 · 3.4 s (1.er token 1.2 s) · 840 → 56 tokens` | Cada consulta al modelo: mientras espera dice «esperando al modelo»; al terminar, el tiempo y los tokens de entrada → salida |
 | `Piensa …` | El razonamiento del modelo: lo que escribió antes de usar una herramienta y, en modelos que razonan (Qwen3, DeepSeek-R1…), su razonamiento interno, que no se guarda en el historial |
 | `Acción ⟳ / ✔ / ✘ …` | Cada herramienta o comando, con sus argumentos (en amarillo mientras corre; verde si salió bien, rojo si falló) y las primeras líneas del resultado. Con un clic se ven completos |
+| `┌ Jugador.java · Java (.java) · Script Java del motor · 24 líneas` | El archivo que escribe una acción: nombre, lenguaje y extensión, cómo lo trata el motor, ruta, el **resumen** que escribió Silvy sobre su contenido, un aviso si el lenguaje no es un script que el motor ejecute (solo `.java` y `.cpp`) y el código completo (más de 60 líneas se recortan: un clic lo muestra entero) |
 | `Subag. ⟳ 1/2 título · perfil … · 3 acciones` | Un subagente: su avance y la acción que está haciendo ahora; al terminar, el resultado de su informe |
 | `· Cancelado`, `· Error del modelo…` | Cortes y errores |
+
+Mientras miras más arriba, lo que llega no mueve la vista; la cabecera avisa
+«↓ más abajo» y `AvPág`, la rueda o `Fin` vuelven al final. Al enviar una
+orden la vista vuelve al final.
 
 **Vista de un subagente**: con un clic en su línea, o con `/sub N`, el panel
 pasa a mostrar su trabajo: primero la **tarea** que recibió (título, perfil de
@@ -199,6 +205,55 @@ conocimiento**: archivos `.md` en `<carpeta de config>/conocimiento/`. Cada
 encabezado `##` es un documento (por ejemplo, las convenciones de tu juego:
 «todos los enemigos llevan el tag Malo y van bajo el objeto Horda»). Se
 recargan solos al cambiar.
+
+La base trae también la guía **Lenguajes, extensiones y archivos del motor**:
+los lenguajes de programación y formatos con sus extensiones, los archivos
+que reconoce el motor (se arma con la clasificación del propio motor, así que
+sigue sus cambios), que los scripts del motor son solo Java (`.java`) y C++
+(`.cpp`), y que el motor reconoce `.fnep` como archivo de proyecto pero
+todavía no crea ni abre esos archivos (un proyecto es su carpeta). Al
+escribir un archivo, Silvy elige la extensión del lenguaje y agrega un
+`resumen` de su contenido, que se ve en el chat y que usa en su respuesta.
+
+#### Documentos del usuario (RAG)
+
+Silvy puede consultar documentos tuyos: el diseño del juego, reglas,
+especificaciones, apuntes. Déjalos en la carpeta de documentos,
+`<carpeta de config>/documentos/` (`.agentes/documentos/`, que **no se sube a
+git**; se crea sola con un `LEEME.txt`). Formatos: PDF, Word (`.docx`),
+OpenDocument (`.odt`, `.odp`, `.ods`), PowerPoint (`.pptx`), Excel (`.xlsx`),
+EPUB, HTML, Markdown, texto, CSV y código.
+
+- **Se indexan solos al abrir la TUI** (en segundo plano; el avance se ve en la
+  barra de estado) y con `/docs actualizar`. Solo se procesa lo nuevo o
+  cambiado; lo que borras sale de la base.
+- **Embeddings**: la primera vez que hay documentos se descarga
+  `Qwen3-Embedding-0.6B-Q8_0.gguf` (639 MB, de `Qwen/Qwen3-Embedding-0.6B-GGUF`,
+  verificado con SHA256) a la carpeta de modelos y se levanta un segundo
+  `llama-server` con `--embedding` en el puerto 11500. Convive con el del
+  chat y se detiene al salir de la TUI. Sin documentos no se descarga ni se
+  levanta nada.
+- **Base local propia**: `<carpeta de config>/documentos.fvdb`, un archivo
+  binario con los fragmentos de texto (~900 caracteres, con su página) y sus
+  vectores. La búsqueda compara significado (similitud coseno): «¿cuándo
+  consigue el salto doble?» encuentra «las botas del viento en el nivel 2».
+  Sin servidor de embeddings, la búsqueda es por palabras.
+- **Cómo lo usa Silvy**: si un fragmento se parece lo suficiente al pedido, se
+  le pasa junto con el pedido (nota `· documentos del usuario: diseno.pdf p.2`);
+  además tiene la herramienta `buscar_documentos` y debe decir de qué archivo
+  sale lo que responde.
+- **PDF**: se usa `pdftotext` (poppler) si está instalado; si no, un extractor
+  propio para PDFs comunes. Los PDF escaneados (imágenes) no tienen texto.
+
+| Orden | Acción |
+|---|---|
+| `/docs` | Carpeta, archivos, fragmentos, modelo y última actualización |
+| `/docs actualizar` | Indexa ahora |
+| `/docs buscar <texto>` | Busca en los documentos y muestra los fragmentos con su archivo y página |
+
+En `llm-config.json`: `documentosDir` (otra carpeta), `embeddingsUrl` (un
+servidor de embeddings OpenAI-compatible propio, en lugar del local) y
+`embeddingsModelo` (otro GGUF de embeddings).
 
 #### Subagentes
 
@@ -274,6 +329,36 @@ La pestaña tiene dos vistas; `Tab` alterna entre ellas:
 | `Esc` | Sube un nivel (variantes → resultados → caja); en Descargados sale al panel lateral |
 
 **Cache local**: `.agentes/hf-cache.json` (TTL 24h) — búsquedas y metadata de modelos.
+
+### Pestaña 7 — Configuración
+
+| Grupo | Qué se configura | Cómo |
+|---|---|---|
+| Rutas y modelo | Datos/proyectos, inferencia, modelos, caché de Hugging Face, `llama-server`, contexto | `Enter` prellena `cli.config.set clave="valor"` en la caja de comandos |
+| Interfaz | Idioma: Español, English, Português, Français, Italiano, Deutsch | `Enter` pasa al siguiente. **Por ahora solo se guarda**: los textos siguen en español |
+| Colores | Cada color de la TUI: fondos (general, paneles, barras, selección, avisos), texto, texto tenue, acento, éxito, advertencia y error | Clic o `Enter` abre el **selector de color** |
+| | Restablecer todos los colores | `Enter` |
+| Documentos para Silvy | Carpeta, estado de la base y «Actualizar ahora» | `Enter` sobre «Actualizar» indexa en el momento |
+
+**Selector de color**: una ventana con un cuadro (saturación de izquierda a
+derecha, brillo de abajo hacia arriba) con un punto, y debajo un slider de
+tono; juntos cubren todos los colores. Se usa con el ratón: presiona sobre
+el cuadro o el slider y arrastra; la rueda cambia el tono. El color se aplica
+en vivo a toda la TUI mientras lo mueves.
+
+| Tecla | En el selector |
+|---|---|
+| Flechas | Mueven el punto |
+| `[` / `]` (o `RePág`/`AvPág`) | Cambian el tono |
+| `Enter` | Aplica y guarda |
+| `Esc` | Cancela y devuelve el color original |
+| `x` | Cierra y deja `tui.color clave=` en la caja de comandos para escribir el valor |
+
+Cada color muestra una muestra, su valor, dónde se ve y si está «por
+defecto» o «personalizado». Las órdenes `tui.color <clave>=<color>` y
+`tui.idioma <código>` también se pueden escribir directamente en la caja de
+comandos. Se guardan en `<carpeta de config>/tui.json` (solo los colores
+cambiados) y se aplican al abrir la TUI.
 
 ### Modo Chat directo (`--chat`)
 

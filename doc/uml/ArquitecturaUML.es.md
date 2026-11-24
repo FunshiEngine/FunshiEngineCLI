@@ -340,6 +340,43 @@ sequenceDiagram
     Bucle->>Bucle: verifica y responde al usuario
 ```
 
+### 3.7 Documentos del usuario: indexación y consulta
+
+```mermaid
+sequenceDiagram
+    participant TUI as AplicacionTui
+    participant Hilo as Hilo de fondo
+    participant SE as ServidorEmbeddings
+    participant HF as HfApi
+    participant Emb as llama-server --embedding
+    participant Base as BaseDocumentos
+    participant Ext as ExtractorTexto
+    participant FVDB as AlmacenVectores
+    participant Silvy
+
+    TUI->>Hilo: iniciarDocumentos al abrir o con /docs actualizar
+    Hilo->>Base: prepararCarpeta y archivos
+    alt hay documentos
+        Hilo->>SE: asegurar(config)
+        opt falta el modelo
+            SE->>HF: getVariants y downloadVariant (SHA256)
+        end
+        SE->>Emb: lanzar en el puerto 11500 con registro embeddings.pid
+        Hilo->>Base: actualizar(proveedor)
+        loop cada archivo nuevo o cambiado
+            Base->>Ext: extraerTexto (pdftotext, ZIP+XML, HTML, texto)
+            Base->>Base: fragmentar con página
+            Base->>Emb: POST /v1/embeddings por lotes
+        end
+        Base->>FVDB: guardar documentos.fvdb
+        Hilo-->>TUI: aviso en la barra de estado
+    end
+    Silvy->>Base: contextoParaPedido(pedido)
+    Base->>Emb: embedding de la consulta (con instrucción)
+    Base->>FVDB: masParecidos (coseno)
+    Base-->>Silvy: fragmentos sobre el umbral, con archivo y página
+```
+
 ## 4. Diagramas de Estados
 
 ### 4.1 Sección Modelos de la TUI

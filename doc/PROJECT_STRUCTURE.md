@@ -57,10 +57,14 @@ FunshiEngineCLI/
     │   ├── Harness.*         #   ejecuta solicitudes del agente y audita
     │   ├── Auditoria.*       #   registro de lo que hizo el agente
     │   ├── ChatInteractivo.* #   chat de línea (sin TUI)
-    │   ├── Conocimiento/     #   RAG: IndiceBm25, BaseConocimiento, GuiasAgente
+    │   ├── Conocimiento/     #   RAG: IndiceBm25, BaseConocimiento, GuiasAgente,
+    │   │                     #   Lenguajes (extensiones y archivos del motor)
     │   ├── Subagentes/       #   PlantillasAgente (instrucciones), GestorSubagentes,
     │   │                     #   HerramientaSubagentes (lanzar_subagentes)
     │   ├── Sesiones/         #   SesionChat + AlmacenSesiones (<config>/sesiones/)
+    │   ├── Documentos/       #   RAG de documentos: ExtractorTexto (+_Pdf), AlmacenVectores
+    │   │                     #   (FVDB), Embeddings (cliente + servidor Qwen3), BaseDocumentos,
+    │   │                     #   HerramientaDocumentos (buscar_documentos)
     │   └── LLM/
     │       ├── Config/       #   LlmConfig (persistencia, rutas) · LlmTypes (mensajes, eventos)
     │       ├── Cliente/      #   LlmGateway (OpenAI-compatible + SSE) · HttpDescarga (cURL)
@@ -77,10 +81,14 @@ FunshiEngineCLI/
     │   ├── AplicacionTui*.cpp#   Core, Nav, Comandos, Raton (selección) y Portapapeles
     │   ├── Chat/             #   sección Chat Silvy: ModeloChat (sesiones, mensajes,
     │   │                     #   subagentes) · MonitorChat/MonitorSesion (eventos →
-    │   │                     #   mensajes) · panel, sesiones y vista de subagentes
+    │   │                     #   mensajes) · FormatoChat (llamadas, código) · panel,
+    │   │                     #   sesiones y vista de subagentes
     │   ├── ModelosHF/        #   sección Modelos (descargados, búsqueda, instalación)
+    │   ├── Configuracion/    #   sección Configuración (rutas, idioma, colores, documentos)
+    │   │                     #   y SelectorColor (cuadro saturación/brillo + slider de tono)
     │   ├── Vistas/           #   dibujo: barras, paneles, ayuda, toast
-    │   └── Terminal/         #   tema, utilidades de texto, entrada de respaldo, stty
+    │   └── Terminal/         #   tema, PreferenciasTui (paleta e idioma), utilidades de
+    │                         #   texto, entrada de respaldo, stty
     └── Util/                 # Clipboard (sistema + OSC 52) · Metricas (FUNSHI_PERF)
 ```
 

@@ -532,6 +532,14 @@ classDiagram
         +string informe
         +int herramientasUsadas
     }
+    class Lenguajes {
+        <<funciones>>
+        +lenguajes() vector~Lenguaje~
+        +lenguajePorExtension(string) Lenguaje
+        +tipoEnMotor(string ruta) string
+        +extensionDeProyecto() string
+        +documentoLenguajes() string
+    }
     class PlantillasAgente {
         <<funciones>>
         +instruccionesPrincipal(bool conSubagentes, string proyecto) string
@@ -576,6 +584,7 @@ classDiagram
     LanzarSubagentesTool --> GestorSubagentes
     LanzarSubagentesTool ..> TareaSubagente
     GestorSubagentes ..> InformeSubagente
+    BaseConocimiento ..> Lenguajes : guia.lenguajes
     GestorSubagentes ..> PlantillasAgente
     GestorSubagentes ..> BaseConocimiento : documentation per task
     GestorSubagentes ..> PerfilesHerramientas : via FabricaBucles
@@ -664,6 +673,7 @@ classDiagram
         Herramienta
         Subagente
         Tarea
+        Codigo
         Estado
         Error
     }
@@ -674,6 +684,7 @@ classDiagram
         +string vista
         +bool ocupado
         +int desplazamiento
+        +int lineasDibujadas
         +subagente(id) SubagenteTui
         +cargarDesdeDatos()
         +volcarEnDatos()
@@ -692,6 +703,21 @@ classDiagram
         +esperar()
         +aplicar(AgentEvent)
         +cerrar(textoFinal, error)
+    }
+    class PreferenciasTui {
+        <<funciones>>
+        +coloresTema() vector~ColorTema~
+        +fijarColor(clave, valor, error) bool
+        +fijarIdioma(codigo) bool
+        +cargarPreferencias(archivo)
+        +guardarPreferencias(archivo) bool
+    }
+    class ColorTema {
+        +string clave
+        +string nombre
+        +Color* destino
+        +Rgb porDefecto
+        +Rgb actual
     }
     class MonitorTranscripcion {
         -vector~MensajeChat~* mensajes_
@@ -737,6 +763,9 @@ classDiagram
     MonitorSesion *-- MonitorTranscripcion
     MonitorSesion --> SesionTui
     MonitorTranscripcion --> MensajeChat
+    AplicacionTui ..> PreferenciasTui : sección Configuración
+    PreferenciasTui *-- ColorTema
+    MonitorTranscripcion ..> Lenguajes : language and engine type
     AplicacionTui --> AlmacenSesiones
     AplicacionTui *-- EstadoSeccion
     AplicacionTui o-- EstadoCompartido : shared with threads
@@ -748,4 +777,87 @@ classDiagram
     InterfazTui ..> RegistroServidor : on exit
     AplicacionTui ..> Clipboard : copies the selection
     Clipboard ..> ResultadoCopia
+```
+
+
+## 8. User documents and color picker
+
+```mermaid
+classDiagram
+    class BaseDocumentos {
+        -path carpeta_
+        -AlmacenVectores almacen_
+        -IndiceBm25 lexico_
+        +global()$ BaseDocumentos
+        +prepararCarpeta()
+        +actualizar(ProveedorEmbeddings, progreso) bool
+        +buscar(consulta, k, ProveedorEmbeddings) vector~ResultadoDocumento~
+        +contextoParaPedido(pedido, ProveedorEmbeddings) string
+        +fragmentar(texto, maximo, solape)$ vector~Fragmento~
+    }
+    class AlmacenVectores {
+        +string modelo
+        +int dimension
+        +vector~DocumentoIndexado~ documentos
+        +cargar(path) bool
+        +guardar(path) bool
+        +masParecidos(vector, k) vector~Coincidencia~
+    }
+    class DocumentoIndexado {
+        +string ruta
+        +int64 mtime
+        +uint64 tamano
+        +string metodo
+        +vector~Fragmento~ fragmentos
+    }
+    class Fragmento {
+        +string texto
+        +int pagina
+        +vector~float~ vector
+    }
+    class ProveedorEmbeddings {
+        <<interface>>
+        +modelo() string
+        +embeber(textos, consulta, vectores, error) bool
+    }
+    class ClienteEmbeddings {
+        +embeber(textos, consulta, vectores, error) bool
+    }
+    class ServidorEmbeddings {
+        -LocalInferenceManager servidor_
+        +global()$ ServidorEmbeddings
+        +asegurar(config, progreso, error) ProveedorEmbeddings
+        +activo() ProveedorEmbeddings
+        +detener()
+    }
+    class ExtractorTexto {
+        <<funciones>>
+        +extraerTexto(path) TextoExtraido
+        +textoDePdf(bytes) string
+        +xmlATexto(xml) string
+    }
+    class BuscarDocumentosTool {
+        +execute(consulta, max) ToolResult
+    }
+    class SelectorColor {
+        +Hsv hsv
+        +Rgb original
+        +Box cajaCuadro
+        +Box cajaTono
+        +fijarDesde(Zona, x, y)
+        +mover(dx, dy)
+        +dibujar() Element
+    }
+
+    BaseDocumentos *-- AlmacenVectores
+    AlmacenVectores *-- DocumentoIndexado
+    DocumentoIndexado *-- Fragmento
+    BaseDocumentos ..> ExtractorTexto
+    BaseDocumentos ..> ProveedorEmbeddings
+    ProveedorEmbeddings <|.. ClienteEmbeddings
+    ServidorEmbeddings ..> ClienteEmbeddings : crea
+    ServidorEmbeddings --> LocalInferenceManager : modo embeddings
+    BuscarDocumentosTool ..> BaseDocumentos
+    AplicacionTui *-- SelectorColor
+    SelectorColor ..> PreferenciasTui : fijarColor en vivo
 ```

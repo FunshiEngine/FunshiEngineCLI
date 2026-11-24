@@ -15,6 +15,8 @@ assets, compilación de scripts y consulta del registro de diagnósticos.
 - **RAG de comandos**: antes de cada pedido Silvy recupera la documentación de los comandos relevantes; puede usar cualquier comando del catálogo (`ejecutar_comando`) y tu propio conocimiento en `.agentes/conocimiento/*.md`
 - **Subagentes**: Silvy delega tareas independientes en subagentes con perfiles de herramientas acotados
 - **Monitoreo en el chat**: razonamiento del modelo, cada comando con sus argumentos y su resultado, rondas con tiempo y tokens; la tarea y el trabajo de cada subagente se abren con un clic (`/sub N`)
+- **Configuración visual**: cada color de la TUI con un selector de color por ratón (cuadro + slider de tono, vista previa en vivo) e idioma de la interfaz, guardados en `.agentes/tui.json`
+- **Documentos para Silvy (RAG)**: PDFs, Word, EPUB, HTML, texto y código en `.agentes/documentos/` (no versionada), indexados con embeddings Qwen3 en una base local propia al abrir la TUI o con `/docs actualizar`
 
 El código está modularizado en un núcleo reutilizable agnóstico del
 transporte (`src/Nucleo`), preparado para que una futura app de escritorio

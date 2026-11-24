@@ -67,7 +67,7 @@ Reglas:
 | `Escena/` | Armazón RAII de escena y serialización a JSON | `ContextoEscena`, `sceneHierarchyJson()` | motor |
 | `Comandos/` | Un manejador por comando (`ResultadoComando f(const json&)`) | `escena*`, `proyecto*`, `script*`… | Validacion, Proyectos, Escena, motor |
 | `Agente/` | Silvy (enrutado y armado de cada pedido), Harness (ejecución auditada y serializada), Auditoría | `Silvy::procesar(texto, SesionAgente&, onEvent)`, `Harness::ejecutar()` | Nucleo, Agente/LLM |
-| `Agente/Conocimiento` | RAG: índice BM25 sobre la ayuda de los comandos, guías y documentos del usuario | `BaseConocimiento::global()`, `contextoParaPedido()` | Nucleo/AyudaComandos |
+| `Agente/Conocimiento` | RAG: índice BM25 sobre la ayuda de los comandos, guías (incluida la de lenguajes y extensiones, armada con `TiposArchivo` del motor) y documentos del usuario | `BaseConocimiento::global()`, `contextoParaPedido()` | Nucleo/AyudaComandos |
 | `Agente/Subagentes` | Instrucciones de Silvy y subagentes; delegación de tareas | `GestorSubagentes`, `LanzarSubagentesTool`, `instruccionesPrincipal()` | Agente/LLM, Conocimiento |
 | `Agente/Sesiones` | Conversaciones independientes persistidas | `SesionChat`, `AlmacenSesiones` | Agente (SesionAgente) |
 | `Agente/LLM/Config` | Configuración persistida y tipos del chat | `LlmConfig`, `ChatMessage`, `AgentEvent` | — |
@@ -77,6 +77,8 @@ Reglas:
 | `Agente/LLM/HuggingFace` | Búsqueda, metadatos, variantes y descarga verificada | `HfApi` | Cliente |
 | `Agente/LLM/Local` | Binario llama-server, modelos locales, ciclo de vida del servidor | `LocalInferenceManager`, `InstaladorLlama`, `RegistroServidor` | Cliente, HuggingFace |
 | `Tui/` | Interfaz FTXUI: secciones, chat, modelos, ayuda | `ejecutarTui()`, `AplicacionTui` | Nucleo, Agente |
+| `Tui/Configuracion`, `Tui/Terminal/PreferenciasTui` | Sección Configuración: rutas (`cli.config.*`), idioma y paleta editable en vivo, persistidos en `<config>/tui.json` | `tui::coloresTema()`, `tui::fijarColor()`, `tui::cargarPreferencias()` | Agente/LLM/Config |
+| `Agente/Documentos` | RAG de documentos del usuario: extracción de texto, fragmentos, base de vectores FVDB, embeddings (cliente y servidor local Qwen3), búsqueda | `BaseDocumentos`, `AlmacenVectores`, `ServidorEmbeddings`, `extraerTexto()`, `BuscarDocumentosTool` | Agente/LLM, Conocimiento, miniz |
 | `Tui/Chat` | Modelo del chat (sesiones, mensajes, subagentes), monitor de eventos y su dibujo | `chat::SesionTui`, `chat::MonitorSesion`, `chat::MonitorTranscripcion` | Agente (eventos, sesiones) |
 | `Util/` | Portapapeles (herramienta del sistema u OSC 52), métricas | `util::Clipboard::copiar()`, `secuenciaOsc52()`, `metricas::Cronometro` | — |
 
@@ -126,11 +128,19 @@ tokens —`LlmGateway::ultimaLlamada()`—, cortes y errores; una nota con
 `chat::MonitorSesion` (`Tui/Chat/MonitorChat.h`) convierte los eventos en
 mensajes en el orden en que ocurren: lo que el modelo escribió antes de una
 llamada pasa a «Piensa», cada herramienta es un mensaje con su resumen y su
-detalle completo (argumentos y resultado, que se ve con un clic), y los
+detalle completo (argumentos y resultado, que se ve con un clic), el
+contenido que una llamada escribe en un archivo (`content`) va en un mensaje
+`Codigo` debajo de ella, con nombre, lenguaje (`conocimiento::lenguajePorExtension`),
+tipo en el motor (`TiposArchivo`) y el `resumen` que el modelo agrega a la
+llamada (las herramientas lo quitan antes de ejecutar el comando), y los
 eventos de cada subagente van a su propia transcripción
 (`chat::SubagenteTui`) mientras la sesión muestra una línea de resumen. Un
 clic en ese resumen (o `/sub N`) cambia el panel a la vista del subagente;
-`Esc` vuelve. Todo se persiste con la sesión (`SubagenteSesion`). La lógica
+`Esc` vuelve. El desplazamiento se mide desde el final y el panel lo
+compensa con las líneas nuevas, así lo que llega no mueve la vista de quien
+está leyendo más arriba. En modo prompt los resultados vuelven al modelo
+marcados como salida de sus propias herramientas (`resultadosParaModelo()`),
+no como texto del usuario. Todo se persiste con la sesión (`SubagenteSesion`). La lógica
 del monitor no depende de FTXUI y se prueba en `agente-tests`.
 
 Si la plantilla del modelo no admite tools nativas (`/props` de
@@ -153,6 +163,35 @@ sobreviva a la petición que lo creó. `RegistroServidor` guarda
 - ante `SIGTERM`/`SIGHUP`/`SIGINT`/`SIGQUIT` el manejador lo mata antes de terminar;
 - al cambiar de modelo se detiene el anterior;
 - al iniciar se limpian los servidores huérfanos de sesiones ya cerradas.
+
+El servidor de embeddings tiene su propio registro (`embeddings.pid`,
+`kRegistroEmbeddings`): `LocalInferenceManager::setModoEmbeddings(true)` lo
+lanza con `--embedding --pooling last` y su propio log, y los dos conviven.
+
+**Documentos del usuario (RAG).** Al abrir la TUI un hilo de fondo prepara
+la carpeta de documentos y, si tiene archivos, `ServidorEmbeddings::asegurar()`
+descarga Qwen3-Embedding si falta y levanta su servidor;
+`BaseDocumentos::actualizar()` compara mtime y tamaño con la base
+(`AlmacenVectores`, formato propio FVDB), extrae el texto de lo nuevo
+(`ExtractorTexto`: pdftotext o extractor propio, ZIP+XML con miniz, HTML),
+lo parte en fragmentos con su página, los embebe por lotes y publica la base
+nueva de una vez (las búsquedas no esperan). En cada pedido, Silvy agrega al
+contexto del turno los fragmentos que superan el umbral de similitud, y el
+agente tiene `buscar_documentos`. Sin embeddings, la búsqueda es léxica
+(`IndiceBm25`).
+
+**Información de los comandos para el modelo.** Los esquemas de las
+herramientas del motor se generan de `AyudaComandos` (`specDesdeAyuda`):
+la misma fuente que la base de conocimiento, con tipo y descripción de cada
+argumento y `project` primero; la firma del modo prompt muestra los tipos
+(`scene.object.create(project*:texto, name*:texto, parentId:entero)`). El
+`Harness` de cada pedido completa `project` con el proyecto de trabajo (el
+activo de la sesión, o el único que existe) y corrige al nombre exacto un
+`project` que trae la ruta del proyecto o el nombre con otras mayúsculas
+(`Harness::proyectoReconocido`). Un error de argumentos devuelve
+el uso correcto del comando (`BaseConocimiento::usoDeComando`). Las guías se
+muestran con cada paso como la llamada real (`guiaEjecutable`) y suman la
+documentación de los comandos que nombran.
 
 ## 5. Concurrencia
 
