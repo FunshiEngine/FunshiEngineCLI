@@ -25,7 +25,9 @@ const std::vector<Guia>& guiasIncluidas() {
          "3. Para verificar: scene.object.getglobaltransform {\"project\":P,\"id\":ID}."},
         {"guia.script", "Agregar un script (comportamiento) a un objeto",
          "script codigo comportamiento cpp java logica movimiento compilar",
-         "1. project.src.create {\"project\":P,\"path\":\"Scripts/Nombre.cpp\",\"file\":true,\"content\":\"...\"}.\n"
+         "1. project.src.create {\"project\":P,\"path\":\"Scripts/Nombre.java\",\"file\":true,\"content\":CODIGO} "
+         "con el código completo según la guía «Scripts del motor» (Java: public class Nombre implements "
+         "Comportamiento con iniciar/actualizar; C++: IScriptBehaviour y la fábrica FUNSHI_CREAR_COMPORTAMIENTO).\n"
          "2. script.compile {\"project\":P} y revisa diagnostics.list si falla.\n"
          "3. scene.object.addcomponent {\"project\":P,\"id\":ID,\"componentType\":\"Script\",\"value\":RUTA} "
          "usando la ruta tal como la devuelve script.list.\n"

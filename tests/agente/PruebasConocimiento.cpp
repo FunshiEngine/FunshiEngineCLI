@@ -9,6 +9,7 @@
 #include "Agente/Auditoria.h"
 #include "Agente/Conocimiento/BaseConocimiento.h"
 #include "Agente/Conocimiento/Lenguajes.h"
+#include "Agente/Conocimiento/GuiaScripts.h"
 #include "Agente/Harness.h"
 #include "Agente/LLM/Herramientas/HerramientasConocimiento.h"
 #include "Agente/LLM/Herramientas/PerfilesHerramientas.h"
@@ -35,8 +36,8 @@ bool apareceEntre(const con::BaseConocimiento& base, const std::string& pedido, 
 
 void probarConocimiento() {
     const con::BaseConocimiento base;
-    CHECK(base.tamano() == funshi::ayudaComandos().size() + con::guiasIncluidas().size() + 1,
-          "la base contiene todos los comandos, las guías y la de lenguajes");
+    CHECK(base.tamano() == funshi::ayudaComandos().size() + con::guiasIncluidas().size() + 2,
+          "la base contiene todos los comandos, las guías, la de lenguajes y la de scripts");
 
     // Lenguajes y archivos del motor (la parte del motor sale de TiposArchivo).
     const std::string doc = con::documentoLenguajes();
@@ -53,13 +54,40 @@ void probarConocimiento() {
         const auto r = base.buscar("qué extensión uso para un script en java", 3);
         CHECK(!r.empty() && r.front().documento->id == "guia.lenguajes", "lenguajes: el RAG encuentra la guía");
     }
+    {
+        // Scripts del motor: la guía, su recuperación y la validación.
+        const std::string g = con::documentoScripts();
+        CHECK(g.find("implements Comportamiento") != std::string::npos &&
+                  g.find("FUNSHI_CREAR_COMPORTAMIENTO") != std::string::npos &&
+                  g.find("Nativo.teclaSostiene") != std::string::npos && g.find("public void actualizar(long objeto") != std::string::npos,
+              "scripts: la guía trae plantillas del motor, reglas y API");
+        const auto r = base.buscar("crea un script que mueva al jugador con WASD", 3);
+        bool encontrada = false;
+        for (const auto& x : r) encontrada = encontrada || x.documento->id == "guia.scripts-motor";
+        CHECK(encontrada, "scripts: el RAG encuentra la guía de scripts");
+        CHECK(con::problemaDeScript("Scripts/Jugador.java", con::plantillaDeScript("Scripts/Jugador.java")).empty() &&
+                  con::problemaDeScript("Scripts/Enemigo.cpp", con::plantillaDeScript("Scripts/Enemigo.cpp")).empty(),
+              "scripts: las plantillas del motor pasan la validación");
+        CHECK(!con::problemaDeScript("Scripts/A.java", "package juego;\npublic class A implements Comportamiento {}").empty() &&
+                  !con::problemaDeScript("Scripts/A.java", "public class B implements Comportamiento {}").empty() &&
+                  !con::problemaDeScript("Scripts/A.java", "public class A extends MonoBehaviour { void Update() {} }").empty() &&
+                  !con::problemaDeScript("Scripts/A.java", "public class A { public static void main(String[] a) {} }").empty() &&
+                  !con::problemaDeScript("Scripts/A.java", "public class A { public void update() {} }").empty(),
+              "scripts: Java con package, otro nombre, estilo Unity, main o start/update se rechaza");
+        CHECK(con::problemaDeScript("Scripts/Util.java", "public class Util { static int doble(int x) { return 2 * x; } }").empty(),
+              "scripts: una clase Java auxiliar sin ciclo de vida se acepta");
+        CHECK(!con::problemaDeScript("Scripts/E.cpp", "class E : public IScriptBehaviour {};").empty() &&
+                  !con::problemaDeScript("Scripts/E.cpp", "int main() {}").empty() &&
+                  con::problemaDeScript("Datos/notas.txt", "lo que sea").empty(),
+              "scripts: C++ sin la fábrica o sin IScriptBehaviour se rechaza; otros archivos no se miran");
+    }
 
     // Pedidos reales en español → el documento esperado entre los 3 primeros.
     const std::vector<std::pair<std::string, std::string>> casos = {
         {"mueve el objeto 6 a la posición 1,2,3", "scene.object.settransform"},
         {"rota el jugador 90 grados en Y", "scene.object.settransform"},
         {"agranda el cubo al doble de su escala", "scene.object.settransform"},
-        {"agrega un script de movimiento al jugador", "guia.script"},
+        {"agrega un script de movimiento al jugador", "guia.scripts-motor"},
         {"dale física al cubo para que caiga con gravedad", "guia.fisica"},
         {"deshacer el último cambio de la escena", "scene.undo"},
         {"busca el objeto llamado Enemigo", "scene.object.findbyname"},

@@ -159,6 +159,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/BaseConocimiento.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/GuiasAgente.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/Lenguajes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/GuiaScripts.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/GuiasEjecutables.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/ExtractorTexto.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/ExtractorTexto_Pdf.cpp

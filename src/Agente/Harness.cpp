@@ -19,6 +19,7 @@
 #include "Agente/Harness.h"
 
 #include "Nucleo/AyudaComandos.h"
+#include "Agente/Conocimiento/GuiaScripts.h"
 
 #include <Configuracion/ProjectPaths.h>
 
@@ -176,6 +177,17 @@ ResultadoComando* Harness::rechazoDeArchivo(const Solicitud& solicitud, Resultad
                                           "\"" + ruta + "\" no tiene extensión. \"path\" es la ruta completa del archivo "
                                           "con la extensión de su lenguaje, por ejemplo \"" + base + ".java\" o \"" + base +
                                               ".cpp\".",
+                                          codigosSalida::kErrorUso);
+        return &destino;
+    }
+    // Un script con la estructura de otro lado no lo carga el motor: el error
+    // trae la plantilla del motor para esa clase.
+    if (const std::string problema = agente::conocimiento::problemaDeScript(ruta, a.value("content", std::string()));
+        !problema.empty()) {
+        destino = ResultadoComando::fallo("invalid_script",
+                                          "El script no sirve para el motor: " + problema +
+                                              ". Estructura que espera el motor:\n" +
+                                              agente::conocimiento::plantillaDeScript(ruta),
                                           codigosSalida::kErrorUso);
         return &destino;
     }

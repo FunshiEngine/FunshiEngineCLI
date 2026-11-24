@@ -180,7 +180,7 @@ void probarUsoDeComandos() {
     // 4c. Protección de archivos: no se reemplaza uno existente sin permiso.
     {
         harness->setCorreccionesDelAgente(true);
-        const nlohmann::json crear = {{"project", "Pdef"}, {"path", "Scripts/A.cpp"}, {"file", true}, {"content", "original"}};
+        const nlohmann::json crear = {{"project", "Pdef"}, {"path", "Datos/notas.txt"}, {"file", true}, {"content", "original"}};
         CHECK(harness->ejecutarTexto("project.src.create", crear).respuesta.correcta, "protección: crea un archivo nuevo");
         auto pisar = crear;
         pisar["content"] = "otro";
@@ -189,7 +189,7 @@ void probarUsoDeComandos() {
                   r.respuesta.mensajeError.find("sobrescribir") != std::string::npos,
               "protección: rechaza reemplazar sin sobrescribir");
         const auto leer = [] {
-            std::ifstream f(std::filesystem::path(ProjectPaths::directorioSrc("Pdef")) / "Scripts/A.cpp");
+            std::ifstream f(std::filesystem::path(ProjectPaths::directorioSrc("Pdef")) / "Datos/notas.txt");
             return std::string(std::istreambuf_iterator<char>(f), {});
         };
         CHECK(leer().find("original") != std::string::npos, "protección: el archivo queda como estaba");
@@ -201,6 +201,12 @@ void probarUsoDeComandos() {
         pisar["sobrescribir"] = true;
         CHECK(harness->ejecutarTexto("project.src.create", pisar).respuesta.correcta && leer().find("otro") != std::string::npos,
               "protección: con sobrescribir lo reemplaza");
+        const auto malScript = harness->ejecutarTexto(
+            "project.src.create", {{"project", "Pdef"}, {"path", "Scripts/Bola.java"}, {"file", true},
+                                   {"content", "using UnityEngine; public class Bola : MonoBehaviour { void Update() {} }"}});
+        CHECK(!malScript.respuesta.correcta && malScript.respuesta.codigoError == "invalid_script" &&
+                  malScript.respuesta.mensajeError.find("public class Bola implements Comportamiento") != std::string::npos,
+              "scripts: el agente no escribe un script de otro motor; el error trae la plantilla del motor");
         // "src/" delante: se quita (si no, crearía src/src/...).
         const auto conSrc = harness->ejecutarTexto(
             "project.src.create", {{"project", "Pdef"}, {"path", "src/Scripts/C.java"}, {"file", true}, {"content", "class C {}"}});
