@@ -61,6 +61,13 @@ const std::unordered_map<std::string, ComandoCLI>& mapaComandos() {
         {"scene.object.findbyname", ComandoCLI::EscenaObjetoBuscarPorNombre},
         {"scene.object.getglobaltransform", ComandoCLI::EscenaObjetoGetGlobalTransform},
         {"asset.import", ComandoCLI::AssetImportar},
+        {"asset.list", ComandoCLI::AssetListar},
+        {"asset.delete", ComandoCLI::AssetBorrar},
+        {"script.delete", ComandoCLI::ScriptBorrar},
+        {"scene.object.delete", ComandoCLI::EscenaObjetoBorrar},
+        {"trash.list", ComandoCLI::PapeleraListar},
+        {"trash.restore", ComandoCLI::PapeleraRestaurar},
+        {"trash.empty", ComandoCLI::PapeleraVaciar},
         {"asset.validar", ComandoCLI::AssetValidar},
         {"asset.extensions", ComandoCLI::AssetListarExtensiones},
         {"script.list", ComandoCLI::ScriptListar},
@@ -123,6 +130,13 @@ std::string textoDesdeComando(ComandoCLI comando) {
         case ComandoCLI::EscenaObjetoBuscarPorNombre: return "scene.object.findbyname";
         case ComandoCLI::EscenaObjetoGetGlobalTransform: return "scene.object.getglobaltransform";
         case ComandoCLI::AssetImportar: return "asset.import";
+        case ComandoCLI::AssetListar: return "asset.list";
+        case ComandoCLI::AssetBorrar: return "asset.delete";
+        case ComandoCLI::ScriptBorrar: return "script.delete";
+        case ComandoCLI::EscenaObjetoBorrar: return "scene.object.delete";
+        case ComandoCLI::PapeleraListar: return "trash.list";
+        case ComandoCLI::PapeleraRestaurar: return "trash.restore";
+        case ComandoCLI::PapeleraVaciar: return "trash.empty";
         case ComandoCLI::AssetValidar: return "asset.validar";
         case ComandoCLI::AssetListarExtensiones: return "asset.extensions";
         case ComandoCLI::ScriptListar: return "script.list";
@@ -178,6 +192,13 @@ const std::vector<ComandoCLI>& todosLosComandos() {
         ComandoCLI::EscenaObjetoBuscarPorNombre,
         ComandoCLI::EscenaObjetoGetGlobalTransform,
         ComandoCLI::AssetImportar,
+        ComandoCLI::AssetListar,
+        ComandoCLI::AssetBorrar,
+        ComandoCLI::ScriptBorrar,
+        ComandoCLI::EscenaObjetoBorrar,
+        ComandoCLI::PapeleraListar,
+        ComandoCLI::PapeleraRestaurar,
+        ComandoCLI::PapeleraVaciar,
         ComandoCLI::AssetValidar,
         ComandoCLI::AssetListarExtensiones,
         ComandoCLI::ScriptListar,

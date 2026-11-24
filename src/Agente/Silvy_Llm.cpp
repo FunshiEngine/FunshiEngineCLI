@@ -194,6 +194,15 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
         if (g) g->setTunel(tunel);
         return g;
     };
+    // Lo que borra pide la confirmación del usuario (también en subagentes).
+    const llm::AgentLoop::SolicitudPermiso permiso = [confirmar = sesion.confirmar,
+                                                      onEvent](const llm::PermissionRequest& pedido) {
+        if (!confirmar) return llm::PermissionDecision::DENY;
+        if (onEvent) onEvent(llm::AgentEvent::estado("esperando tu confirmación: " + pedido.summary));
+        const bool si = confirmar(pedido.summary);
+        if (onEvent) onEvent(llm::AgentEvent::estado(si ? "confirmado: " + pedido.summary : "no autorizado: " + pedido.summary));
+        return si ? llm::PermissionDecision::ALLOW_ONCE : llm::PermissionDecision::DENY;
+    };
     auto harness = std::make_shared<Harness>(harness_);
     // Proyecto de trabajo: el activo de la sesión o, si no hay, el único que
     // existe. Los comandos que no traen "project" lo usan (los modelos chicos
@@ -205,13 +214,14 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
     harness->setCorreccionesDelAgente(true);
 
     // Bucles de subagentes: perfil acotado, gateway propio, sin delegar.
-    agente::FabricaBucles fabricaSub = [estado, harness, crearGateway](const std::string& perfil) {
+    agente::FabricaBucles fabricaSub = [estado, harness, crearGateway, permiso](const std::string& perfil) {
         agente::BucleCreado b;
         auto registro = llm::crearRegistroPerfil(harness, perfil);
         b.herramientas = nombresHerramientas(*registro);
         b.bucle = std::make_shared<llm::AgentLoop>(crearGateway(), registro, estado->nativas,
                                                    estado->toolTimeoutMs);
         b.bucle->setResolutorAlias(aliasComando);
+        b.bucle->setSolicitudPermiso(permiso);
         return b;
     };
     auto gestor = std::make_shared<agente::GestorSubagentes>(fabricaSub, estado->subagentesParalelos, proyecto);
@@ -225,6 +235,7 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
     bucle.setCancelFlag(sesion.cancelar);
     bucle.setResolutorAlias(aliasComando);
     bucle.setBuzon(sesion.aclaraciones);
+    bucle.setSolicitudPermiso(permiso);
     bucle.setFormatoAclaracion(estado->formatoAclaracion);
     bucle.setDocumentacionAclaraciones([herramientas = nombresHerramientas(*registro)](const std::string& texto) {
         return agente::conocimiento::BaseConocimiento::global()->contextoParaPedido(texto, herramientas, 3);

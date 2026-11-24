@@ -55,6 +55,11 @@ const std::vector<std::string>& comandosDeEscritura() {
         "scene.script.compile",
         "scene.script.reload",
         "asset.import",
+        "asset.delete",
+        "script.delete",
+        "scene.object.delete",
+        "trash.restore",
+        "trash.empty",
     };
     return lista;
 }

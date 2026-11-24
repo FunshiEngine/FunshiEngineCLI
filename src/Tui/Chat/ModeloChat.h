@@ -86,6 +86,10 @@ struct SesionTui {
     // elija agregarlo al razonamiento en curso o encolarlo en `cola`.
     std::string enEspera;
     std::deque<std::string> cola;
+    // Lo que el agente pide autorizar (borrar algo) y la respuesta: -1 sin
+    // responder, 0 no, 1 sí. El hilo del pedido espera hasta que se responda.
+    std::string confirmacion;
+    int respuestaConfirmacion = -1;
     // Mensaje del usuario con el menú editar/eliminar abierto (-1: ninguno).
     int menuMensaje = -1;
     // Sube al descartar mensajes: los eventos del pedido cancelado, que

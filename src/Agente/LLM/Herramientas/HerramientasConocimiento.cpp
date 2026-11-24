@@ -59,7 +59,6 @@ ToolSpec EjecutarComandoTool::spec() const {
 
 const std::set<std::string>& EjecutarComandoTool::bloqueados() {
     static const std::set<std::string> b = {
-        "project.src.delete",  // borra archivos
         "diagnostics.clear",   // borra el historial de diagnósticos
         "cli.config.set",      // cambia rutas y el modelo de la propia CLI
         "agente.procesar",     // recursión del agente
@@ -67,7 +66,40 @@ const std::set<std::string>& EjecutarComandoTool::bloqueados() {
     return b;
 }
 
-ToolResult EjecutarComandoTool::execute(const nlohmann::json& args, const ToolContext&) {
+const std::set<std::string>& EjecutarComandoTool::requierenConfirmacion() {
+    static const std::set<std::string> c = {"scene.object.delete", "script.delete", "asset.delete", "project.src.delete",
+                                            "trash.empty"};
+    return c;
+}
+
+std::string EjecutarComandoTool::descripcionDeBorrado(const std::string& comando, const nlohmann::json& argumentos) {
+    const std::string proyecto = argumentos.value("project", harness_ ? harness_->proyectoPorDefecto() : std::string());
+    const std::string enProyecto = proyecto.empty() ? std::string() : " del proyecto " + proyecto;
+    const std::string ruta = argumentos.value("path", std::string());
+    if (comando == "scene.object.delete") {
+        const auto id = argumentos.contains("id") ? argumentos["id"].dump() : std::string("?");
+        std::string nombre;
+        if (harness_ && argumentos.contains("id")) {
+            funshi::Solicitud ver;
+            ver.comando = "scene.object.get";
+            ver.argumentos = {{"id", argumentos["id"]}};
+            if (!proyecto.empty()) ver.argumentos["project"] = proyecto;
+            const auto r = harness_->ejecutar(ver);
+            if (r.respuesta.correcta) nombre = r.respuesta.resultado.value("object", nlohmann::json::object()).value("name", "");
+        }
+        return "borrar el objeto " + (nombre.empty() ? "" : "«" + nombre + "» ") + "(id " + id + ") y sus hijos de la escena" +
+               enProyecto;
+    }
+    if (comando == "trash.empty") {
+        return argumentos.contains("id") ? "borrar para siempre la entrada " + argumentos["id"].dump() + " de la papelera" + enProyecto
+                                         : "vaciar la papelera" + enProyecto + " (lo borrado ya no se podrá recuperar)";
+    }
+    if (comando == "script.delete") return "borrar el script " + ruta + enProyecto + " y quitarlo de los objetos que lo usan";
+    if (comando == "asset.delete") return "borrar el asset " + ruta + enProyecto + " y quitarlo de los objetos que lo usan";
+    return "borrar " + ruta + " de src/" + enProyecto;
+}
+
+ToolResult EjecutarComandoTool::execute(const nlohmann::json& args, const ToolContext& ctx) {
     const std::string comando = args.value("comando", std::string());
     if (comando.empty()) return ToolResult::error("Falta 'comando'");
     if (comandoDesdeTexto(comando) == ComandoCLI::Desconocido) {
@@ -91,6 +123,18 @@ ToolResult EjecutarComandoTool::execute(const nlohmann::json& args, const ToolCo
         argumentos = nlohmann::json::parse(argumentos.get<std::string>(), nullptr, false);
     }
     if (!argumentos.is_object()) return ToolResult::error("'argumentos' debe ser un objeto JSON");
+    if (requierenConfirmacion().count(comando)) {
+        PermissionRequest pedido;
+        pedido.chatId = ctx.chatId;
+        pedido.tool = comando;
+        pedido.category = ToolCategory::FILES;
+        pedido.summary = descripcionDeBorrado(comando, argumentos);
+        pedido.argsJson = argumentos.dump();
+        if (!ctx.requestPermission || ctx.requestPermission(pedido) == PermissionDecision::DENY) {
+            return ToolResult::error("El usuario no autorizó " + pedido.summary +
+                                     ". No lo vuelvas a intentar salvo que el usuario lo pida de nuevo.");
+        }
+    }
 
     ToolResult r = executeCommand(comando, argumentos);
     if (r.ok() && r.text.size() > kMaxResultado) {

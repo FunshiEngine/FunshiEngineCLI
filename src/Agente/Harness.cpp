@@ -106,7 +106,9 @@ Solicitud Harness::conProyectoPorDefecto(const Solicitud& solicitud) const {
 }
 
 void Harness::normalizarRutasSrc(Solicitud& solicitud) const {
-    if (!correccionesAgente_ || solicitud.comando.rfind("project.src.", 0) != 0 || !solicitud.argumentos.is_object()) return;
+    const bool conRutaSrc = solicitud.comando.rfind("project.src.", 0) == 0 || solicitud.comando == "script.delete" ||
+                            solicitud.comando == "asset.delete";
+    if (!correccionesAgente_ || !conRutaSrc || !solicitud.argumentos.is_object()) return;
     for (const char* clave : {"path", "newPath"}) {
         auto it = solicitud.argumentos.find(clave);
         if (it == solicitud.argumentos.end() || !it->is_string()) continue;

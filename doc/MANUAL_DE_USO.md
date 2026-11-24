@@ -268,9 +268,15 @@ necesita, sin tener los 48 en el contexto. Además puede:
 - **`buscar_comandos`**: buscar documentación por su cuenta;
 - **`ejecutar_comando`**: usar cualquier comando del catálogo, también los que
   no tienen herramienta propia (mover objetos, agregar componentes, listar
-  `src/`…). Por seguridad no puede usar `project.src.delete`,
-  `diagnostics.clear`, `cli.config.set` ni `agente.procesar`: esos los
-  ejecutas tú con `/comando`.
+  `src/`…). Por seguridad no puede usar `diagnostics.clear`,
+  `cli.config.set` ni `agente.procesar`: esos los ejecutas tú con `/comando`.
+- **Borrar, con tu permiso**: antes de `scene.object.delete`, `script.delete`,
+  `asset.delete`, `project.src.delete` o `trash.empty` te pregunta qué va a
+  borrar (lo borrado va a la papelera y puede recuperarlo con `trash.restore`) («⚠ Silvy
+  quiere borrar el objeto «Barril» (id 3) y sus hijos…  S: sí · N: no»). Hasta
+  que respondas espera; `N`, `Esc` o cancelar el pedido (Ctrl+X) cuentan como
+  no, y entonces no lo vuelve a intentar salvo que se lo pidas. En el chat de
+  línea (`--chat`) la pregunta es por la terminal.
 
 La base incluye la ayuda de todos los comandos y guías de varios pasos
 (crear un objeto con modelo 3D, dar física, agregar un script, sonido,
@@ -711,6 +717,13 @@ agregar funcionalidad; los campos nuevos se agregan al final.
 | `scene.object.get` | `args.project` (string, requerido), `args.id` (int) **o** `args.tag` (string) | Obtiene un objeto específico por id o tag (búsqueda recursiva). |
 | `scene.hierarchy` | `args.project` (string, requerido) | Devuelve la jerarquía completa de objetos (mismo contenido que `scene.objects`). |
 | `asset.import` | `args.project` (string, requerido), `args.source` (string, requerido, ruta absoluta al archivo) | Importa un modelo/textura/audio al proyecto y devuelve su ruta relativa y tipo. |
+| `asset.list` | `args.project` (string, requerido), `args.type` (string, opcional: `modelo`, `imagen`, `audio`, `prefab`, `tileset`, `particulas`, `interfaz`) | Lista los assets de `src/` con su tipo y tamaño (sin scripts). |
+| `asset.delete` | `args.project` (string, requerido), `args.path` (string, ruta dentro de `src/`, como la da `asset.list`) | Borra el asset y quita de los objetos los componentes que lo usaban (en un Material solo vacía el mapa). |
+| `script.delete` | `args.project` (string, requerido), `args.path` (string, ruta del `.java`/`.cpp` dentro de `src/`) | Borra el script y quita el componente Script de los objetos que lo usaban. |
+| `scene.object.delete` | `args.project` (string, requerido), `args.id` (int, no 0) | Borra el objeto con sus hijos (a la papelera); `scene.undo` lo restaura (con un id nuevo) y `scene.redo` lo vuelve a borrar. |
+| `trash.list` | `args.project` (string, requerido) | Lo que hay en la papelera: id, tipo, ruta o nombre, cuándo se borró y cuántas referencias se quitaron. |
+| `trash.restore` | `args.project` (string, requerido), `args.id` (int), `args.overwrite` (bool, opcional) | Devuelve la entrada a su lugar y vuelve a poner en los objetos los componentes que se le quitaron. |
+| `trash.empty` | `args.project` (string, requerido), `args.id` (int, opcional) | Borra para siempre una entrada o toda la papelera. |
 | `script.list` | `args.project` (string, requerido) | Lista los scripts del proyecto (`.cpp` y `.java` en `src<proyecto>/Scripts/`). |
 | `script.compile` | `args.project` (string, requerido) | Compila **todos** los scripts (C++ y Java) del proyecto vía `ScriptRuntime`. |
 | `diagnostics.list` | `args.limit` (opcional, máx 1000, default 100) | Devuelve los últimos eventos del registro de diagnósticos. |
@@ -813,6 +826,52 @@ Respuesta: `{"id": 10, "name": "Enemigo", "parentId": 0, "cloned": true}`.
 ```
 
 Respuesta: `{"componentType": "Collider", "id": 6, "removed": true}`.
+
+**Borrar objetos, scripts y assets.** `scene.object.delete` borra un objeto
+con todos sus hijos. Antes guarda una copia (un prefab en
+`<proyecto>/Memory/papelera/`), así `scene.undo` lo vuelve a poner donde estaba,
+con sus componentes y un id nuevo:
+
+```json
+{"command": "scene.object.delete", "args": {"project": "MiProyecto", "id": 6}}
+```
+
+Respuesta: `{"id": 6, "name": "Padre", "deleted": true, "deletedIds": [6, 7], "undoable": true}`.
+
+`script.delete` y `asset.delete` borran el archivo aunque algún objeto lo use:
+los componentes que lo referencian se quitan de esos objetos (un Script, un
+AudioSource, un Model, una interfaz, un sprite, un tilemap; en un Material solo
+se vacía el mapa de textura) y la respuesta los lista. `asset.list` muestra qué
+assets hay y de qué tipo:
+
+```json
+{"command": "asset.delete", "args": {"project": "MiProyecto", "path": "Sonidos/salto.wav"}}
+```
+
+Respuesta: `{"path": "Sonidos/salto.wav", "type": "Audio", "deleted": true, "referencesRemoved": [{"id": 3, "name": "Jugador", "componentType": "AudioSource"}]}`.
+
+`script.delete` rechaza lo que no es `.java`/`.cpp` (`not_a_script`) y
+`asset.delete` rechaza los scripts y los archivos que el motor no reconoce
+como asset (`not_an_asset`): para esos queda `project.src.delete`.
+
+**Papelera.** Nada de lo que se borra se pierde enseguida: los archivos y
+carpetas de `src/` (`script.delete`, `asset.delete`, `project.src.delete`) y los
+objetos de la escena (`scene.object.delete`) van a la papelera del proyecto,
+`<proyecto>/Memory/papelera/`, fuera de `src/` (el motor no carga lo que hay
+ahí). Cada borrado devuelve su `trashId`. `trash.list` muestra la papelera,
+`trash.restore` devuelve una entrada a su lugar y vuelve a poner en los objetos
+los Script, Model y AudioSource que se le quitaron, y los mapas de textura de
+los Material; lo que no puede volver a poner lo lista en
+`referencesNotRestored`. Si ya existe un archivo con esa ruta, pide
+`overwrite: true`. Un objeto recuperado con `scene.undo` sale de la papelera, y
+uno recuperado desde la papelera sale del historial de deshacer. `trash.empty`
+borra para siempre, una entrada (`id`) o todo:
+
+```json
+{"command": "trash.restore", "args": {"project": "MiProyecto", "id": 3}}
+```
+
+Respuesta: `{"id": 3, "path": "Sonidos/salto.wav", "type": "Audio", "restored": true, "referencesRestored": [{"id": 3, "name": "Jugador", "componentType": "AudioSource"}], "referencesNotRestored": []}`.
 
 `scene.object.unparent` desvincula un objeto de su padre (lo vuelve raíz):
 

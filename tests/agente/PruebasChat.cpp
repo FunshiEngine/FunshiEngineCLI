@@ -14,6 +14,7 @@
 #include "Agente/LLM/Bucle/AgentLoop.h"
 #include "Agente/LLM/Bucle/ToolRegistry.h"
 #include "Agente/Silvy.h"
+#include "Nucleo/NucleoCLI.h"
 #include "Tui/AplicacionTui.h"
 
 namespace pruebas_agente {
@@ -174,6 +175,56 @@ void probarChat() {
         s.descartarPedidos(5);
         CHECK(s.historial.size() == 1 && s.historial.front().role == "system" && s.tareaAnterior.vacia(),
               "descartar: más pedidos de los que hay deja solo el sistema");
+    }
+
+    // 6. Borrar pide confirmación al usuario: con un no no se borra, con un sí sí.
+    {
+        funshi::Solicitud alta;
+        alta.comando = "project.create";
+        alta.argumentos = {{"name", "Pborrar"}, {"dimension", "3d"}};
+        funshi::ejecutarSolicitud(alta);
+        funshi::Solicitud obj;
+        obj.comando = "scene.object.create";
+        obj.argumentos = {{"project", "Pborrar"}, {"name", "Barril"}};
+        const int id = funshi::ejecutarSolicitud(obj).respuesta.resultado.value("id", -1);
+        funshi::Auditoria auditoria("auditoria-borrar.log");
+        funshi::Harness harness(auditoria);
+        funshi::Silvy silvy(harness);
+        auto registro = std::make_shared<GatewayGuion::Registro>();
+        silvy.configurarConFabrica(
+            [registro, id]() {
+                return std::make_shared<GatewayGuion>(
+                    [id](const LlamadaVista& v) -> std::vector<llm::LlmChunk> {
+                        if (v.mensajes.back().role == "user") {
+                            return {llm::LlmChunk::makeToolCall(
+                                "c1", "ejecutar_comando",
+                                nlohmann::json{{"comando", "scene.object.delete"},
+                                               {"argumentos", {{"project", "Pborrar"}, {"id", id}}}}.dump())};
+                        }
+                        return {llm::LlmChunk::makeText("Listo.")};
+                    },
+                    registro);
+            },
+            true, 1);
+        funshi::SesionAgente sesion;
+        std::vector<std::string> preguntas;
+        bool responder = false;
+        sesion.confirmar = [&](const std::string& d) {
+            preguntas.push_back(d);
+            return responder;
+        };
+        const auto existe = [&] {
+            funshi::Solicitud ver;
+            ver.comando = "scene.object.get";
+            ver.argumentos = {{"project", "Pborrar"}, {"id", id}};
+            return funshi::ejecutarSolicitud(ver).respuesta.correcta;
+        };
+        silvy.procesar("borra el barril", sesion, nullptr);
+        CHECK(preguntas.size() == 1 && contiene(preguntas[0], "borrar el objeto «Barril»") && existe(),
+              "borrar: se pregunta con el nombre del objeto y con un no queda");
+        responder = true;
+        silvy.procesar("borra el barril", sesion, nullptr);
+        CHECK(preguntas.size() == 2 && !existe(), "borrar: con un sí se borra");
     }
 
     // 5. Nombres mal escritos: se corrigen solo dentro del mismo comando.

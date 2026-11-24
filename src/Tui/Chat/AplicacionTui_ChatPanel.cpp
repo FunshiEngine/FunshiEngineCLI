@@ -154,7 +154,9 @@ ftxui::Element AplicacionTui::panelChat() {
                           sub->datos.estado;
         }
         ocupado = sesion && sesion->ocupado;
-        if (sesion && !sesion->enEspera.empty()) {
+        if (sesion && !sesion->confirmacion.empty()) {
+            opciones = " ⚠ Silvy quiere " + recortar(sesion->confirmacion, 90) + ".  S: sí · N: no ";
+        } else if (sesion && !sesion->enEspera.empty()) {
             opciones = " ⏸ «" + recortar(sesion->enEspera, 40) +
                        "»  A: agregar a lo que está pensando · E: encolar · Esc: seguir editando ";
         } else if (sesion && sesion->menuMensaje >= 0) {

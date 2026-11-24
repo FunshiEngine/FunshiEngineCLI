@@ -57,6 +57,13 @@ void mostrarRespuesta(const ResultadoComando& resultado) {
 }  // namespace
 
 int ejecutarChatSilvy(Silvy& silvy) {
+    // Lo que Silvy quiera borrar se pregunta aquí.
+    silvy.setConfirmacion([](const std::string& descripcion) {
+        std::cout << "Silvy quiere " << descripcion << ". ¿Lo autorizas? (s/n): " << std::flush;
+        std::string respuesta;
+        if (!std::getline(std::cin, respuesta)) return false;
+        return !respuesta.empty() && (respuesta[0] == 's' || respuesta[0] == 'S' || respuesta[0] == 'y' || respuesta[0] == 'Y');
+    });
     std::cout << "=== Silvy - Agente de FunshiEngineCLI ===\n"
               << "Escribe 'ayuda' para ver ejemplos o 'salir' para terminar.\n"
               << std::endl;

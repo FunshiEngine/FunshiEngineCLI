@@ -30,6 +30,7 @@
 #include <nlohmann/json.hpp>
 
 #include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -190,6 +191,9 @@ class AplicacionTui : public ftxui::ComponentBase {
     bool eventoEnCurso(const ftxui::Event& evento);
     void descartarDesde(std::size_t indice, bool editar);
     void siguienteDeLaCola(std::shared_ptr<SesionTui> sesion);
+    // Pregunta en la sesión si se autoriza `descripcion`; bloquea el hilo del pedido.
+    bool pedirConfirmacion(const std::shared_ptr<SesionTui>& sesion, const std::string& descripcion);
+    std::condition_variable confirmacionCv_;  // con chatMutex_
     ftxui::Element barraSesiones(int ancho);
     // Vista de un subagente (AplicacionTui_Subagentes.cpp): clic en su
     // resumen o /sub N la abre; Esc o /volver regresa a la conversación.
