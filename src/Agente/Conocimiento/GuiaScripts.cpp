@@ -78,6 +78,31 @@ const char* kEjemploCpp =
     "        api->fijarVelocidadHorizontal(owner, x, z);\n"
     "    }\n";
 
+// true si las llaves están balanceadas (fuera de cadenas y comentarios).
+bool llavesBalanceadas(const std::string& c) {
+    int nivel = 0;
+    for (std::size_t i = 0; i < c.size(); ++i) {
+        const char x = c[i];
+        if (x == '/' && i + 1 < c.size() && c[i + 1] == '/') {
+            i = c.find('\n', i);
+            if (i == std::string::npos) break;
+        } else if (x == '/' && i + 1 < c.size() && c[i + 1] == '*') {
+            i = c.find("*/", i + 2);
+            if (i == std::string::npos) break;
+            ++i;
+        } else if (x == '"' || x == '\'') {
+            for (++i; i < c.size() && c[i] != x; ++i) {
+                if (c[i] == '\\') ++i;
+            }
+        } else if (x == '{') {
+            ++nivel;
+        } else if (x == '}' && --nivel < 0) {
+            return false;
+        }
+    }
+    return nivel == 0;
+}
+
 }  // namespace
 
 std::string documentoScripts() {
@@ -134,6 +159,15 @@ std::string problemaDeScript(const std::string& ruta, const std::string& conteni
         if (std::regex_search(contenido, m, publica) && m[1].str() != clase) {
             return "la clase pública se llama " + m[1].str() + " y el archivo " + clase + ".java: deben llamarse igual";
         }
+        if (!std::regex_search(contenido, std::regex("class\\s+" + clase + "\\b"))) {
+            return "falta la clase " + clase + " (public class " + clase + " implements Comportamiento)";
+        }
+        if (!llavesBalanceadas(contenido)) return "las llaves { } no están balanceadas";
+        if (contenido.find("implements Comportamiento") != std::string::npos &&
+            (!std::regex_search(contenido, std::regex(R"(void\s+iniciar\s*\()")) ||
+             !std::regex_search(contenido, std::regex(R"(void\s+actualizar\s*\()")))) {
+            return "un Comportamiento necesita iniciar(long objeto) y actualizar(long objeto, double deltaTime)";
+        }
         if (contenido.find("Comportamiento") == std::string::npos &&
             std::regex_search(contenido, std::regex(R"(void\s+(start|update|Start|Update|onStart|onUpdate)\s*\()"))) {
             return "un script de objeto implementa Comportamiento (iniciar/actualizar), no start/update";
@@ -145,6 +179,7 @@ std::string problemaDeScript(const std::string& ruta, const std::string& conteni
         if (contenido.find("FUNSHI_CREAR_COMPORTAMIENTO") == std::string::npos) {
             return "falta la fábrica FUNSHI_CREAR_COMPORTAMIENTO al final (sin ella el motor no carga el script)";
         }
+        if (!llavesBalanceadas(contenido)) return "las llaves { } no están balanceadas";
         return {};
     }
     return {};

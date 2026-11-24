@@ -74,6 +74,18 @@ void probarConocimiento() {
                   !con::problemaDeScript("Scripts/A.java", "public class A { public static void main(String[] a) {} }").empty() &&
                   !con::problemaDeScript("Scripts/A.java", "public class A { public void update() {} }").empty(),
               "scripts: Java con package, otro nombre, estilo Unity, main o start/update se rechaza");
+        CHECK(!con::problemaDeScript("Scripts/Jugador.java", "definido por el usuario").empty() &&
+                  !con::problemaDeScript("Scripts/S.java", "public class S implements Comportamiento {\n"
+                                                            "  public void iniciar(long o) {}\n"
+                                                            "  public void actualizar(long o, double d) {}\n}\n}").empty() &&
+                  !con::problemaDeScript("Scripts/S.java", "public class S implements Comportamiento {\n"
+                                                            "  public void iniciar(long o) { Nativo.imprimir(\"}\"); }\n}").empty(),
+              "scripts: Java sin clase, con llaves sobrantes o sin actualizar se rechaza");
+        CHECK(con::problemaDeScript("Scripts/S.java", "public class S implements Comportamiento {\n"
+                                                       "  // una llave en un comentario: }\n"
+                                                       "  public void iniciar(long o) { Nativo.imprimir(\"{\"); }\n"
+                                                       "  public void actualizar(long o, double d) {}\n}").empty(),
+              "scripts: las llaves en cadenas y comentarios no cuentan");
         CHECK(con::problemaDeScript("Scripts/Util.java", "public class Util { static int doble(int x) { return 2 * x; } }").empty(),
               "scripts: una clase Java auxiliar sin ciclo de vida se acepta");
         CHECK(!con::problemaDeScript("Scripts/E.cpp", "class E : public IScriptBehaviour {};").empty() &&

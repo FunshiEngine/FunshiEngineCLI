@@ -182,7 +182,8 @@ ResultadoComando* Harness::rechazoDeArchivo(const Solicitud& solicitud, Resultad
     }
     // Un script con la estructura de otro lado no lo carga el motor: el error
     // trae la plantilla del motor para esa clase.
-    if (const std::string problema = agente::conocimiento::problemaDeScript(ruta, a.value("content", std::string()));
+    const std::string contenido = a.value("content", std::string());
+    if (const std::string problema = contenido.empty() ? std::string() : agente::conocimiento::problemaDeScript(ruta, contenido);
         !problema.empty()) {
         destino = ResultadoComando::fallo("invalid_script",
                                           "El script no sirve para el motor: " + problema +
