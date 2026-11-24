@@ -157,6 +157,7 @@ classDiagram
         +vector~TareaAgente~ tareasPrevias
         +shared_ptr~atomic bool~ cancelar
         +shared_ptr~BuzonInstrucciones~ aclaraciones
+        +function confirmar
         +descartarPedidos(size_t)
     }
     class BuzonInstrucciones {
@@ -244,6 +245,7 @@ classDiagram
         +setEncabezadoPedido(string)
         +setBuzon(shared_ptr~BuzonInstrucciones~)
         +setFormatoAclaracion(FormatoAclaracion)
+        +setSolicitudPermiso(SolicitudPermiso)
         +setResolutorAlias(ResolutorAlias)
         +setCancelFlag(shared_ptr~atomic bool~)
         +setNativeToolCalls(bool)
