@@ -136,11 +136,30 @@ pedido:
 |---|---|
 | `· documentación recuperada: …` | Comandos y guías que el RAG le pasó al modelo para este pedido |
 | `· ronda 2 · 3.4 s (1.er token 1.2 s) · 840 → 56 tokens` | Cada consulta al modelo: mientras espera dice «esperando al modelo»; al terminar, el tiempo y los tokens de entrada → salida |
-| `Piensa …` | El razonamiento del modelo: lo que escribió antes de usar una herramienta y, en modelos que razonan (Qwen3, DeepSeek-R1…), su razonamiento interno, que no se guarda en el historial |
+| `Piensa …` | El razonamiento del modelo: lo que escribió antes de usar una herramienta y, en modelos que razonan (Qwen3, DeepSeek-R1…), su razonamiento interno, que no se guarda en el historial. Se muestra plegado en dos líneas («… N líneas más · clic para ver el razonamiento»): un clic lo despliega entero y otro lo vuelve a plegar |
 | `Acción ⟳ / ✔ / ✘ …` | Cada herramienta o comando, con sus argumentos (en amarillo mientras corre; verde si salió bien, rojo si falló) y las primeras líneas del resultado. Con un clic se ven completos |
 | `┌ Jugador.java · Java (.java) · Script Java del motor · 24 líneas` | El archivo que escribe una acción: nombre, lenguaje y extensión, cómo lo trata el motor, ruta, el **resumen** que escribió Silvy sobre su contenido, un aviso si el lenguaje no es un script que el motor ejecute (solo `.java` y `.cpp`) y el código completo (más de 60 líneas se recortan: un clic lo muestra entero) |
 | `Subag. ⟳ 1/2 título · perfil … · 3 acciones` | Un subagente: su avance y la acción que está haciendo ahora; al terminar, el resultado de su informe |
 | `· Cancelado`, `· Error del modelo…` | Cortes y errores |
+
+**Escribirle mientras piensa**: si envías un mensaje mientras Silvy procesa,
+aparece la fila «A: agregar a lo que está pensando · E: encolar · Esc: seguir
+editando».
+
+- `A` lo suma al pedido en curso: Silvy lo recibe en su próxima ronda, junto
+  con la documentación de lo que pide (y, si estaba por terminar, hace una
+  ronda más para atenderlo). Se ve como `Tú +`.
+- `E` lo deja en cola: se envía solo cuando termine.
+- `Esc` lo devuelve a la entrada para seguir editándolo.
+
+Si terminó mientras elegías, se envía como un pedido nuevo.
+
+**Editar o eliminar un mensaje tuyo**: con un clic sobre él aparece «E editar ·
+D eliminar · Esc cancelar». Las dos opciones cancelan lo que Silvy esté
+haciendo, borran ese mensaje y todo lo que vino después (del chat y de lo que
+el modelo recuerda, incluida la tarea) y vacían la cola; al editar, el texto
+queda en la entrada para corregirlo y volver a enviarlo. Lo que Silvy ya hizo
+en el proyecto (objetos, archivos) no se deshace.
 
 Mientras miras más arriba, lo que llega no mueve la vista; la cabecera avisa
 «↓ más abajo» y `AvPág`, la rueda o `Fin` vuelven al final. Al enviar una
@@ -163,7 +182,11 @@ la sesión.
 
 Cada sesión es una conversación independiente con Silvy: tiene su propio
 historial (el modelo solo ve el de esa sesión), su proyecto activo y sus
-mensajes. Las pestañas bajo la cabecera muestran las sesiones; `⟳` marca las
+mensajes. Con un modelo local, cada sesión va además por su propio **túnel**
+hacia el servidor (un slot de llama-server con su caché): una sesión nunca
+reaprovecha lo que el modelo calculó para otra. El servidor arranca con 4
+slots; si hay más sesiones trabajando, la que lleva más tiempo sin usar el suyo
+lo cede (y se vacía antes). Las pestañas bajo la cabecera muestran las sesiones; `⟳` marca las
 que están procesando. **Varias sesiones pueden trabajar a la vez**: mientras
 una procesa, puedes cambiar a otra y darle otra orden.
 
@@ -183,6 +206,18 @@ siendo comandos de la CLI):
 | `/borrar` | Borra la sesión (pide `/borrar confirmar`) |
 | `/cancelar` | Corta la respuesta en curso |
 | `/ayuda` | Muestra estas órdenes |
+
+#### Scripts del motor
+
+La base de conocimiento trae la guía **Scripts del motor**, armada con la
+plantilla del propio motor: cómo es un script Java (`public class Nombre
+implements Comportamiento` con `iniciar`/`actualizar`, el objeto como `long`, la
+API `Nativo.*`) y uno C++ (`IScriptBehaviour`, `onStart`/`onUpdate`, la fábrica
+`FUNSHI_CREAR_COMPORTAMIENTO`), con ejemplos y los nombres de las teclas. Cuando
+Silvy escribe un `.java` o un `.cpp` en `src/`, se rechaza si no tiene esa
+estructura (clase con otro nombre que el archivo, `package`, `main`, código de
+otro motor, o un `.cpp` sin la fábrica): el error le muestra la plantilla
+correcta para que lo rehaga.
 
 #### Tareas
 

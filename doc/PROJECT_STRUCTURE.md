@@ -58,7 +58,8 @@ FunshiEngineCLI/
     │   ├── Auditoria.*       #   registro de lo que hizo el agente
     │   ├── ChatInteractivo.* #   chat de línea (sin TUI)
     │   ├── Conocimiento/     #   RAG: IndiceBm25, BaseConocimiento, GuiasAgente,
-    │   │                     #   Lenguajes (extensiones y archivos del motor)
+    │   │                     #   Lenguajes (extensiones y archivos del motor),
+    │   │                     #   GuiaScripts (estructura y validación de scripts)
     │   ├── Subagentes/       #   PlantillasAgente (instrucciones), GestorSubagentes,
     │   │                     #   HerramientaSubagentes (lanzar_subagentes)
     │   ├── Sesiones/         #   SesionChat + AlmacenSesiones (<config>/sesiones/)
@@ -69,7 +70,8 @@ FunshiEngineCLI/
     │   └── LLM/
     │       ├── Config/       #   LlmConfig (persistencia, rutas) · LlmTypes (mensajes, eventos)
     │       ├── Cliente/      #   LlmGateway (OpenAI-compatible + SSE) · HttpDescarga (cURL)
-    │       ├── Bucle/        #   AgentLoop (+ _Herramientas) · ToolRegistry · ToolCallSanitizer
+    │       │                 #   · AsignadorTuneles (un slot del servidor por sesión)
+    │       ├── Bucle/        #   AgentLoop (+ _Herramientas, _Aclaraciones) · ToolRegistry · ToolCallSanitizer
     │       │                 #   · PromptToolParser · SeparadorPensamiento (<think>)
     │       ├── Herramientas/ #   EngineTool* (comandos del motor como tools) + fábrica,
     │       │                 #   buscar_comandos / ejecutar_comando, perfiles
@@ -83,7 +85,8 @@ FunshiEngineCLI/
     │   ├── Chat/             #   sección Chat Silvy: ModeloChat (sesiones, mensajes,
     │   │                     #   subagentes) · MonitorChat/MonitorSesion (eventos →
     │   │                     #   mensajes) · FormatoChat (llamadas, código) · panel,
-    │   │                     #   sesiones y vista de subagentes
+    │   │                     #   sesiones y vista de subagentes · EnCurso (mensajes
+    │   │                     #   durante el razonamiento, editar/eliminar mensajes)
     │   ├── ModelosHF/        #   sección Modelos (descargados, búsqueda, instalación)
     │   ├── Configuracion/    #   sección Configuración (rutas, idioma, colores, documentos)
     │   │                     #   y SelectorColor (cuadro saturación/brillo + slider de tono)
