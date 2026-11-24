@@ -97,6 +97,14 @@ struct LlmConfig {
     // Subagentes que corren a la vez (0 = automático: 1 con servidor local,
     // que atiende de a un pedido; 3 con API remota).
     int subagentesParalelos = 0;
+    // Documentos del usuario para el RAG (vacío = <carpeta de config>/documentos)
+    // y su modelo de embeddings: embeddingsUrl = servidor OpenAI-compatible
+    // externo (vacío = el local con Qwen3-Embedding); embeddingsModelo = GGUF
+    // propio (vacío = el de por defecto en modelsDir).
+    std::string documentosDir = "";
+    std::string embeddingsUrl = "";
+    std::string embeddingsModelo = "";
+    std::filesystem::path documentosDirEfectivo() const;
     int subagentesParalelosEfectivo() const {
         return subagentesParalelos > 0 ? subagentesParalelos : (isLocalhostUrl() ? 1 : 3);
     }

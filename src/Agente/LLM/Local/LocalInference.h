@@ -86,6 +86,11 @@ public:
     // Para el servidor si está corriendo
     void stopServer();
 
+    // Modo embeddings: el servidor se lanza con --embedding --pooling last
+    // (Qwen3-Embedding), con su propio registro de PID y su propio log, así
+    // convive con el servidor del modelo de chat. Llamar antes de startServer.
+    void setModoEmbeddings(bool activo) { modoEmbeddings_ = activo; }
+
     // Libera la propiedad del proceso del servidor para que el destructor no lo detenga.
     void detachServer();
 
@@ -119,6 +124,7 @@ private:
     std::filesystem::path modelsDir_;
     std::filesystem::path llamaServerBinary_;
     bool servidorPersonalizado_ = false;
+    bool modoEmbeddings_ = false;
 
     LocalServerInfo serverInfo_;
     LocalInferenceState state_ = LocalInferenceState::IDLE;

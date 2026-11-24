@@ -101,6 +101,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_ChatPanel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Sesiones.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Subagentes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/AplicacionTui_Documentos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/ModeloChat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/MonitorChat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/MonitorSesion.cpp
@@ -154,6 +155,12 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/BaseConocimiento.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/GuiasAgente.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/Lenguajes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/ExtractorTexto.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/ExtractorTexto_Pdf.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/AlmacenVectores.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/Embeddings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/BaseDocumentos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Documentos/HerramientaDocumentos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/HerramientasConocimiento.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/PerfilesHerramientas.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/PlantillasAgente.cpp

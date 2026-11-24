@@ -20,6 +20,7 @@
 #include "Tui/InterfazTui.h"
 
 #include "Tui/AplicacionTui.h"
+#include "Agente/Documentos/Embeddings.h"
 #include "Tui/Terminal/EntradaRespaldo.h"
 
 #include "Agente/Auditoria.h"
@@ -73,8 +74,10 @@ int ejecutarTui(int seccionInicial) {
         respaldo.iniciar(&pantalla);
     }
     pantalla.Loop(aplicacion);
-    // Al salir (Esc, q, Ctrl+C) se detiene el llama-server de esta sesión.
+    // Al salir (Esc, q, Ctrl+C) se detienen los llama-server de esta sesión.
+    agente::documentos::ServidorEmbeddings::global().detener();
     agente::llm::detenerServidorRegistrado(llmConfig.localInferenceDirEfectivo());
+    agente::llm::detenerServidorRegistrado(llmConfig.localInferenceDirEfectivo(), agente::llm::kRegistroEmbeddings);
     return codigosSalida::kExito;
 }
 

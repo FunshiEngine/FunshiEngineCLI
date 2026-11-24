@@ -116,6 +116,7 @@ AplicacionTui::AplicacionTui(ftxui::ScreenInteractive* pantalla,
 
     // Sesiones de chat guardadas (o una nueva si no hay).
     cargarSesiones();
+    iniciarDocumentos(false);  // indexa en segundo plano lo nuevo de la carpeta de documentos
 
     recargarSeccionActual();
 
@@ -216,6 +217,7 @@ bool AplicacionTui::OnEvent(ftxui::Event evento) {
     // Aviso que el render se manda a sí mismo para copiar fuera del dibujado.
     if (evento == ftxui::Event::Custom) {
         procesarCopiaPendiente();
+        aplicarAvisoDocumentos();
         bool recargar = false;
         std::string mensajePendiente;
         bool errorPendiente = false;

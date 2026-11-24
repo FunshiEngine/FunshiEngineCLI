@@ -152,7 +152,8 @@ bool LocalInferenceManager::startServer(const std::filesystem::path& modelPath,
     
     // Un solo servidor gestionado a la vez: al cambiar de modelo se detiene el
     // anterior (antes quedaba huérfano y el nuevo arrancaba en otro puerto).
-    detenerServidorRegistrado(baseDir_);
+    const char* registro = modoEmbeddings_ ? kRegistroEmbeddings : kRegistroChat;
+    detenerServidorRegistrado(baseDir_, registro);
 
     int actualPort = port;
     if (isPortInUse(port)) {
@@ -169,9 +170,15 @@ bool LocalInferenceManager::startServer(const std::filesystem::path& modelPath,
         << " --port " << actualPort
         << " --host 127.0.0.1"
         // Un solo slot: con -np automático el contexto se reparte entre varios.
-        << " -np 1"
+        << " -np 1";
+    if (modoEmbeddings_) {
+        // Qwen3-Embedding: el vector es el del último token. El lote físico
+        // (-ub) debe alcanzar el texto más largo que se embebe de una vez.
+        cmd << " --embedding --pooling last -b " << contextSize << " -ub " << contextSize;
+    } else {
         // Reutiliza la caché KV de prefijos (historial del chat) entre peticiones.
-        << " --cache-reuse 256";
+        cmd << " --cache-reuse 256";
+    }
     
     if (gpuLayers >= 0) {
         cmd << " -ngl " << gpuLayers;
@@ -180,7 +187,7 @@ bool LocalInferenceManager::startServer(const std::filesystem::path& modelPath,
     }
     
     // Log persistente (append) en lugar de sobrescribir
-    std::filesystem::path logFile = baseDir_ / "llama-server.log";
+    std::filesystem::path logFile = baseDir_ / (modoEmbeddings_ ? "embeddings-server.log" : "llama-server.log");
     
     // Usar nohup + setsid para daemonizar correctamente y evitar SIGHUP al salir el shell padre
     cmd << " >> \"" << logFile.string() << "\" 2>&1 </dev/null & echo $!";
@@ -212,7 +219,7 @@ bool LocalInferenceManager::startServer(const std::filesystem::path& modelPath,
         return false;
     }
     
-    registrarServidor(baseDir_, pid, actualPort);
+    registrarServidor(baseDir_, pid, actualPort, registro);
 
     serverInfo_ = LocalServerInfo{
         .baseUrl = "http://127.0.0.1:" + std::to_string(actualPort) + "/v1",
@@ -268,7 +275,7 @@ void LocalInferenceManager::stopServer() {
         system(killCmd.c_str());
     }
     
-    detenerServidorRegistrado(baseDir_);
+    detenerServidorRegistrado(baseDir_, modoEmbeddings_ ? kRegistroEmbeddings : kRegistroChat);
     serverInfo_.isRunning = false;
     serverInfo_.pid = -1;
     

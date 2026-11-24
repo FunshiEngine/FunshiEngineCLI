@@ -36,6 +36,10 @@ const char* kAyudaSesiones =
     "  /subs               lista los subagentes de esta sesión\n"
     "  /sub N              muestra la tarea y el trabajo del subagente N (o clic en su línea)\n"
     "  /volver             regresa a la conversación (Esc)\n"
+    "Documentos del usuario (RAG):\n"
+    "  /docs               estado y carpeta de los documentos\n"
+    "  /docs actualizar    indexa ahora lo nuevo o cambiado\n"
+    "  /docs buscar texto  busca en los documentos\n"
     "En la conversación se ven el razonamiento del modelo, cada herramienta con sus\n"
     "argumentos y su resultado (clic en una herramienta lo muestra completo) y notas de progreso.\n"
     "Cada sesión recuerda su conversación y se guarda sola. Varias pueden trabajar a la vez.";

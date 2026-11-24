@@ -49,6 +49,7 @@ bool AplicacionTui::salirDeVistaSubagente() {
 }
 
 bool AplicacionTui::ordenDeSubagentes(const std::string& orden, const std::string& resto) {
+    if (orden == "docs") return ordenDeDocumentos(orden, resto);
     if (orden != "subs" && orden != "sub" && orden != "volver") return false;
     if (orden == "volver") {
         if (!salirDeVistaSubagente()) agregarMensajeChat(*sesionActual(), "Ya estás en la conversación.", MensajeChat::Rol::Estado);

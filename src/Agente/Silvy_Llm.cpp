@@ -14,6 +14,7 @@
 #include "Agente/Silvy.h"
 
 #include "Agente/Conocimiento/BaseConocimiento.h"
+#include "Agente/Documentos/BaseDocumentos.h"
 #include "Agente/LLM/Bucle/AgentLoop.h"
 #include "Agente/LLM/Cliente/LlmGateway.h"
 #include "Agente/LLM/Herramientas/PerfilesHerramientas.h"
@@ -139,8 +140,24 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
         onEvent(llm::AgentEvent::estado(lista.empty() ? "documentación: ninguna relevante para el pedido"
                                                       : "documentación recuperada: " + lista));
     }
+    // Documentos del usuario: los fragmentos más cercanos al pedido, si superan el umbral.
+    std::string contextoTurno = contexto;
+    {
+        auto& docs = agente::documentos::BaseDocumentos::global();
+        if (docs.estado().archivos > 0) {
+            const auto proveedor = agente::documentos::ServidorEmbeddings::global().activo();
+            std::vector<std::string> deDocs;
+            const std::string extra = docs.contextoParaPedido(mensaje, proveedor.get(), &deDocs);
+            if (!extra.empty()) {
+                contextoTurno += (contextoTurno.empty() ? "" : "\n") + extra;
+                std::string lista;
+                for (const auto& d : deDocs) lista += (lista.empty() ? "" : ", ") + d;
+                if (onEvent) onEvent(llm::AgentEvent::estado("documentos del usuario: " + lista));
+            }
+        }
+    }
     sesion.historial.push_back(llm::ChatMessage::user(mensaje));
-    const auto answer = bucle.run(sesion.historial, onEvent, contexto);
+    const auto answer = bucle.run(sesion.historial, onEvent, contextoTurno);
 
     resp.texto = answer.text.empty() ? "(sin respuesta)" : answer.text;
     return resp;

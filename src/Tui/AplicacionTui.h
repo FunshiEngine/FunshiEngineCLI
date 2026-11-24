@@ -82,6 +82,12 @@ class AplicacionTui : public ftxui::ComponentBase {
     void recorrerHistorial(int delta);
     void cargarSeccionConfiguracion(EstadoSeccion& estado, bool informar);
     void editarRutaConfiguracion(const nlohmann::json& item);
+    // Documentos del usuario (Chat/AplicacionTui_Documentos.cpp): indexación
+    // en segundo plano al abrir y con /docs actualizar; /docs y /docs buscar.
+    void iniciarDocumentos(bool aPedido);
+    bool ordenDeDocumentos(const std::string& orden, const std::string& resto);
+    void aplicarAvisoDocumentos();
+    void agregarItemsDocumentos(nlohmann::json& items);
 
     void enfocarChat();
     void desenfocarChat();
@@ -287,6 +293,10 @@ class AplicacionTui : public ftxui::ComponentBase {
         std::string copiaTexto;
         // Hay un redibujado programado para la copia por inactividad.
         std::atomic<bool> temporizadorCopia{false};
+        // Avance de la indexación de documentos (hilo de fondo → barra de estado).
+        std::string avisoDocumentos;
+        bool avisoDocumentosError = false;
+        bool avisoDocumentosPendiente = false;
     };
     std::shared_ptr<EstadoCompartido> compartido_ = std::make_shared<EstadoCompartido>();
 };

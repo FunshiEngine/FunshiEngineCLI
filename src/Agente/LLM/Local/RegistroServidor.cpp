@@ -23,12 +23,16 @@ namespace funshi::agente::llm {
 
 namespace {
 
-// PID del servidor de este proceso, leído desde el manejador de señales
-// (solo operaciones async-signal-safe: atomic lock-free + kill).
-std::atomic<int> g_pidServidor{-1};
+// PID de cada servidor de este proceso (chat y embeddings), leídos desde el
+// manejador de señales (solo operaciones async-signal-safe: atomic lock-free + kill).
+std::atomic<int> g_pidServidor[2] = {{-1}, {-1}};
 
-std::filesystem::path rutaRegistro(const std::filesystem::path& baseDir) {
-    return baseDir / "llama-server.pid";
+std::atomic<int>& ranura(const std::string& nombre) {
+    return g_pidServidor[nombre == kRegistroEmbeddings ? 1 : 0];
+}
+
+std::filesystem::path rutaRegistro(const std::filesystem::path& baseDir, const std::string& nombre) {
+    return baseDir / (nombre + ".pid");
 }
 
 struct Registro {
@@ -37,8 +41,8 @@ struct Registro {
     int propietario = -1;
 };
 
-bool leerRegistro(const std::filesystem::path& baseDir, Registro& r) {
-    std::ifstream in(rutaRegistro(baseDir));
+bool leerRegistro(const std::filesystem::path& baseDir, const std::string& nombre, Registro& r) {
+    std::ifstream in(rutaRegistro(baseDir, nombre));
     if (!in) return false;
     const auto j = nlohmann::json::parse(in, nullptr, false);
     if (!j.is_object()) return false;
@@ -48,9 +52,9 @@ bool leerRegistro(const std::filesystem::path& baseDir, Registro& r) {
     return r.pid > 0;
 }
 
-void borrarRegistro(const std::filesystem::path& baseDir) {
+void borrarRegistro(const std::filesystem::path& baseDir, const std::string& nombre) {
     std::error_code ec;
-    std::filesystem::remove(rutaRegistro(baseDir), ec);
+    std::filesystem::remove(rutaRegistro(baseDir, nombre), ec);
 }
 
 int pidPropio() {
@@ -109,8 +113,10 @@ void terminar(int pid) {
 
 #ifndef _WIN32
 extern "C" void manejadorSenal(int senal) {
-    const int pid = g_pidServidor.load();
-    if (pid > 0) ::kill(static_cast<pid_t>(pid), SIGTERM);
+    for (auto& ranuraPid : g_pidServidor) {
+        const int pid = ranuraPid.load();
+        if (pid > 0) ::kill(static_cast<pid_t>(pid), SIGTERM);
+    }
     std::signal(senal, SIG_DFL);
     std::raise(senal);
 }
@@ -118,13 +124,13 @@ extern "C" void manejadorSenal(int senal) {
 
 }  // namespace
 
-void registrarServidor(const std::filesystem::path& baseDir, int pid, int puerto) {
+void registrarServidor(const std::filesystem::path& baseDir, int pid, int puerto, const std::string& nombre) {
     if (pid <= 0) return;
-    g_pidServidor.store(pid);
+    ranura(nombre).store(pid);
     nlohmann::json j = {{"pid", pid}, {"puerto", puerto}, {"propietario", pidPropio()}};
     std::error_code ec;
     std::filesystem::create_directories(baseDir, ec);
-    const auto ruta = rutaRegistro(baseDir);
+    const auto ruta = rutaRegistro(baseDir, nombre);
     const auto tmp = ruta.string() + ".tmp";
     {
         std::ofstream out(tmp, std::ios::trunc);
@@ -134,24 +140,32 @@ void registrarServidor(const std::filesystem::path& baseDir, int pid, int puerto
     std::filesystem::rename(tmp, ruta, ec);
 }
 
-void detenerServidorRegistrado(const std::filesystem::path& baseDir) {
+void detenerServidorRegistrado(const std::filesystem::path& baseDir, const std::string& nombre) {
     Registro r;
-    if (leerRegistro(baseDir, r)) {
+    if (leerRegistro(baseDir, nombre, r)) {
         terminar(r.pid);
-        if (g_pidServidor.load() == r.pid) g_pidServidor.store(-1);
+        if (ranura(nombre).load() == r.pid) ranura(nombre).store(-1);
     }
-    borrarRegistro(baseDir);
+    borrarRegistro(baseDir, nombre);
 }
 
 void limpiarServidoresHuerfanos(const std::filesystem::path& baseDir,
                                 const std::filesystem::path& directorioBinarios) {
-    Registro r;
-    if (leerRegistro(baseDir, r)) {
-        // Otra CLI viva lo está usando: no se toca nada.
-        if (r.propietario != pidPropio() && vivo(r.propietario)) return;
+    // Servidores registrados: los de una CLI viva se respetan; los de una
+    // sesión cerrada se detienen. Si hay otra CLI viva no se barre /proc:
+    // podría estar arrancando un servidor que todavía no registró.
+    bool otraCliViva = false;
+    for (const char* nombre : {kRegistroChat, kRegistroEmbeddings}) {
+        Registro r;
+        if (!leerRegistro(baseDir, nombre, r)) continue;
+        if (r.propietario != pidPropio() && vivo(r.propietario)) {
+            otraCliViva = true;
+            continue;
+        }
         terminar(r.pid);
-        borrarRegistro(baseDir);
+        borrarRegistro(baseDir, nombre);
     }
+    if (otraCliViva) return;
 #ifdef __linux__
     // Servidores sin registro (versiones anteriores de la CLI o caídas):
     // cualquier llama-server cuyo ejecutable esté en los binarios gestionados.

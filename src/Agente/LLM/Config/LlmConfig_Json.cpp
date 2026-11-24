@@ -81,6 +81,9 @@ nlohmann::json LlmConfig::toJson() const {
     j["gpuLayers"] = gpuLayers;
     j["toolTimeoutMs"] = toolTimeoutMs;
     j["subagentesParalelos"] = subagentesParalelos;
+    j["documentosDir"] = documentosDir;
+    j["embeddingsUrl"] = embeddingsUrl;
+    j["embeddingsModelo"] = embeddingsModelo;
     
     // Manual conversion for vectors of structs
     nlohmann::json mc = nlohmann::json::array();
@@ -131,6 +134,9 @@ LlmConfig LlmConfig::fromJson(const nlohmann::json& j) {
     cfg.gpuLayers = j.value("gpuLayers", -1);
     cfg.toolTimeoutMs = j.value("toolTimeoutMs", 30000L);
     cfg.subagentesParalelos = j.value("subagentesParalelos", 0);
+    cfg.documentosDir = j.value("documentosDir", "");
+    cfg.embeddingsUrl = j.value("embeddingsUrl", "");
+    cfg.embeddingsModelo = j.value("embeddingsModelo", "");
     
     // Manual conversion for vectors of structs
     if (j.contains("modelCatalog") && j["modelCatalog"].is_array()) {

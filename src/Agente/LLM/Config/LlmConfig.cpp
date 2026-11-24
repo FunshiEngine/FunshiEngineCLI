@@ -218,6 +218,11 @@ std::filesystem::path LlmConfig::llamaServerPathEfectivo() const {
     return localInferenceDirEfectivo() / "llama-bin";
 }
 
+std::filesystem::path LlmConfig::documentosDirEfectivo() const {
+    if (!documentosDir.empty()) return resolverRutaConfig(documentosDir, {});
+    return configPath().parent_path() / "documentos";
+}
+
 std::filesystem::path LlmConfig::projectsDataDirEfectivo() const {
     namespace fs = std::filesystem;
     if (projectsDataDir.empty()) return {};
