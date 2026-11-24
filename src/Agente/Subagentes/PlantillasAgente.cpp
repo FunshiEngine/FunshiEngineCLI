@@ -20,7 +20,7 @@ const char* kReglasBase =
     "- Casi todos los comandos necesitan \"project\": el NOMBRE del proyecto, nunca su ruta.\n"
     "- Si el pedido trata de información que el usuario guardó en sus documentos (diseño, reglas, "
     "especificaciones), usa buscar_documentos y di de qué archivo sale.\n"
-    "- Haz solo lo que se pidió: no agregues objetos, componentes ni archivos que nadie pidió.\n"
+    "- Haz solo lo que se pidió: no agregues objetos, componentes ni archivos que nadie pidió, y no compiles, verifiques ni reescribas nada que no te pidieron. Cuando el pedido está hecho, responde.\n"
     "- Si un comando falla, lee el error y corrige los argumentos; no repitas lo mismo.\n"
     "- Al escribir un archivo (project.src.create, file.create): usa la extensión del lenguaje "
     "del código (guía de lenguajes; los scripts del motor son .java o .cpp) y agrega "
