@@ -18,7 +18,11 @@
 #include "Nucleo/AyudaComandos.h"
 #include "Nucleo/NucleoCLI.h"
 
+#include <Configuracion/ProjectPaths.h>
 #include <nlohmann/json.hpp>
+
+#include <filesystem>
+#include <fstream>
 
 namespace pruebas_agente {
 
@@ -63,7 +67,11 @@ void probarUsoDeComandos() {
         }
     }
     CHECK(todasDescritas, "esquemas: cada argumento tiene descripción");
-    CHECK(claves(esquemaDe(*reg, "project.src.create")).back() == "resumen", "esquemas: se conserva resumen");
+    {
+        const auto c = claves(esquemaDe(*reg, "project.src.create"));
+        CHECK(c.size() >= 2 && c[c.size() - 2] == "resumen" && c.back() == "sobrescribir",
+              "esquemas: se conservan resumen y sobrescribir");
+    }
 
     // 2. Firma con tipos en el prompt del modo sin tools nativas.
     {
@@ -169,14 +177,40 @@ void probarUsoDeComandos() {
               "respuesta: sin el resultado copiado");
     }
 
-    // 4c. Correcciones de las llamadas del agente.
+    // 4c. Protección de archivos: no se reemplaza uno existente sin permiso.
     {
         harness->setCorreccionesDelAgente(true);
+        const nlohmann::json crear = {{"project", "Pdef"}, {"path", "Scripts/A.cpp"}, {"file", true}, {"content", "original"}};
+        CHECK(harness->ejecutarTexto("project.src.create", crear).respuesta.correcta, "protección: crea un archivo nuevo");
+        auto pisar = crear;
+        pisar["content"] = "otro";
+        const auto r = harness->ejecutarTexto("project.src.create", pisar);
+        CHECK(!r.respuesta.correcta && r.respuesta.codigoError == "file_exists" &&
+                  r.respuesta.mensajeError.find("sobrescribir") != std::string::npos,
+              "protección: rechaza reemplazar sin sobrescribir");
+        const auto leer = [] {
+            std::ifstream f(std::filesystem::path(ProjectPaths::directorioSrc("Pdef")) / "Scripts/A.cpp");
+            return std::string(std::istreambuf_iterator<char>(f), {});
+        };
+        CHECK(leer().find("original") != std::string::npos, "protección: el archivo queda como estaba");
+        auto agregar = crear;
+        agregar["content"] = "original\n  nuevo método";
+        CHECK(harness->ejecutarTexto("project.src.create", agregar).respuesta.correcta &&
+                  leer().find("nuevo método") != std::string::npos,
+              "protección: conservar todas las líneas y agregar no necesita sobrescribir");
+        pisar["sobrescribir"] = true;
+        CHECK(harness->ejecutarTexto("project.src.create", pisar).respuesta.correcta && leer().find("otro") != std::string::npos,
+              "protección: con sobrescribir lo reemplaza");
         // "src/" delante: se quita (si no, crearía src/src/...).
         const auto conSrc = harness->ejecutarTexto(
             "project.src.create", {{"project", "Pdef"}, {"path", "src/Scripts/C.java"}, {"file", true}, {"content", "class C {}"}});
         CHECK(conSrc.respuesta.correcta && conSrc.respuesta.resultado.value("path", "") == "Scripts/C.java",
               "correcciones: ruta sin \"src/\" delante");
+        const auto sinExt = harness->ejecutarTexto(
+            "project.src.create", {{"project", "Pdef"}, {"path", "Scripts/Enemigo"}, {"file", true}, {"content", "class E {}"}});
+        CHECK(!sinExt.respuesta.correcta && sinExt.respuesta.codigoError == "missing_extension" &&
+                  sinExt.respuesta.mensajeError.find("\"Scripts/Enemigo.java\"") != std::string::npos,
+              "correcciones: archivo con código sin extensión, con la ruta sugerida");
         const auto conNombre = harness->ejecutarTexto(
             "project.src.create",
             {{"project", "Pdef"}, {"path", "Scripts/"}, {"name", "E.java"}, {"file", true}, {"content", "class E {}"}});
@@ -191,6 +225,10 @@ void probarUsoDeComandos() {
               "correcciones: el marcador <proyecto> usa el proyecto de trabajo");
         harness->setProyectoPorDefecto("");
         harness->setCorreccionesDelAgente(false);
+        pisar["content"] = "sin protección";
+        pisar.erase("sobrescribir");
+        CHECK(harness->ejecutarTexto("project.src.create", pisar).respuesta.correcta,
+              "protección: desactivada, el comando se comporta como siempre");
     }
 
     // 5. Guías convertidas en llamadas y documentación de sus comandos.

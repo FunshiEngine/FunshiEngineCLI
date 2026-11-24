@@ -61,6 +61,11 @@ public:
     // necesitan): los argumentos en null y el marcador "<proyecto>" cuentan
     // como ausentes; en project.src.* se quita un "src/" inicial de las rutas
     // y "name" con una carpeta en "path" se une en la ruta del archivo.
+    // Además, project.src.create no reemplaza un archivo que ya existe salvo
+    // que la llamada traiga "sobrescribir": true o que el contenido nuevo
+    // conserve todas sus líneas (el comando, por sí solo, lo trunca), ni crea
+    // un archivo con contenido sin extensión. "sobrescribir" nunca llega al
+    // comando.
     void setCorreccionesDelAgente(bool activas) { correccionesAgente_ = activas; }
 
     // Nombre de proyecto conocido al que se refiere `valor` (el mismo nombre
@@ -71,6 +76,9 @@ private:
     Solicitud conProyectoPorDefecto(const Solicitud& solicitud) const;
     // Rutas de project.src.* sin "src/" delante.
     void normalizarRutasSrc(Solicitud& solicitud) const;
+    // Motivo por el que project.src.create no debe ejecutarse tal cual
+    // (archivo existente sin permiso, archivo sin extensión); vacío si puede.
+    ResultadoComando* rechazoDeArchivo(const Solicitud& solicitud, ResultadoComando& destino) const;
     Auditoria& auditoria_;
     std::string proyectoPorDefecto_;
     std::vector<std::string> proyectosConocidos_;

@@ -64,10 +64,13 @@ ToolSpec specDesdeAyuda(const ToolSpec& original) {
     }
     const auto previo = nlohmann::ordered_json::parse(original.parametersSchema, nullptr, false);
     if (previo.is_object() && previo.contains("properties") && previo["properties"].is_object()) {
-        // Del esquema a mano solo se conserva lo que no es del comando (el
-        // resumen de un archivo, que las herramientas quitan antes de ejecutar).
-        if (previo["properties"].contains("resumen") && !props.contains("resumen")) {
-            props["resumen"] = previo["properties"]["resumen"];
+        // Del esquema a mano solo se conserva lo que no es del comando y se
+        // quita antes de ejecutarlo: el resumen de un archivo y el permiso
+        // para reemplazar uno que existe.
+        for (const char* extra : {"resumen", "sobrescribir"}) {
+            if (previo["properties"].contains(extra) && !props.contains(extra)) {
+                props[extra] = previo["properties"][extra];
+            }
         }
     }
     ToolSpec s = original;

@@ -61,7 +61,7 @@ public:
     using EngineTool::EngineTool;
     ToolSpec spec() const override {
         return ToolSpec{"project.src.create", "Crea un archivo o directorio dentro de src/<proyecto>",
-            R"({"type":"object","properties":{"project":{"type":"string"},"path":{"type":"string"},"file":{"type":"boolean"},"content":{"type":"string"},"resumen":{"type":"string","description":"Una frase: qué contiene y hace el archivo"}},"required":["project","path"]})"};
+            R"({"type":"object","properties":{"project":{"type":"string"},"path":{"type":"string"},"file":{"type":"boolean"},"content":{"type":"string"},"resumen":{"type":"string","description":"Una frase: qué contiene y hace el archivo"},"sobrescribir":{"type":"boolean","description":"true para reemplazar un archivo que ya existe, solo si el usuario pidió cambiarlo"}},"required":["project","path"]})"};
     }
     ToolResult execute(const nlohmann::json& args, const ToolContext&) override {
         return executeCommand("project.src.create", args);
