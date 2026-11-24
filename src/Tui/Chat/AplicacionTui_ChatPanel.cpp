@@ -101,6 +101,19 @@ void AplicacionTui::partirMensajeChat(const MensajeChat& m, int ancho,
         if (fin == texto.size()) break;
         inicio = fin + 1;
     }
+    // El razonamiento se muestra plegado: sus primeras líneas y un clic para
+    // verlo entero (o volver a plegarlo).
+    if (m.rol == Rol::Pensamiento && salida.size() > kLineasPensamientoPlegado) {
+        if (!m.expandido) {
+            const std::size_t ocultas = salida.size() - kLineasPensamientoPlegado;
+            salida.resize(kLineasPensamientoPlegado);
+            salida.push_back({sangria + "… " + std::to_string(ocultas) + (ocultas == 1 ? " línea más" : " líneas más") +
+                                  " · clic para ver el razonamiento",
+                              kAcento, false, true});
+        } else {
+            salida.push_back({sangria + "(clic para plegar el razonamiento)", kAcento, false, true});
+        }
+    }
 }
 
 ftxui::Element AplicacionTui::panelChat() {
@@ -168,7 +181,7 @@ ftxui::Element AplicacionTui::panelChat() {
                               m.lineasCache.begin() + hasta);
                 std::string ref;
                 if (m.rol == MensajeChat::Rol::Subagente && !m.ref.empty()) ref = "sub:" + m.ref;
-                else if (!m.detalle.empty()) ref = "msg:" + std::to_string(i);
+                else if (!m.detalle.empty() || m.rol == MensajeChat::Rol::Pensamiento) ref = "msg:" + std::to_string(i);
                 refs.insert(refs.end(), static_cast<std::size_t>(hasta - desde), ref);
             }
             cursor += n;

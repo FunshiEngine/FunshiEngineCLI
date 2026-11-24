@@ -59,6 +59,10 @@ class AplicacionTui : public ftxui::ComponentBase {
 
     void irASeccion(int indice);
 
+    // Líneas de un mensaje del chat a un ancho dado (prefijo por rol,
+    // razonamiento plegado o desplegado). Pura: no toca el estado.
+    static void partirMensajeChat(const chat::MensajeChat& m, int ancho, std::vector<chat::LineaChat>& salida);
+
  private:
     SeccionTui seccionActual() const;
     const EstadoSeccion& estadoActual() const;
@@ -164,7 +168,6 @@ class AplicacionTui : public ftxui::ComponentBase {
     using LineaChat = chat::LineaChat;
     using MensajeChat = chat::MensajeChat;
     using SesionTui = chat::SesionTui;
-    static void partirMensajeChat(const MensajeChat& m, int ancho, std::vector<LineaChat>& salida);
     std::vector<std::shared_ptr<SesionTui>> sesiones_;  // bajo chatMutex_
     std::size_t sesionActiva_ = 0;                       // bajo chatMutex_
     std::unique_ptr<agente::AlmacenSesiones> almacenSesiones_;
@@ -193,6 +196,8 @@ class AplicacionTui : public ftxui::ComponentBase {
     // kChatFinal van al principio o al final.
     void desplazarChat(int lineas);
     bool desplazarChatConTecla(const ftxui::Event& evento);
+    // Líneas del razonamiento a la vista mientras está plegado.
+    static constexpr std::size_t kLineasPensamientoPlegado = 2;
     static constexpr int kChatInicio = 1 << 28;
     static constexpr int kChatFinal = -(1 << 28);
     // Filas dibujadas del chat y a qué se refieren ("sub:<id>", "msg:<i>"),

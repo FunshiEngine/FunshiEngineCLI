@@ -84,5 +84,6 @@ void probarUsoDeComandos();
 void probarDocumentos();
 void probarTareas();
 void probarTuneles();
+void probarChat();
 
 }  // namespace pruebas_agente
