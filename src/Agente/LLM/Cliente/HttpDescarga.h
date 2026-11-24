@@ -47,6 +47,9 @@ ResultadoHttp get(const std::string& url, std::string& respuesta,
                   const std::vector<std::string>& cabeceras,
                   const std::string& userAgent, long timeoutMs);
 
+// POST en memoria con un cuerpo JSON (vacío = sin cuerpo).
+ResultadoHttp post(const std::string& url, const std::string& cuerpo, std::string& respuesta, long timeoutMs);
+
 // Descarga `url` a `destino`. Escribe en `destino + ".part"` (reanudando si
 // ya existe) y solo al completar y verificar reemplaza `destino`. Si falla, el
 // archivo final existente nunca se toca y el `.part` queda para reanudar.

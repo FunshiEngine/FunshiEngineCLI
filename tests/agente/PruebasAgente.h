@@ -32,6 +32,7 @@ namespace llm = funshi::agente::llm;
 struct LlamadaVista {
     std::vector<llm::ChatMessage> mensajes;
     std::vector<std::string> herramientas;
+    int tunel = -1;  // slot pedido con setTunel
 };
 
 // Decide la respuesta a partir de los mensajes: devuelve los chunks a emitir.
@@ -52,6 +53,7 @@ public:
                     std::function<void(const llm::LlmChunk&)> onChunk) override {
         LlamadaVista vista;
         vista.mensajes = messages;
+        vista.tunel = tunel_;
         if (tools) for (const auto& t : *tools) vista.herramientas.push_back(t.name);
         {
             std::lock_guard<std::mutex> lock(registro_->mutex);
@@ -64,8 +66,10 @@ public:
     std::string chat(const std::vector<llm::ChatMessage>&) override { return {}; }
     std::vector<std::string> listModels() override { return {"guion"}; }
     void close() override {}
+    void setTunel(int slot) override { tunel_ = slot; }
 
 private:
+    int tunel_ = -1;
     Guion guion_;
     std::shared_ptr<Registro> registro_;
 };
@@ -79,5 +83,6 @@ void probarPreferencias();
 void probarUsoDeComandos();
 void probarDocumentos();
 void probarTareas();
+void probarTuneles();
 
 }  // namespace pruebas_agente

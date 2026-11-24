@@ -170,6 +170,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/PerfilesHerramientas.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Herramientas/EsquemasHerramientas.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Tareas/TareaAgente.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Cliente/AsignadorTuneles.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/PlantillasAgente.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/GestorSubagentes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Subagentes/HerramientaSubagentes.cpp
@@ -300,6 +301,7 @@ add_executable(agente-tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasUsoComandos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasDocumentos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasTareas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasTuneles.cpp
 )
 target_link_libraries(agente-tests PRIVATE funshi_cli_core)
 add_test(NAME agente-tests COMMAND agente-tests)

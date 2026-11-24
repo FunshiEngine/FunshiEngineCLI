@@ -197,6 +197,7 @@ void AplicacionTui::ejecutarOrdenChat() {
         }
         sesion->ocupado = true;
         sesion->datos.agente.proyectoActivo = proyectoActivo_;
+        sesion->datos.agente.id = sesion->datos.id;  // su túnel hacia el modelo
         // La primera orden le da nombre a una sesión sin título propio.
         const bool sinTitulo = sesion->datos.titulo.rfind("Sesión ", 0) == 0;
         const bool primera = std::none_of(sesion->mensajes.begin(), sesion->mensajes.end(),

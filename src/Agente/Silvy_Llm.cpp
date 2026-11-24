@@ -104,6 +104,7 @@ bool Silvy::configurarLlm(const llm::LlmConfig& config, bool nativeToolCalls) {
     estado->subagentesParalelos = config.subagentesParalelosEfectivo();
     estado->toolTimeoutMs = config.toolTimeoutMs;
     estado->modelo = config.modelName;
+    if (config.isLocalhostUrl()) estado->tuneles = llm::AsignadorTuneles::paraServidor(config.remoteBaseUrl);
     try {
         estado->fabrica();  // valida que el gateway se pueda crear
     } catch (const std::exception&) {
@@ -125,6 +126,14 @@ void Silvy::configurarConFabrica(FabricaGateway fabrica, bool nativeToolCalls, i
     estado->tareas = false;
     std::lock_guard<std::mutex> lock(mutexLlm_);
     llm_ = std::move(estado);
+}
+
+void Silvy::setTuneles(std::shared_ptr<llm::AsignadorTuneles> tuneles) {
+    std::lock_guard<std::mutex> lock(mutexLlm_);
+    if (!llm_) return;
+    auto copia = std::make_shared<EstadoLlm>(*llm_);
+    copia->tuneles = std::move(tuneles);
+    llm_ = std::move(copia);
 }
 
 void Silvy::setTareasActivas(bool activas) {
@@ -161,6 +170,16 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
         resp.error = true;
         return resp;
     }
+    // Túnel de la sesión hacia el servidor: todas las llamadas del pedido
+    // (objetivo, bucle, subagentes y cierre) usan su slot y su caché.
+    const auto reserva = estado->tuneles ? estado->tuneles->reservar(sesion.id.empty() ? "cli" : sesion.id)
+                                         : llm::AsignadorTuneles::Reserva{};
+    const int tunel = reserva.slot();
+    const auto crearGateway = [estado, tunel]() {
+        auto g = estado->fabrica();
+        if (g) g->setTunel(tunel);
+        return g;
+    };
     auto harness = std::make_shared<Harness>(harness_);
     // Proyecto de trabajo: el activo de la sesión o, si no hay, el único que
     // existe. Los comandos que no traen "project" lo usan (los modelos chicos
@@ -172,11 +191,11 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
     harness->setCorreccionesDelAgente(true);
 
     // Bucles de subagentes: perfil acotado, gateway propio, sin delegar.
-    agente::FabricaBucles fabricaSub = [estado, harness](const std::string& perfil) {
+    agente::FabricaBucles fabricaSub = [estado, harness, crearGateway](const std::string& perfil) {
         agente::BucleCreado b;
         auto registro = llm::crearRegistroPerfil(harness, perfil);
         b.herramientas = nombresHerramientas(*registro);
-        b.bucle = std::make_shared<llm::AgentLoop>(estado->fabrica(), registro, estado->nativas,
+        b.bucle = std::make_shared<llm::AgentLoop>(crearGateway(), registro, estado->nativas,
                                                    estado->toolTimeoutMs);
         b.bucle->setResolutorAlias(aliasComando);
         return b;
@@ -185,7 +204,7 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
 
     auto registro = llm::crearRegistroPerfil(harness, "completo");
     registro->add(std::make_shared<agente::LanzarSubagentesTool>(gestor));
-    llm::AgentLoop bucle(estado->fabrica(), registro, estado->nativas, estado->toolTimeoutMs);
+    llm::AgentLoop bucle(crearGateway(), registro, estado->nativas, estado->toolTimeoutMs);
     bucle.setMaxIterations(10);
     bucle.setInstrucciones(agente::instruccionesPrincipal(true, proyecto));
     sesion.cancelar->store(false);
@@ -223,7 +242,7 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
     std::string objetivo;
     if (estado->tareas) {
         objetivo = agente::tareas::leerObjetivo(agente::tareas::consultar(
-            *estado->fabrica(), agente::tareas::pedidoDeObjetivo(sesion.tareaAnterior, mensaje, contextoTurno), proyecto));
+            *crearGateway(), agente::tareas::pedidoDeObjetivo(sesion.tareaAnterior, mensaje, contextoTurno), proyecto));
         const auto anterior = agente::tareas::bloqueTareaAnterior(sesion.tareaAnterior);
         if (!anterior.empty()) contextoTurno += (contextoTurno.empty() ? "" : "\n") + anterior;
         bucle.setEncabezadoPedido(agente::tareas::kEncabezadoTareaActual);
@@ -247,7 +266,7 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
         const bool algunaBien = std::any_of(answer.toolCalls.begin(), answer.toolCalls.end(),
                                             [](const auto& t) { return t.ok; });
         if (cancelado || !algunaBien || !agente::tareas::leerCierre(
-                             agente::tareas::consultar(*estado->fabrica(), agente::tareas::pedidoDeCierre(
+                             agente::tareas::consultar(*crearGateway(), agente::tareas::pedidoDeCierre(
                                                                                mensaje, answer.toolCalls, answer.text),
                                                        proyecto),
                              tarea)) {

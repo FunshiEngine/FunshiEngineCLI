@@ -169,8 +169,10 @@ bool LocalInferenceManager::startServer(const std::filesystem::path& modelPath,
         << " -c " << contextSize
         << " --port " << actualPort
         << " --host 127.0.0.1"
-        // Un solo slot: con -np automático el contexto se reparte entre varios.
-        << " -np 1";
+        // Un slot por sesión de chat (túneles): cada una conserva su caché KV
+        // y no reaprovecha la de otra. --kv-unified: los slots comparten un
+        // solo búfer de -c tokens, así cada uno puede usar el contexto entero.
+        << (modoEmbeddings_ ? " -np 1" : " -np 4 --kv-unified");
     if (modoEmbeddings_) {
         // Qwen3-Embedding: el vector es el del último token. El lote físico
         // (-ub) debe alcanzar el texto más largo que se embebe de una vez.

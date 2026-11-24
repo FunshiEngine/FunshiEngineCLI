@@ -17,6 +17,7 @@
 #pragma once
 
 #include "Agente/Tareas/TareaAgente.h"
+#include "Agente/LLM/Cliente/AsignadorTuneles.h"
 #include "Agente/Harness.h"
 #include "Nucleo/Solicitud.h"
 #include "Agente/LLM/Config/LlmTypes.h"
@@ -50,6 +51,9 @@ struct OrdenProcesada {
 // el usuario tiene activo y la última tarea. Cada sesión de chat tiene la suya; varias pueden
 // procesarse a la vez (cada pedido crea su propio bucle y gateway).
 struct SesionAgente {
+    // Identifica la sesión ante el servidor del modelo: cada una va por su
+    // propio túnel (slot y caché). Vacío = la sesión de la CLI.
+    std::string id;
     std::vector<agente::llm::ChatMessage> historial;
     std::string proyectoActivo;
     // Última tarea cerrada (lo que el modelo hizo y su resumen): contexto
@@ -108,6 +112,10 @@ public:
     // apagadas salvo que se activen aquí.
     void setTareasActivas(bool activas);
 
+    // Túneles hacia el servidor (uno por sesión). configurarLlm los crea para
+    // un servidor local; aquí se reemplazan (pruebas).
+    void setTuneles(std::shared_ptr<agente::llm::AsignadorTuneles> tuneles);
+
     // Devuelve el resumen de auditoría para mostrar al usuario qué se hizo.
     std::string resumenQueHice(std::size_t n = 10) const;
 
@@ -126,6 +134,7 @@ private:
         long toolTimeoutMs = 30000;
         std::string modelo;
         bool tareas = true;
+        std::shared_ptr<agente::llm::AsignadorTuneles> tuneles;  // nulo: sin túneles
     };
     std::shared_ptr<const EstadoLlm> estadoLlm() const;
 

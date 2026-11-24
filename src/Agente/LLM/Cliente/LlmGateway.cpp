@@ -146,6 +146,7 @@ std::string OpenAiCompatibleGateway::buildRequestBody(const std::vector<ChatMess
         // devolver el uso de tokens al final del stream.
         body["cache_prompt"] = true;
         if (stream) body["stream_options"] = {{"include_usage", true}};
+        if (tunel_ >= 0) body["id_slot"] = tunel_;
     }
     return body.dump();
 }
