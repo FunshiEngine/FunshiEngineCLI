@@ -67,6 +67,7 @@ void AplicacionTui::partirMensajeChat(const MensajeChat& m, int ancho,
             bold = true;
             break;
         case Rol::Tarea: prefijo = "Tarea: "; color = kAcento; bold = true; break;
+        case Rol::Codigo: prefijo = "       "; color = kTexto; break;
         case Rol::Error: prefijo = "Error: "; color = kError; break;
         case Rol::Estado: prefijo = "  ·    "; color = kTextoTenue; tenue = true; break;
     }
@@ -115,6 +116,7 @@ ftxui::Element AplicacionTui::panelChat() {
     std::vector<std::string> refs;  // a qué se refiere cada línea (para el clic)
     std::string cabeceraSub;        // vista de subagente: su título y estado
     bool ocupado = false;
+    bool desplazado = false;  // mirando más arriba del final
     int total = 0;
     int inicio = 0;
     int fin = 0;
@@ -141,9 +143,17 @@ ftxui::Element AplicacionTui::panelChat() {
             }
             total += static_cast<int>(m.lineasCache.size());
         }
+        // Si el usuario está mirando más arriba, las líneas nuevas no le
+        // mueven la vista: el desplazamiento (medido desde el final) crece con ellas.
+        int& dibujadas = sub ? sub->lineasDibujadas : (sesion ? sesion->lineasDibujadas : sinDesplazamiento);
+        if (desplazamientoSesion > 0 && dibujadas >= 0 && total > dibujadas) {
+            desplazamientoSesion += total - dibujadas;
+        }
+        dibujadas = total;
         int desplazamiento = std::max(0, desplazamientoSesion);
         desplazamiento = std::min(desplazamiento, std::max(0, total - visibles));
         desplazamientoSesion = desplazamiento;
+        desplazado = desplazamiento > 0;
         inicio = std::max(0, total - visibles - desplazamiento);
         fin = std::min(total, inicio + visibles);
 
@@ -188,6 +198,7 @@ ftxui::Element AplicacionTui::panelChat() {
     }
     if (ocupado) header += "  (procesando... Ctrl+X cancela)";
     if (!cabeceraSub.empty()) header = cabeceraSub + "   (Esc vuelve a la conversación)";
+    if (desplazado) header += "  ↓ más abajo: AvPág, rueda o Fin";
 
     filas.push_back(ftxui::hbox({
         ftxui::text(header) | ftxui::bold | ftxui::color(ocupado ? kAdvertencia : kAcento),
@@ -226,7 +237,7 @@ ftxui::Element AplicacionTui::panelChat() {
     }) | ftxui::bgcolor(kFondoBarra));
 
     filas.push_back(ftxui::text(cabeceraSub.empty()
-                                    ? " ↑↓ historial · PgUp/PgDn scroll · clic: ver detalle/subagente · /comando = CLI · /ayuda "
+                                    ? " ↑↓ historial · RePág/AvPág, Ctrl+↑↓ o rueda: desplazar · clic: detalle/subagente · /ayuda "
                                     : " PgUp/PgDn scroll · clic en una acción: detalle · Esc o /volver: conversación ") |
                     ftxui::color(kTextoTenue) | ftxui::bgcolor(kFondoBarra));
 

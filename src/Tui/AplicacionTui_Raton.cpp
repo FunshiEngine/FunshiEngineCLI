@@ -97,6 +97,13 @@ bool AplicacionTui::manejarRaton(ftxui::Event& evento) {
     const bool hayCaja = seccion != SeccionTui::Chat && seccion != SeccionTui::ModelosHF;
     const auto ahora = std::chrono::steady_clock::now();
 
+    // Rueda sobre el chat: recorre la conversación (con o sin foco).
+    if (seccion == SeccionTui::Chat &&
+        (raton.button == ftxui::Mouse::WheelUp || raton.button == ftxui::Mouse::WheelDown)) {
+        desplazarChat(raton.button == ftxui::Mouse::WheelUp ? 3 : -3);
+        return true;
+    }
+
     // 1. Botón presionado: arrastre o fin de la selección.
     if (seleccionActiva_) {
         if (raton.motion == ftxui::Mouse::Moved) {

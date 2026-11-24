@@ -94,6 +94,10 @@ private:
     std::string consumeLine(const std::string& line);
 };
 
+// Mensaje con el que vuelven al modelo los resultados de sus herramientas en
+// modo prompt (sin tools nativas, llegan como rol user).
+std::string resultadosParaModelo(const std::string& resultados);
+
 namespace detalle {
 // Respuesta que es (casi) solo los argumentos de una meta-herramienta, sin su
 // nombre: devuelve la llamada reconstruida ({"tool","arguments"}) o vacío.

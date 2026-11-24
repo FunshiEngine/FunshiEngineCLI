@@ -16,6 +16,7 @@ std::string rolATexto(MensajeChat::Rol r) {
         case Rol::Herramienta: return "herramienta";
         case Rol::Subagente: return "subagente";
         case Rol::Tarea: return "tarea";
+        case Rol::Codigo: return "codigo";
         case Rol::Error: return "error";
         case Rol::Estado: return "estado";
     }
@@ -30,6 +31,7 @@ MensajeChat::Rol rolDesdeTexto(const std::string& t) {
     if (t == "herramienta") return Rol::Herramienta;
     if (t == "subagente") return Rol::Subagente;
     if (t == "tarea") return Rol::Tarea;
+    if (t == "codigo") return Rol::Codigo;
     if (t == "error") return Rol::Error;
     return Rol::Estado;
 }

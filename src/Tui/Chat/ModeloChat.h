@@ -33,7 +33,8 @@ struct MensajeChat {
     // Herramienta: una llamada con sus argumentos y su resultado.
     // Subagente:   resumen vivo de un subagente (`ref` = su id).
     // Tarea:       la tarea que recibió un subagente (en su vista).
-    enum class Rol { Usuario, Silvy, Pensamiento, Herramienta, Subagente, Tarea, Estado, Error };
+    // Codigo:      contenido que una herramienta escribe en un archivo.
+    enum class Rol { Usuario, Silvy, Pensamiento, Herramienta, Subagente, Tarea, Codigo, Estado, Error };
     Rol rol = Rol::Estado;
     std::string texto;
     std::string detalle;    // se muestra completo al expandir (clic)
@@ -65,7 +66,8 @@ struct SubagenteTui {
     int acciones = 0;
     std::string ultimaAccion;
     bool enCurso = false;
-    int desplazamiento = 0;
+    int desplazamiento = 0;     // líneas desde el final (0 = siguiendo lo nuevo)
+    int lineasDibujadas = -1;   // total del último frame, para anclar la vista
 };
 
 // Sesiones de chat. Cada una tiene su conversación con Silvy (persistida en
@@ -77,7 +79,8 @@ struct SesionTui {
     std::vector<std::shared_ptr<SubagenteTui>> subagentes;
     std::string vista;  // id del subagente a la vista; vacío = la conversación
     bool ocupado = false;
-    int desplazamiento = 0;
+    int desplazamiento = 0;     // líneas desde el final (0 = siguiendo lo nuevo)
+    int lineasDibujadas = -1;   // total del último frame, para anclar la vista
 
     std::shared_ptr<SubagenteTui> subagente(const std::string& id) const;
     // Pasa de/hacia el formato persistido (mensajes y subagentes).

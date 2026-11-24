@@ -104,6 +104,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/ModeloChat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/MonitorChat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/MonitorSesion.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/FormatoChat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Comandos.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Core.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/ModelosHF/AplicacionTui_ModelosHF.cpp

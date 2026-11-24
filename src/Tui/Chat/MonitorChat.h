@@ -69,9 +69,20 @@ private:
     std::map<std::string, long> resumenes_;  // id del subagente → mensaje en la sesión
 };
 
+// Recorta a `max` bytes sin partir caracteres UTF-8 (agrega "…").
+std::string recortarTexto(std::string s, std::size_t max);
+std::string sinEspaciosExtremos(const std::string& s);
+
+// Formato (FormatoChat.cpp).
 // Texto corto de una llamada: "scene.object.create {"project":"X"}" para
 // ejecutar_comando, "buscar_comandos «mover objeto»", etc.
 std::string describirLlamada(const std::string& herramienta, const std::string& argsJson);
+// Bloque con el contenido que una llamada escribe en un archivo (argumento
+// "content", también dentro de ejecutar_comando): cabecera con la ruta y las
+// líneas con "│ ". Vacío si no hay contenido. `completo` recibe todas las
+// líneas cuando el bloque se recorta.
+std::string bloqueDeCodigo(const std::string& herramienta, const std::string& argsJson,
+                           std::string* completo = nullptr);
 // Quita del texto los bloques ```tool_call (y una llamada JSON suelta):
 // lo que queda es lo que el modelo "pensó" antes de llamar.
 std::string quitarBloquesLlamada(const std::string& texto);

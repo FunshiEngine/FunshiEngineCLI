@@ -11,6 +11,7 @@
 // y su informe, en vivo si sigue trabajando. Esc o /volver regresa.
 #include "Tui/AplicacionTui.h"
 
+#include <algorithm>
 #include <cstdlib>
 
 namespace funshi {
@@ -83,6 +84,20 @@ bool AplicacionTui::ordenDeSubagentes(const std::string& orden, const std::strin
     }
     if (pantalla_) pantalla_->PostEvent(ftxui::Event());
     return true;
+}
+
+void AplicacionTui::desplazarChat(int lineas) {
+    {
+        std::lock_guard<std::mutex> lock(chatMutex_);
+        auto s = sesionActualSinLock();
+        if (!s) return;
+        auto sub = s->vista.empty() ? nullptr : s->subagente(s->vista);
+        int& desplazamiento = sub ? sub->desplazamiento : s->desplazamiento;
+        // El tope superior lo ajusta el panel al dibujar (conoce el total).
+        if (lineas == kChatFinal) desplazamiento = 0;
+        else desplazamiento = std::max(0, std::min(kChatInicio, desplazamiento + lineas));
+    }
+    if (pantalla_) pantalla_->PostEvent(ftxui::Event());
 }
 
 // Clic simple sobre el chat: abre un subagente o expande/contrae una

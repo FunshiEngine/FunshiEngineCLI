@@ -49,6 +49,15 @@ std::string resumenLlamada(int ronda, const EstadisticasLlamada& e) {
 
 }  // namespace
 
+std::string resultadosParaModelo(const std::string& resultados) {
+    return "[SALIDA DE TUS HERRAMIENTAS — mensaje automático, no lo escribió el usuario]\n"
+           "Ejecutaste estas herramientas y obtuviste:\n\n" +
+           resultados +
+           "[FIN DE LA SALIDA]\n"
+           "Si falta algo, usa otra herramienta. Si terminaste, responde al usuario en primera "
+           "persona con lo que TÚ hiciste y su resultado; no le agradezcas ni digas que él lo ejecutó.";
+}
+
 AgentLoop::AgentLoop(std::shared_ptr<LlmGateway> gateway,
                      std::shared_ptr<ToolRegistry> registry,
                      bool nativeToolCalls,
@@ -192,7 +201,7 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
             if (e.retryable()) {
                 std::string msg = "\n[Error reintentable: " + e.message() + "]";
                 accumulatedText += msg;
-                emitir(AgentEvent::estado("Error del modelo (se reintenta): " + e.message()));
+                emitir(AgentEvent::estado("Error del modelo: " + e.message()));
             } else {
                 answer.text += accumulatedText.empty() ? ("Error: " + e.message()) : accumulatedText;
                 messages.push_back(ChatMessage::assistant(answer.text));
@@ -274,9 +283,10 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
                     answer.text += visible;
                 }
                 if (toolCalled) {
-                    messages.push_back(ChatMessage::user(
-                        "Resultados de las herramientas ejecutadas:\n" + toolResultsText +
-                        "Continúa con la respuesta final para el usuario."));
+                    // Sin tools nativas el resultado vuelve como mensaje de rol
+                    // user: se marca como salida automática de las llamadas del
+                    // propio asistente, para que no lo atribuya al usuario.
+                    messages.push_back(ChatMessage::user(resultadosParaModelo(toolResultsText)));
                     continue;
                 }
             }

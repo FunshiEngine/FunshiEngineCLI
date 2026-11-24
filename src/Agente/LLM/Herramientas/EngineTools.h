@@ -43,6 +43,11 @@ protected:
         funshi::Solicitud sol;
         sol.comando = command;
         sol.argumentos = args;
+        // El resumen de un archivo es para el usuario (lo muestra el chat), no un
+        // argumento del comando. Los modelos lo nombran de varias formas.
+        if (sol.argumentos.is_object()) {
+            for (const char* k : {"resumen", "summary", "descripcion", "description"}) sol.argumentos.erase(k);
+        }
         sol.id = "llm-" + std::to_string(std::hash<std::string>{}(command + args.dump()));
 
         auto resultado = harness_->ejecutar(sol);

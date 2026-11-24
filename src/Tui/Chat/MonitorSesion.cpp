@@ -20,12 +20,6 @@ using Tipo = agente::llm::AgentEvent::Type;
 
 constexpr std::size_t kMaxInformeResumen = 160;
 
-std::string recortarTexto(std::string s, std::size_t max) {
-    if (s.size() <= max) return s;
-    std::size_t corte = max;
-    while (corte > 0 && (static_cast<unsigned char>(s[corte]) & 0xC0) == 0x80) --corte;  // no partir UTF-8
-    return s.substr(0, corte) + "…";
-}
 
 std::string primeraLinea(const std::string& s) {
     const auto ini = s.find_first_not_of(" \n\r\t");

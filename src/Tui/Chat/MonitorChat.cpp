@@ -8,6 +8,7 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <string>
 
 namespace funshi::chat {
 
@@ -16,22 +17,10 @@ namespace {
 using Rol = MensajeChat::Rol;
 using Tipo = agente::llm::AgentEvent::Type;
 
-constexpr std::size_t kMaxDescripcion = 160;
 constexpr std::size_t kMaxVistaPrevia = 240;
 constexpr int kLineasVistaPrevia = 3;
 
-std::string recortarTexto(std::string s, std::size_t max) {
-    if (s.size() <= max) return s;
-    std::size_t corte = max;
-    while (corte > 0 && (static_cast<unsigned char>(s[corte]) & 0xC0) == 0x80) --corte;  // no partir UTF-8
-    return s.substr(0, corte) + "…";
-}
 
-std::string sinEspaciosExtremos(const std::string& s) {
-    const auto ini = s.find_first_not_of(" \n\r\t");
-    if (ini == std::string::npos) return {};
-    return s.substr(ini, s.find_last_not_of(" \n\r\t") - ini + 1);
-}
 
 // JSON legible si el texto es JSON; si no, el texto tal cual.
 std::string legible(const std::string& s) {
@@ -56,57 +45,9 @@ std::string vistaPrevia(const std::string& resultado, bool& recortado) {
     recortado = pos < s.size() || out.size() > kMaxVistaPrevia;
     return recortarTexto(out, kMaxVistaPrevia);
 }
+
+
 }  // namespace
-
-std::string describirLlamada(const std::string& herramienta, const std::string& argsJson) {
-    const auto args = nlohmann::json::parse(argsJson.empty() ? "{}" : argsJson, nullptr, false);
-    std::string s;
-    if (herramienta == "ejecutar_comando" && args.is_object() && args.contains("comando")) {
-        s = args["comando"].is_string() ? args["comando"].get<std::string>() : args["comando"].dump();
-        if (args.contains("argumentos")) s += " " + args["argumentos"].dump();
-    } else if (herramienta == "buscar_comandos" && args.is_object() && args.contains("consulta")) {
-        s = "buscar_comandos «" + (args["consulta"].is_string() ? args["consulta"].get<std::string>()
-                                                                 : args["consulta"].dump()) + "»";
-    } else if (herramienta == "lanzar_subagentes" && args.is_object() && args.contains("tareas") &&
-               args["tareas"].is_array()) {
-        s = "lanzar_subagentes · " + std::to_string(args["tareas"].size()) + " tarea(s)";
-    } else {
-        s = herramienta;
-        if (args.is_object() && !args.empty()) s += " " + args.dump();
-        else if (args.is_discarded() && !argsJson.empty()) s += " " + argsJson;
-    }
-    return recortarTexto(s, kMaxDescripcion);
-}
-
-std::string quitarBloquesLlamada(const std::string& texto) {
-    std::string s = texto;
-    for (const char* cerco : {"```tool_call", "```json"}) {
-        std::size_t pos;
-        while ((pos = s.find(cerco)) != std::string::npos) {
-            const auto cierre = s.find("```", pos + 3);
-            const std::string bloque = s.substr(pos, cierre == std::string::npos ? std::string::npos : cierre + 3 - pos);
-            // ```json solo se quita si es una llamada; un JSON explicativo queda.
-            if (std::string(cerco) == "```json" && bloque.find("\"tool") == std::string::npos) break;
-            s.erase(pos, bloque.size());
-        }
-    }
-    // Donde estaba el bloque quedan renglones vacíos: como mucho uno seguido.
-    std::string compacto;
-    for (char c : s) {
-        if (c == '\n' && compacto.size() >= 2 && compacto[compacto.size() - 1] == '\n' &&
-            compacto[compacto.size() - 2] == '\n') {
-            continue;
-        }
-        compacto += c;
-    }
-    s = sinEspaciosExtremos(compacto);
-    // Llamada escrita sin cerco: el texto entero es un objeto JSON.
-    if (!s.empty() && s.front() == '{' && s.back() == '}' &&
-        !nlohmann::json::parse(s, nullptr, false).is_discarded()) {
-        return {};
-    }
-    return s;
-}
 
 // ---------------------------------------------------------------------------
 // MonitorTranscripcion
@@ -214,6 +155,13 @@ void MonitorTranscripcion::aplicar(const agente::llm::AgentEvent& e) {
             h.tocar();
             herramientas_[e.callId] = lugar;
             argumentos_[e.callId] = e.argsJson;
+            // Lo que la herramienta va a escribir en un archivo, a la vista.
+            std::string completo;
+            const std::string codigo = bloqueDeCodigo(e.name, e.argsJson, &completo);
+            if (!codigo.empty()) {
+                MensajeChat& c = nuevo(Rol::Codigo, codigo, false);
+                if (codigo.find("clic para ver todo") != std::string::npos) c.detalle = completo;
+            }
             return;
         }
         case Tipo::ToolEnd: {

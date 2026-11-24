@@ -172,6 +172,12 @@ class AplicacionTui : public ftxui::ComponentBase {
     void abrirSubagente(const std::string& id);
     bool salirDeVistaSubagente();
     bool clicEnChat(int x, int y);
+    // Desplaza la conversación a la vista: `lineas` > 0 sube. kChatInicio /
+    // kChatFinal van al principio o al final.
+    void desplazarChat(int lineas);
+    bool desplazarChatConTecla(const ftxui::Event& evento);
+    static constexpr int kChatInicio = 1 << 28;
+    static constexpr int kChatFinal = -(1 << 28);
     // Filas dibujadas del chat y a qué se refieren ("sub:<id>", "msg:<i>"),
     // para atender el clic. Se rehacen en cada frame.
     std::vector<ftxui::Box> cajasChat_;

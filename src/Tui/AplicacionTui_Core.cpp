@@ -294,6 +294,7 @@ bool AplicacionTui::OnEvent(ftxui::Event evento) {
         abrirAyuda();
         return true;
     }
+    if (seccionActual() == SeccionTui::Chat && desplazarChatConTecla(evento)) return true;
     if (evento == ftxui::Event::ArrowUp) {
         moverSeleccion(-1);
         return true;

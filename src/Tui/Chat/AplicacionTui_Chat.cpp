@@ -102,13 +102,11 @@ bool AplicacionTui::eventoEnChat(ftxui::Event evento) {
         return true;
     }
     if (evento == ftxui::Event::PageUp || evento == ftxui::Event::PageDown) {
-        std::lock_guard<std::mutex> lock(chatMutex_);
-        if (auto s = sesionActualSinLock()) {
-            auto sub = s->vista.empty() ? nullptr : s->subagente(s->vista);
-            int& desplazamiento = sub ? sub->desplazamiento : s->desplazamiento;
-            desplazamiento += (evento == ftxui::Event::PageUp ? 1 : -1) * chatLineasVisibles();
-            desplazamiento = std::max(0, desplazamiento);
-        }
+        desplazarChat((evento == ftxui::Event::PageUp ? 1 : -1) * std::max(1, chatLineasVisibles() - 2));
+        return true;
+    }
+    if (evento == ftxui::Event::ArrowUpCtrl || evento == ftxui::Event::ArrowDownCtrl) {
+        desplazarChat(evento == ftxui::Event::ArrowUpCtrl ? 3 : -3);
         return true;
     }
     if (evento == ftxui::Event::Return) {
@@ -126,7 +124,6 @@ void AplicacionTui::procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const s
     {
         std::lock_guard<std::mutex> lock(chatMutex_);
         monitor.esperar();
-        sesion->desplazamiento = 0;
     }
     if (pantalla_) pantalla_->PostEvent(ftxui::Event());
 
@@ -135,7 +132,6 @@ void AplicacionTui::procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const s
         {
             std::lock_guard<std::mutex> lock(chatMutex_);
             monitor.aplicar(evento);
-            if (evento.origen.empty()) sesion->desplazamiento = 0;
         }
         // Los fragmentos de texto llegan muy seguido: redibujo limitado.
         const bool fragmento = evento.type == Tipo::Text || evento.type == Tipo::Pensamiento;
@@ -216,6 +212,19 @@ void AplicacionTui::ejecutarOrdenChat() {
     mensajeEsError_ = false;
     if (pantalla_) pantalla_->PostEvent(ftxui::Event());
     std::thread([this, sesion, linea]() { procesarOrdenChat(sesion, linea); }).detach();
+}
+
+// Chat sin foco: flechas, páginas e Inicio/Fin recorren la conversación.
+bool AplicacionTui::desplazarChatConTecla(const ftxui::Event& evento) {
+    const int pagina = std::max(1, chatLineasVisibles() - 2);
+    if (evento == ftxui::Event::ArrowUp) desplazarChat(1);
+    else if (evento == ftxui::Event::ArrowDown) desplazarChat(-1);
+    else if (evento == ftxui::Event::PageUp) desplazarChat(pagina);
+    else if (evento == ftxui::Event::PageDown) desplazarChat(-pagina);
+    else if (evento == ftxui::Event::Home) desplazarChat(kChatInicio);
+    else if (evento == ftxui::Event::End) desplazarChat(kChatFinal);
+    else return false;
+    return true;
 }
 
 void AplicacionTui::recorrerHistorialChat(int delta) {

@@ -45,6 +45,14 @@ std::string contenidoComando(const AyudaComando& a) {
             o << "\n- " << arg.nombre << " (" << arg.tipo << (arg.requerido ? ", obligatorio" : "")
               << "): " << arg.descripcion;
         }
+        // Los comandos que escriben archivos aceptan un resumen para el usuario
+        // (las herramientas lo quitan antes de ejecutar el comando).
+        const bool escribeArchivo = std::any_of(a.argumentos.begin(), a.argumentos.end(),
+                                                [](const ArgumentoAyuda& x) { return x.nombre == "content"; });
+        if (escribeArchivo) {
+            o << "\n- resumen (texto): una frase con lo que contiene y hace el archivo; la extensión "
+                 "del archivo debe ser la de su lenguaje (scripts del motor: .java o .cpp)";
+        }
         o << "\n";
     }
     o << "Ejemplo: " << ejemploJson(a);

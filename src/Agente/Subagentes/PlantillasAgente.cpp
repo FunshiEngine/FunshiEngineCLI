@@ -18,7 +18,10 @@ const char* kReglasBase =
     "- Los comandos sin herramienta propia se ejecutan con ejecutar_comando "
     "{\"comando\":\"nombre.exacto\",\"argumentos\":{...}}.\n"
     "- Casi todos los comandos necesitan \"project\" (el nombre del proyecto).\n"
-    "- Si un comando falla, lee el error y corrige los argumentos; no repitas lo mismo.\n";
+    "- Si un comando falla, lee el error y corrige los argumentos; no repitas lo mismo.\n"
+    "- Al escribir un archivo (project.src.create, file.create): usa la extensión del lenguaje "
+    "del código (guía de lenguajes; los scripts del motor son .java o .cpp) y agrega "
+    "\"resumen\": una frase con lo que contiene y hace el archivo.\n";
 
 const char* kReglasSubagentes =
     "\nSubagentes (herramienta lanzar_subagentes):\n"
@@ -43,7 +46,11 @@ const char* kReglasSubagentes =
     "(por ejemplo con scene.object.get) y resume al usuario qué se hizo.\n";
 
 const char* kReglasRespuesta =
-    "\nAl responder: breve, en español, qué hiciste y con qué resultado (ids, rutas). "
+    "\nLas herramientas las ejecutas tú, no el usuario: sus resultados son tuyos. Nunca le "
+    "agradezcas por ejecutarlas ni digas que él hizo algo que hiciste tú.\n"
+    "Al responder: breve, en español, en primera persona (\"Creé…\", \"Moví…\"), qué hiciste y "
+    "con qué resultado (ids, rutas). Por cada archivo que escribiste: nombre, lenguaje y su "
+    "resumen. "
     "Si algo no se pudo, di por qué y qué hace falta.";
 
 }  // namespace
