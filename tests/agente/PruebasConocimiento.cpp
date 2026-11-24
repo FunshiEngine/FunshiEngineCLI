@@ -123,6 +123,9 @@ void probarConocimiento() {
         {"borra el script Jugador.java", "script.delete"},
         {"quita el sonido salto.wav del proyecto", "asset.delete"},
         {"bórralo", "guia.borrar"},
+        {"restaura el script Jugador", "trash.restore"},
+        {"vacía la papelera", "trash.empty"},
+        {"recupera el sonido que borré", "guia.borrar"},
     };
     for (const auto& [pedido, id] : casos) {
         std::string obtenidos;
@@ -188,6 +191,9 @@ void probarHerramientas() {
         CHECK(pregunta == "borrar el script Scripts/A.java del proyecto NoExiste y quitarlo de los objetos que lo usan" &&
                   !r.ok() && r.errorMessage.find("no autorizó") == std::string::npos,
               "ejecutar_comando: con confirmación se ejecuta (aquí falla por el proyecto)");
+        r = ejecutar.execute({{"comando", "trash.empty"}, {"argumentos", {{"project", "NoExiste"}}}}, siempre);
+        CHECK(pregunta == "vaciar la papelera del proyecto NoExiste (lo borrado ya no se podrá recuperar)",
+              "ejecutar_comando: vaciar la papelera también pide confirmación");
     }
     r = ejecutar.execute({{"comando", "scene.teletransportar"}}, {});
     CHECK(!r.ok() && r.errorMessage.find("buscar_comandos") != std::string::npos,

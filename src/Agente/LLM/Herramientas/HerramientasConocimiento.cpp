@@ -67,7 +67,8 @@ const std::set<std::string>& EjecutarComandoTool::bloqueados() {
 }
 
 const std::set<std::string>& EjecutarComandoTool::requierenConfirmacion() {
-    static const std::set<std::string> c = {"scene.object.delete", "script.delete", "asset.delete", "project.src.delete"};
+    static const std::set<std::string> c = {"scene.object.delete", "script.delete", "asset.delete", "project.src.delete",
+                                            "trash.empty"};
     return c;
 }
 
@@ -88,6 +89,10 @@ std::string EjecutarComandoTool::descripcionDeBorrado(const std::string& comando
         }
         return "borrar el objeto " + (nombre.empty() ? "" : "«" + nombre + "» ") + "(id " + id + ") y sus hijos de la escena" +
                enProyecto;
+    }
+    if (comando == "trash.empty") {
+        return argumentos.contains("id") ? "borrar para siempre la entrada " + argumentos["id"].dump() + " de la papelera" + enProyecto
+                                         : "vaciar la papelera" + enProyecto + " (lo borrado ya no se podrá recuperar)";
     }
     if (comando == "script.delete") return "borrar el script " + ruta + enProyecto + " y quitarlo de los objetos que lo usan";
     if (comando == "asset.delete") return "borrar el asset " + ruta + enProyecto + " y quitarlo de los objetos que lo usan";

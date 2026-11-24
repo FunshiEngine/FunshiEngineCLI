@@ -34,7 +34,8 @@ const std::vector<Guia>& guiasIncluidas() {
          "4. scene.script.reload {\"project\":P,\"id\":ID}."},
         {"guia.borrar", "Borrar o eliminar un objeto, un script o un asset",
          "borrar borra borralo bórralo eliminar elimina eliminalo elimínalo quitar quita sacar saca destruir destruye "
-         "objeto script asset sonido modelo textura imagen archivo",
+         "objeto script asset sonido modelo textura imagen archivo papelera recuperar recupera restaurar restaura "
+         "deshacer borré borrado borrada",
          "El usuario confirma cada borrado: si no lo autoriza, no insistas.\n"
          "- Objeto (con sus hijos): si no sabes el id, scene.object.findbyname {\"project\":P,\"name\":\"X\"}; "
          "luego scene.object.delete {\"project\":P,\"id\":ID}. scene.undo lo restaura.\n"
@@ -42,7 +43,9 @@ const std::vector<Guia>& guiasIncluidas() {
          "componente Script de los objetos que lo usan).\n"
          "- Asset (modelo, imagen, audio, prefab, tileset, partículas, interfaz): asset.list {\"project\":P} y "
          "asset.delete {\"project\":P,\"path\":RUTA} (quita sus componentes de los objetos que lo usan).\n"
-         "- Otro archivo o una carpeta de src/: project.src.delete {\"project\":P,\"path\":RUTA}."},
+         "- Otro archivo o una carpeta de src/: project.src.delete {\"project\":P,\"path\":RUTA}.\n"
+         "Todo va a la papelera: trash.list {\"project\":P} la muestra y trash.restore {\"project\":P,\"id\":N} "
+         "lo recupera (con sus referencias en los objetos)."},
         {"guia.fisica", "Dar física a un objeto (colisión y gravedad)",
          "fisica colision collider rigidbody gravedad masa cae choca",
          "1. scene.object.addcomponent {\"project\":P,\"id\":ID,\"componentType\":\"Collider\","
