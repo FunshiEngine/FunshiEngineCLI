@@ -8,6 +8,7 @@
 
 #include "Agente/Auditoria.h"
 #include "Agente/Conocimiento/BaseConocimiento.h"
+#include "Agente/Conocimiento/Lenguajes.h"
 #include "Agente/Harness.h"
 #include "Agente/LLM/Herramientas/HerramientasConocimiento.h"
 #include "Agente/LLM/Herramientas/PerfilesHerramientas.h"
@@ -34,8 +35,24 @@ bool apareceEntre(const con::BaseConocimiento& base, const std::string& pedido, 
 
 void probarConocimiento() {
     const con::BaseConocimiento base;
-    CHECK(base.tamano() == funshi::ayudaComandos().size() + con::guiasIncluidas().size(),
-          "la base contiene todos los comandos y guías");
+    CHECK(base.tamano() == funshi::ayudaComandos().size() + con::guiasIncluidas().size() + 1,
+          "la base contiene todos los comandos, las guías y la de lenguajes");
+
+    // Lenguajes y archivos del motor (la parte del motor sale de TiposArchivo).
+    const std::string doc = con::documentoLenguajes();
+    CHECK(doc.find("- C#: .cs") != std::string::npos && doc.find("- Java: .java") != std::string::npos,
+          "lenguajes: tabla de lenguajes y extensiones");
+    CHECK(doc.find("Script Java: .java") != std::string::npos && doc.find("Prefab: .prefab") != std::string::npos,
+          "lenguajes: archivos que reconoce el motor");
+    CHECK(con::extensionDeProyecto() == ".fnep" && doc.find("reconoce .fnep como archivo de proyecto") != std::string::npos,
+          "lenguajes: extensión de proyecto del motor y que aún no se crea");
+    CHECK(con::lenguajePorExtension(".CS") && std::string(con::lenguajePorExtension(".CS")->nombre) == "C#" &&
+              con::esScriptDelMotor("src/A.java") && !con::esScriptDelMotor("src/A.cs"),
+          "lenguajes: extensión → lenguaje y scripts del motor");
+    {
+        const auto r = base.buscar("qué extensión uso para un script en java", 3);
+        CHECK(!r.empty() && r.front().documento->id == "guia.lenguajes", "lenguajes: el RAG encuentra la guía");
+    }
 
     // Pedidos reales en español → el documento esperado entre los 3 primeros.
     const std::vector<std::pair<std::string, std::string>> casos = {

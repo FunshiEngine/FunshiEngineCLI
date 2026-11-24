@@ -14,6 +14,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
+
 namespace pruebas_agente {
 
 namespace {
@@ -206,8 +208,47 @@ void probarCortes() {
 
     CHECK(funshi::chat::quitarBloquesLlamada("{\"tool\":\"x\",\"arguments\":{}}").empty(),
           "monitor: una llamada JSON suelta no es razonamiento");
+    CHECK(funshi::chat::quitarBloquesLlamada("tool_call\n{\"comando\":\"version\"}").empty(),
+          "monitor: llamada con etiqueta tool_call sin cerco");
     CHECK(funshi::chat::quitarBloquesLlamada("Mira:\n```json\n{\"a\":1}\n```") == "Mira:\n```json\n{\"a\":1}\n```",
           "monitor: un JSON explicativo se conserva");
+    // Código escrito por una herramienta: bloque propio, completo y legible.
+    {
+        const std::string args =
+            R"({"comando":"project.src.create","argumentos":{"project":"P","path":"src/Jugador.cs","file":true,"content":"using System;\n\tclass Jugador {}\n","resumen":"Clase Jugador vacía"}})";
+        const std::string b = funshi::chat::bloqueDeCodigo("ejecutar_comando", args);
+        CHECK(b == "┌ Jugador.cs · C# (.cs) · 2 líneas\n│ en: src/Jugador.cs\n│ resumen: Clase Jugador vacía\n"
+                   "│ aviso: el motor no ejecuta scripts .cs (solo .java y .cpp)\n├─\n"
+                   "│ using System;\n│     class Jugador {}\n└",
+              "monitor: cabecera con nombre, lenguaje, resumen y aviso; tabs expandidos (" + b + ")");
+        const std::string java = funshi::chat::bloqueDeCodigo(
+            "project.src.create", R"({"project":"P","path":"Jugador.java","content":"class Jugador {}"})");
+        CHECK(java.rfind("┌ Jugador.java · Java (.java) · Script Java del motor · 1 línea\n│ resumen: (el agente no lo indicó)\n├─", 0) == 0,
+              "monitor: script del motor sin resumen (" + java + ")");
+        const std::string en = funshi::chat::bloqueDeCodigo(
+            "project.src.create", R"({"project":"P","path":"a.cpp","content":"x","summary":"Prueba"})");
+        CHECK(en.find("│ resumen: Prueba\n") != std::string::npos, "monitor: acepta summary como resumen");
+        const std::string d = funshi::chat::describirLlamada("ejecutar_comando", args);
+        CHECK(d.find("using System") == std::string::npos && d.find("…2 líneas") != std::string::npos &&
+                  d.find("resumen") == std::string::npos,
+              "monitor: la línea de la acción no repite el código (" + d + ")");
+        std::string largo;
+        for (int i = 0; i < 70; ++i) largo += "x\n";
+        std::string completo;
+        const std::string bl = funshi::chat::bloqueDeCodigo(
+            "file.create", nlohmann::json{{"name", "a.txt"}, {"content", largo}}.dump(), &completo);
+        CHECK(bl.find("10 líneas más (clic para ver todo)") != std::string::npos &&
+                  std::count(completo.begin(), completo.end(), '\n') == 70,
+              "monitor: código largo recortado, con el completo para expandir");
+        funshi::chat::SesionTui s;
+        funshi::chat::MonitorSesion mon(s);
+        mon.aplicar(herramienta(Tipo::ToolStart, "ejecutar_comando", args));
+        CHECK(s.mensajes.size() == 2 && s.mensajes[1].rol == Rol::Codigo,
+              "monitor: el código aparece debajo de la acción");
+    }
+    CHECK(llm::resultadosParaModelo("RESULTADO DE x:\nok\n").find("no lo escribió el usuario") != std::string::npos,
+          "bucle: los resultados se presentan como salida de las herramientas del asistente");
+
     CHECK(funshi::chat::describirLlamada("buscar_comandos", R"({"consulta":"mover objeto"})") ==
               "buscar_comandos «mover objeto»",
           "monitor: descripción de buscar_comandos");

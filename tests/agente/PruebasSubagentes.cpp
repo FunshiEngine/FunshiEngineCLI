@@ -122,7 +122,7 @@ void probarSubagentes() {
         CHECK(v.mensajes.front().content.find("Proyecto activo del usuario: \"MiJuego\"") != std::string::npos,
               "principal: el prompt incluye el proyecto activo");
         for (const auto& m : v.mensajes) {
-            if (m.role == "user" && m.content.find("[Documentación recuperada") != std::string::npos) {
+            if (m.role == "user" && m.content.find("[Documentación de referencia") != std::string::npos) {
                 principalConRag = true;
             }
             if (m.role == "tool" && m.content.find("Informes de 2 subagente(s)") != std::string::npos &&

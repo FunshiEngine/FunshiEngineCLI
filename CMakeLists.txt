@@ -295,6 +295,9 @@ add_executable(agente-tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasSubagentes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasSesiones.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasMonitor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasPreferencias.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasUsoComandos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/agente/PruebasDocumentos.cpp
 )
 target_link_libraries(agente-tests PRIVATE funshi_cli_core)
 add_test(NAME agente-tests COMMAND agente-tests)
