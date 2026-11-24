@@ -134,7 +134,7 @@ ftxui::Element AplicacionTui::panelChat() {
     std::vector<std::string> refs;  // a qué se refiere cada línea (para el clic)
     std::string cabeceraSub;        // vista de subagente: su título y estado
     bool ocupado = false;
-    std::string opciones;     // elección pendiente (mensaje en espera)
+    std::string opciones;     // elección pendiente (mensaje en espera o menú de un mensaje)
     bool desplazado = false;  // mirando más arriba del final
     int total = 0;
     int inicio = 0;
@@ -157,6 +157,8 @@ ftxui::Element AplicacionTui::panelChat() {
         if (sesion && !sesion->enEspera.empty()) {
             opciones = " ⏸ «" + recortar(sesion->enEspera, 40) +
                        "»  A: agregar a lo que está pensando · E: encolar · Esc: seguir editando ";
+        } else if (sesion && sesion->menuMensaje >= 0) {
+            opciones = " Tu mensaje: E editar · D eliminar (también lo que vino después) · Esc cancelar ";
         }
         for (auto& m : mensajes) {
             if (m.versionCache != m.version || m.anchoCache != ancho) {
@@ -192,6 +194,7 @@ ftxui::Element AplicacionTui::panelChat() {
                 std::string ref;
                 if (m.rol == MensajeChat::Rol::Subagente && !m.ref.empty()) ref = "sub:" + m.ref;
                 else if (!m.detalle.empty() || m.rol == MensajeChat::Rol::Pensamiento) ref = "msg:" + std::to_string(i);
+                else if (m.rol == MensajeChat::Rol::Usuario && !sub && m.ref.empty()) ref = "usr:" + std::to_string(i);
                 refs.insert(refs.end(), static_cast<std::size_t>(hasta - desde), ref);
             }
             cursor += n;

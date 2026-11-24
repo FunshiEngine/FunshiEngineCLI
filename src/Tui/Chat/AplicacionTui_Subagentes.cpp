@@ -116,6 +116,20 @@ bool AplicacionTui::clicEnChat(int x, int y) {
         abrirSubagente(ref.substr(4));
         return true;
     }
+    if (ref.rfind("usr:", 0) == 0) {
+        // Un mensaje propio: abre el menú editar / eliminar.
+        {
+            std::lock_guard<std::mutex> lock(chatMutex_);
+            auto sesion = sesionActualSinLock();
+            if (!sesion) return false;
+            sesion->menuMensaje = std::atoi(ref.c_str() + 4);
+            sesion->enEspera.clear();
+        }
+        mensaje_ = "Tu mensaje: E lo edita, D lo elimina (y lo que vino después), Esc cancela.";
+        mensajeEsError_ = false;
+        if (pantalla_) pantalla_->PostEvent(ftxui::Event());
+        return true;
+    }
     if (ref.rfind("msg:", 0) == 0) {
         const std::size_t indice = static_cast<std::size_t>(std::atol(ref.c_str() + 4));
         {

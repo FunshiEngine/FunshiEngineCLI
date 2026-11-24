@@ -60,6 +60,15 @@ struct SesionAgente {
     // Última tarea cerrada (lo que el modelo hizo y su resumen): contexto
     // del pedido siguiente.
     agente::tareas::TareaAgente tareaAnterior;
+    // Las tareas de antes (la más vieja primero, hasta kMaxTareasPrevias):
+    // al descartar pedidos se vuelve a la que correspondía.
+    std::vector<agente::tareas::TareaAgente> tareasPrevias;
+    static constexpr std::size_t kMaxTareasPrevias = 20;
+
+    // Descarta los últimos `pedidos` pedidos al modelo (el historial desde el
+    // más viejo de ellos, sus resultados y aclaraciones) y vuelve a la tarea
+    // anterior a ellos. Para editar o borrar un mensaje del chat.
+    void descartarPedidos(std::size_t pedidos);
     // Poner en true cancela el pedido en curso de esta sesión.
     std::shared_ptr<std::atomic<bool>> cancelar = std::make_shared<std::atomic<bool>>(false);
     // Aclaraciones para el pedido en curso: el bucle las incorpora en su

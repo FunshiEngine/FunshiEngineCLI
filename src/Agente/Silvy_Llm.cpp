@@ -167,6 +167,7 @@ std::string Silvy::modeloActivo() const {
 void Silvy::limpiarHistorialLlm() {
     sesionPorDefecto_.historial.clear();
     sesionPorDefecto_.tareaAnterior = {};
+    sesionPorDefecto_.tareasPrevias.clear();
 }
 
 Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionAgente& sesion,
@@ -284,6 +285,12 @@ Silvy::RespuestaProcesada Silvy::enviarAlLlm(const std::string& mensaje, SesionA
             agente::tareas::cierreDeRespaldo(answer.toolCalls, answer.text, tarea);
         }
         if (onEvent) onEvent(llm::AgentEvent::estado("Resumen de la tarea: " + tarea.resumen));
+        if (!sesion.tareaAnterior.vacia()) {
+            sesion.tareasPrevias.push_back(std::move(sesion.tareaAnterior));
+            if (sesion.tareasPrevias.size() > SesionAgente::kMaxTareasPrevias) {
+                sesion.tareasPrevias.erase(sesion.tareasPrevias.begin());
+            }
+        }
         sesion.tareaAnterior = std::move(tarea);
     }
 

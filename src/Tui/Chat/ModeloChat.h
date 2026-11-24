@@ -86,6 +86,13 @@ struct SesionTui {
     // elija agregarlo al razonamiento en curso o encolarlo en `cola`.
     std::string enEspera;
     std::deque<std::string> cola;
+    // Mensaje del usuario con el menú editar/eliminar abierto (-1: ninguno).
+    int menuMensaje = -1;
+    // Sube al descartar mensajes: los eventos del pedido cancelado, que
+    // traen la generación vieja, ya no escriben en la conversación.
+    unsigned generacion = 0;
+    // Pedidos a descartar del historial del modelo cuando termine el que corre.
+    std::size_t pedidosADescartar = 0;
 
     std::shared_ptr<SubagenteTui> subagente(const std::string& id) const;
     // Pasa de/hacia el formato persistido (mensajes y subagentes).

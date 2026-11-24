@@ -276,4 +276,34 @@ std::string Silvy::resumenQueHice(std::size_t n) const {
     return harness_.auditoria().resumenReciente(n);
 }
 
+void SesionAgente::descartarPedidos(std::size_t pedidos) {
+    if (pedidos == 0) return;
+    // Un pedido es un mensaje del usuario que no es la salida de herramientas
+    // (modo prompt) ni una aclaración incorporada durante el turno.
+    const auto esPedido = [](const agente::llm::ChatMessage& m) {
+        return m.role == "user" && m.content.rfind(agente::llm::kInicioSalida, 0) != 0 &&
+               m.content.rfind("[Aclaración del usuario", 0) != 0;
+    };
+    std::size_t vistos = 0;
+    std::size_t corte = historial.size();
+    for (std::size_t i = historial.size(); i-- > 0;) {
+        if (!esPedido(historial[i])) continue;
+        corte = i;
+        if (++vistos == pedidos) break;
+    }
+    if (vistos > 0) historial.erase(historial.begin() + static_cast<std::ptrdiff_t>(corte), historial.end());
+    // Si el historial estaba recortado y no tenía todos, se descarta lo que había.
+    if (vistos < pedidos) historial.erase(std::remove_if(historial.begin(), historial.end(),
+                                                         [](const auto& m) { return m.role != "system"; }),
+                                          historial.end());
+    for (std::size_t i = 0; i < pedidos; ++i) {
+        if (tareasPrevias.empty()) {
+            tareaAnterior = {};
+            break;
+        }
+        tareaAnterior = std::move(tareasPrevias.back());
+        tareasPrevias.pop_back();
+    }
+}
+
 }  // namespace funshi

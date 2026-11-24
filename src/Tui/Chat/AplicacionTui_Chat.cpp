@@ -73,7 +73,7 @@ bool AplicacionTui::eventoEnChat(ftxui::Event evento) {
         pantalla_->Exit();
         return true;
     }
-    if (eventoEnCurso(evento)) return true;  // elección pendiente: agregar o encolar
+    if (eventoEnCurso(evento)) return true;  // elección pendiente: agregar/encolar o editar/eliminar
     if (evento == ftxui::Event::Escape) {
         if (!salirDeVistaSubagente()) desenfocarChat();
         return true;
@@ -122,8 +122,10 @@ void AplicacionTui::procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const s
     // con argumentos y resultado, notas de progreso y un resumen por
     // subagente (cuya transcripción queda aparte, ver /sub N).
     chat::MonitorSesion monitor(*sesion);
+    unsigned generacion = 0;  // si cambia, el usuario descartó este pedido
     {
         std::lock_guard<std::mutex> lock(chatMutex_);
+        generacion = sesion->generacion;
         monitor.esperar();
     }
     if (pantalla_) pantalla_->PostEvent(ftxui::Event());
@@ -132,6 +134,7 @@ void AplicacionTui::procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const s
         using Tipo = agente::llm::AgentEvent::Type;
         {
             std::lock_guard<std::mutex> lock(chatMutex_);
+            if (sesion->generacion != generacion) return;  // sus líneas ya se borraron
             monitor.aplicar(evento);
         }
         // Los fragmentos de texto llegan muy seguido: redibujo limitado.
@@ -158,7 +161,7 @@ void AplicacionTui::procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const s
 
     {
         std::lock_guard<std::mutex> lock(chatMutex_);
-        monitor.cerrar(textoFinal, respuesta.error);
+        if (sesion->generacion == generacion) monitor.cerrar(textoFinal, respuesta.error);
         sesion->ocupado = false;
         chatAplicarResultadoPendiente_ = true;
         chatMensajePendiente_ = "Silvy (" + sesion->datos.titulo + "): " +
@@ -166,7 +169,7 @@ void AplicacionTui::procesarOrdenChat(std::shared_ptr<SesionTui> sesion, const s
         chatMensajePendienteError_ = respuesta.error;
         chatRecargarPendiente_ = true;
     }
-    siguienteDeLaCola(sesion);  // aclaraciones tardías y la cola
+    siguienteDeLaCola(sesion);  // descartes pendientes, aclaraciones tardías y la cola
     if (pantalla_) pantalla_->PostEvent(ftxui::Event::Custom);
 }
 
@@ -193,6 +196,7 @@ void AplicacionTui::ejecutarOrdenChat() {
         if (sesion->ocupado) {
             // Mientras piensa: el usuario elige agregarlo a ese razonamiento o encolarlo.
             sesion->enEspera = linea;
+            sesion->menuMensaje = -1;
             mensaje_ = "Silvy está pensando: A agrega tu mensaje a lo que está haciendo, E lo encola.";
             mensajeEsError_ = false;
             if (pantalla_) pantalla_->PostEvent(ftxui::Event());

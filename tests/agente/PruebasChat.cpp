@@ -3,9 +3,10 @@
     Copyright 2026 Gianfranco Ivan Enrique
     SPDX-License-Identifier: Apache-2.0
 */
-// agente-tests: el chat con el agente — razonamiento plegado y lo que pasa
+// agente-tests: el chat con el agente — razonamiento plegado, lo que pasa
 // mientras trabaja (aclaraciones incorporadas al bucle en curso, en cada
-// formato, y la ronda extra si iba a terminar), y la aclaración en la tarea.
+// formato, y la ronda extra si iba a terminar) y al editar el chat (descarte
+// de pedidos con vuelta a la tarea anterior), y la aclaración en la tarea.
 #include "PruebasAgente.h"
 
 #include "Agente/Auditoria.h"
@@ -121,6 +122,38 @@ void probarChat() {
         bucle.run(historial);
         CHECK(registro->llamadas.size() == 2 && contiene(registro->llamadas[1].mensajes.back().content, "y que sea rojo"),
               "aclaración al final: una ronda más con ella");
+    }
+
+    // 3. Descartar pedidos: historial y tareas vuelven atrás.
+    {
+        funshi::SesionAgente s;
+        s.historial = {llm::ChatMessage::system("sys"),
+                       llm::ChatMessage::user("pedido 1"),
+                       llm::ChatMessage::assistant("r1"),
+                       llm::ChatMessage::user("pedido 2"),
+                       llm::ChatMessage::assistant("```tool_call x```"),
+                       llm::ChatMessage::user(std::string(llm::kInicioSalida) + " …] resultados"),
+                       llm::ChatMessage::user("[Aclaración del usuario mientras trabajabas]\nmás"),
+                       llm::ChatMessage::assistant("r2"),
+                       llm::ChatMessage::user("pedido 3"),
+                       llm::ChatMessage::assistant("r3")};
+        funshi::agente::tareas::TareaAgente t1, t2, t3;
+        t1.pedido = "pedido 1";
+        t2.pedido = "pedido 2";
+        t3.pedido = "pedido 3";
+        s.tareasPrevias = {t1, t2};
+        s.tareaAnterior = t3;
+        auto copia = s;
+        copia.descartarPedidos(1);
+        CHECK(copia.historial.size() == 8 && copia.historial.back().content == "r2" && copia.tareaAnterior.pedido == "pedido 2",
+              "descartar: el último pedido y su tarea");
+        s.descartarPedidos(2);
+        CHECK(s.historial.size() == 3 && s.historial.back().content == "r1" && s.tareaAnterior.pedido == "pedido 1" &&
+                  s.tareasPrevias.empty(),
+              "descartar: dos pedidos, con sus resultados y aclaraciones");
+        s.descartarPedidos(5);
+        CHECK(s.historial.size() == 1 && s.historial.front().role == "system" && s.tareaAnterior.vacia(),
+              "descartar: más pedidos de los que hay deja solo el sistema");
     }
 
     // 4. Silvy: la aclaración queda en la tarea cerrada.
