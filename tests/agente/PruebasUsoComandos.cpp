@@ -149,6 +149,18 @@ void probarUsoDeComandos() {
         CHECK(sc.ok() && sc.name == "ejecutar_comando" && sc.args.value("comando", "") == "scene.list" &&
                   sc.args["argumentos"].value("project", "") == "Pdef",
               "sanitizador: {\"comando\"…} sin tool → ejecutar_comando");
+        // Dos llamadas en un bloque, una por línea, la primera sin cerrar.
+        const auto partes = llm::PromptToolParser::llamadasSinCerco(
+            "```json\n{\"tool\":\"ejecutar_comando\",\"arguments\":{\"comando\":\"a\",\"argumentos\":{\"x\":1}}\n"
+            "{\"tool\":\"ejecutar_comando\",\"arguments\":{\"comando\":\"b\",\"argumentos\":{}}}\n```");
+        CHECK(partes.size() == 2 && llm::ToolCallSanitizer::block(partes[0]).ok() &&
+                  llm::ToolCallSanitizer::block(partes[0]).args.value("comando", "") == "a" &&
+                  llm::ToolCallSanitizer::block(partes[1]).args.value("comando", "") == "b",
+              "parser: varias llamadas por línea en un bloque");
+        // Un JSON con objetos en líneas propias (lista de tareas) no se parte.
+        const auto lista = llm::PromptToolParser::llamadasSinCerco(
+            "{\"tool\":\"lanzar_subagentes\",\"arguments\":{\"tareas\":[\n{\"titulo\":\"a\"},\n{\"titulo\":\"b\"}]}}");
+        CHECK(lista.size() == 1, "parser: objetos de una lista no se toman como llamadas");
     }
 
     // 5. Guías convertidas en llamadas y documentación de sus comandos.

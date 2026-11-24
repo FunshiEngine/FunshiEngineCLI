@@ -260,6 +260,19 @@ AgentAnswer AgentLoop::run(std::vector<ChatMessage>& messages,
             std::string visible = promptParser.feed(accumulatedText);
             visible += promptParser.flush();
             auto blocks = promptParser.drain();
+            {
+                // Varias llamadas en un mismo bloque, una por línea: se separan.
+                std::vector<std::string> separados;
+                for (auto& b : blocks) {
+                    auto partes = PromptToolParser::llamadasSinCerco(b);
+                    if (partes.size() > 1) {
+                        for (auto& p : partes) separados.push_back(std::move(p));
+                    } else {
+                        separados.push_back(std::move(b));
+                    }
+                }
+                blocks = std::move(separados);
+            }
             if (blocks.empty()) {
                 // Llamada escrita sin cerco: se acepta solo si nombra una herramienta real.
                 for (auto& b : PromptToolParser::llamadasSinCerco(accumulatedText)) {
