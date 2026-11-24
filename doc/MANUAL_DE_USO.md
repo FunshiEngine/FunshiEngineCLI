@@ -184,9 +184,15 @@ Cada sesión es una conversación independiente con Silvy: tiene su propio
 historial (el modelo solo ve el de esa sesión), su proyecto activo y sus
 mensajes. Con un modelo local, cada sesión va además por su propio **túnel**
 hacia el servidor (un slot de llama-server con su caché): una sesión nunca
-reaprovecha lo que el modelo calculó para otra. El servidor arranca con 4
-slots; si hay más sesiones trabajando, la que lleva más tiempo sin usar el suyo
-lo cede (y se vacía antes). Las pestañas bajo la cabecera muestran las sesiones; `⟳` marca las
+reaprovecha lo que el modelo calculó para otra. El servidor arranca con 2
+slots y las sesiones hacen **cola**: si los dos están ocupados, cede el suyo la
+sesión que entró primero, y su caché se guarda en disco
+(`<carpeta de modelos locales>/slots/<sesión>.bin`). Cuando vuelves a esa
+sesión, su caché se lee y se borra el archivo, y la que cede ahora guarda la
+suya; así, al volver, Silvy no tiene que procesar de nuevo toda la
+conversación (en las pruebas, el primer token pasó de unos 23 s a 6 s). La
+conversación en sí nunca se pierde: está en la sesión. Cada caché guardada
+ocupa cientos de MB, así que se conservan las 4 más recientes. Las pestañas bajo la cabecera muestran las sesiones; `⟳` marca las
 que están procesando. **Varias sesiones pueden trabajar a la vez**: mientras
 una procesa, puedes cambiar a otra y darle otra orden.
 

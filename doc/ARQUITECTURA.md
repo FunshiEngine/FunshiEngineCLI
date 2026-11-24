@@ -266,10 +266,16 @@ documentación de los comandos que nombran.
   el pedido (objetivo, bucle, subagentes y cierre) y cada gateway lo manda
   como `id_slot`. Así una sesión no reaprovecha la caché KV de otra (con
   `--cache-reuse`, el servidor desplaza trozos calculados atendiendo a la
-  conversación anterior). Si no hay slot libre, el menos usado entre los no
-  reservados cambia de dueño y se vacía (`POST /slots/<i>?action=erase`); con
-  todos reservados el pedido va sin túnel. El servidor arranca con
-  `-np 4 --kv-unified` (un búfer de `-c` tokens compartido).
+  conversación anterior). Las sesiones hacen cola: si no hay slot libre, cede el
+  suyo la sesión que entró primero entre las no reservadas (FIFO); su caché se
+  guarda (`POST /slots/<i>?action=save`, `<sesión>.bin` en `slots/`) y la que
+  entra restaura la suya si la tiene (`action=restore`, el archivo se borra) o
+  el slot se vacía (`action=erase`). Con todos reservados el pedido va sin
+  túnel. Se conservan las `kMaxCachesGuardadas` (4) cachés más recientes. El
+  servidor arranca con `-np 2 --kv-unified --slot-save-path <slots>
+  --no-cache-idle-slots` (sin esta última, con KV unificado el servidor vacía
+  los slots ociosos y no queda caché que guardar); cada opción se agrega solo
+  si el binario la admite (`llama-server --help`).
 - **Aclaraciones durante el turno**: la TUI deja el mensaje en el
   `BuzonInstrucciones` de la sesión (seguro entre hilos); `AgentLoop` las toma
   al empezar cada ronda y las incorpora según `FormatoAclaracion` (por defecto

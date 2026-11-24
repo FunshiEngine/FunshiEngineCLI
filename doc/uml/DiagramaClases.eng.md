@@ -165,7 +165,9 @@ classDiagram
         +vacio() bool
     }
     class AsignadorTuneles {
-        +paraServidor(string baseUrl)$ shared_ptr~AsignadorTuneles~
+        +paraServidor(string baseUrl, path carpetaSlots)$ shared_ptr~AsignadorTuneles~
+        +archivoDeSesion(string)$ string
+        +podarCachesGuardadas(path, size_t)$
         +reservar(string sesion) Reserva
         +total() int
     }
