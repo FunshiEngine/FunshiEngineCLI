@@ -89,6 +89,7 @@ void AplicacionTui::desenfocarEntrada() {
 
 void AplicacionTui::ejecutarComandoEscrito() {
     const std::string linea = textoComando_;
+    if (ordenDePreferencias(linea)) return;  // tui.color / tui.idioma
     const std::vector<Token> tokens = tokenizar(linea);
     if (tokens.empty()) return;
 

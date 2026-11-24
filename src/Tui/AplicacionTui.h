@@ -15,6 +15,7 @@
 #include "Agente/Silvy.h"
 #include "Agente/Sesiones/SesionChat.h"
 #include "Tui/Chat/ModeloChat.h"
+#include "Tui/Configuracion/SelectorColor.h"
 #include "Agente/LLM/HuggingFace/HfTypes.h"
 
 #include "Nucleo/Respuesta.h"
@@ -82,12 +83,22 @@ class AplicacionTui : public ftxui::ComponentBase {
     void recorrerHistorial(int delta);
     void cargarSeccionConfiguracion(EstadoSeccion& estado, bool informar);
     void editarRutaConfiguracion(const nlohmann::json& item);
+    // Configuración (Configuracion/AplicacionTui_Configuracion.cpp).
+    void agregarItemsApariencia(nlohmann::json& items);
+    void accionConfiguracion(const nlohmann::json& item);
+    bool ordenDePreferencias(const std::string& linea);  // tui.color / tui.idioma
+    ftxui::Element filaConfiguracion(const nlohmann::json& item, std::size_t ancho);
     // Documentos del usuario (Chat/AplicacionTui_Documentos.cpp): indexación
     // en segundo plano al abrir y con /docs actualizar; /docs y /docs buscar.
     void iniciarDocumentos(bool aPedido);
     bool ordenDeDocumentos(const std::string& orden, const std::string& resto);
     void aplicarAvisoDocumentos();
     void agregarItemsDocumentos(nlohmann::json& items);
+    // Selector de color (Configuracion/AplicacionTui_SelectorColor.cpp).
+    tui::SelectorColor selectorColor_;
+    void abrirSelectorColor(const std::string& clave);
+    bool eventoSelectorColor(ftxui::Event evento);
+    ftxui::Element capaSelectorColor();
 
     void enfocarChat();
     void desenfocarChat();

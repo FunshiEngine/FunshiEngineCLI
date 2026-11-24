@@ -210,6 +210,7 @@ ftxui::Element AplicacionTui::OnRender() {
     ftxui::Elements elements;
     elements.push_back(conSeleccion(std::move(contenido)));
     elements.push_back(renderToast());
+    elements.push_back(capaSelectorColor());
     return ftxui::dbox(std::move(elements));
 }
 
@@ -243,6 +244,8 @@ bool AplicacionTui::OnEvent(ftxui::Event evento) {
         }
         return true;
     }
+    // El selector de color es modal: recibe todo mientras está abierto.
+    if (selectorColor_.abierto) return eventoSelectorColor(evento);
     // El ratón se atiende siempre primero: la selección/copia no debe
     // depender del foco de las cajas de texto.
     if (evento.is_mouse()) {

@@ -26,17 +26,20 @@
 
 namespace funshi {
 
-// Paleta del tema oscuro de la interfaz.
-inline const ftxui::Color kFondo = ftxui::Color::RGB(18, 18, 24);
-inline const ftxui::Color kFondoBarra = ftxui::Color::RGB(32, 34, 42);
-inline const ftxui::Color kFondoPanel = ftxui::Color::RGB(25, 26, 33);
-inline const ftxui::Color kFondoSeleccion = ftxui::Color::RGB(61, 65, 80);
-inline const ftxui::Color kTexto = ftxui::Color::RGB(216, 219, 228);
-inline const ftxui::Color kTextoTenue = ftxui::Color::RGB(122, 126, 140);
-inline const ftxui::Color kAcento = ftxui::Color::RGB(97, 175, 239);
-inline const ftxui::Color kExito = ftxui::Color::RGB(152, 195, 121);
-inline const ftxui::Color kAdvertencia = ftxui::Color::RGB(229, 192, 123);
-inline const ftxui::Color kError = ftxui::Color::RGB(224, 108, 117);
+// Paleta de la interfaz. No son constantes: la sección Configuración las
+// cambia en vivo (Terminal/PreferenciasTui), solo desde el hilo de la UI, y
+// se leen al dibujar cada cuadro. Los valores de aquí son los por defecto.
+inline ftxui::Color kFondo = ftxui::Color::RGB(18, 18, 24);
+inline ftxui::Color kFondoBarra = ftxui::Color::RGB(32, 34, 42);
+inline ftxui::Color kFondoPanel = ftxui::Color::RGB(25, 26, 33);
+inline ftxui::Color kFondoSeleccion = ftxui::Color::RGB(61, 65, 80);
+inline ftxui::Color kFondoAviso = ftxui::Color::RGB(30, 30, 30);
+inline ftxui::Color kTexto = ftxui::Color::RGB(216, 219, 228);
+inline ftxui::Color kTextoTenue = ftxui::Color::RGB(122, 126, 140);
+inline ftxui::Color kAcento = ftxui::Color::RGB(97, 175, 239);
+inline ftxui::Color kExito = ftxui::Color::RGB(152, 195, 121);
+inline ftxui::Color kAdvertencia = ftxui::Color::RGB(229, 192, 123);
+inline ftxui::Color kError = ftxui::Color::RGB(224, 108, 117);
 
 // Dominios de la TUI, en el orden del panel lateral.
 enum class SeccionTui { Proyectos = 0, Escena, Scripts, Diagnosticos, Chat, ModelosHF, Configuracion };

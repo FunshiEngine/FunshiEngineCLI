@@ -40,7 +40,7 @@ ftxui::Element AplicacionTui::renderToast() {
     const ftxui::Color color = toastError_ ? kError : kExito;
     ftxui::Element toast = ftxui::text(std::string(toastError_ ? " ✗ " : " ✓ ") + toastMensaje_ + " ") |
                            ftxui::bold | ftxui::color(color) | ftxui::borderStyled(color) |
-                           ftxui::bgcolor(ftxui::Color::RGB(30, 30, 30));
+                           ftxui::bgcolor(kFondoAviso);
     return ftxui::vbox({
         ftxui::hbox({ftxui::filler(), std::move(toast)}),
         ftxui::filler(),

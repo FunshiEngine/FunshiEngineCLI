@@ -233,24 +233,8 @@ ftxui::Element AplicacionTui::filaDeItem(SeccionTui seccion, const nlohmann::jso
                                       recortar(modulo, 14) + "  " + mensaje;
             return ftxui::text(recortar(linea, ancho)) | ftxui::color(colorNivel);
         }
-        case SeccionTui::Configuracion: {
-            const std::string etiqueta = item.value("label", std::string{});
-            const std::string valor = item.value("value", std::string{});
-            const std::string efectiva = item.value("effective", std::string{});
-            const bool porDefecto = valor.empty();
-            std::string cabeza = "  " + etiqueta;
-            if (cabeza.size() < 30) cabeza += std::string(30 - cabeza.size(), ' ');
-            const std::string ruta = porDefecto ? efectiva : valor;
-            const std::size_t anchoRuta = ancho > 44 ? ancho - 44 : 10;
-            return ftxui::hbox({
-                ftxui::text(recortar(cabeza, 30)),
-                ftxui::text(recortar(ruta.empty() ? "(sin definir)" : ruta, anchoRuta)) |
-                    ftxui::color(porDefecto ? kTextoTenue : kAcento),
-                ftxui::filler(),
-                ftxui::text(porDefecto ? " por defecto " : " personalizada ") |
-                    ftxui::color(porDefecto ? kTextoTenue : kExito),
-            });
-        }
+        case SeccionTui::Configuracion:
+            return filaConfiguracion(item, ancho);
         case SeccionTui::Chat:
         case SeccionTui::ModelosHF:
             break;

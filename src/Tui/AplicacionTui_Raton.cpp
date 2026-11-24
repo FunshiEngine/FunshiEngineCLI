@@ -188,6 +188,12 @@ bool AplicacionTui::manejarRaton(ftxui::Event& evento) {
         const int indice = estado.desplazamiento + (raton.y - kFilaPrimerItem);
         if (indice >= 0 && indice < static_cast<int>(estado.items.size())) {
             estado.seleccion = indice;
+            // Un clic sobre un color de Configuración abre su selector.
+            const auto& item = estado.items[static_cast<std::size_t>(indice)];
+            if (seccion == SeccionTui::Configuracion && item.value("kind", std::string{}) == "color") {
+                limpiarSeleccion();
+                abrirSelectorColor(item.value("key", std::string{}));
+            }
         }
         return true;
     }

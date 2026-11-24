@@ -107,6 +107,10 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/MonitorSesion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Chat/FormatoChat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Comandos.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Configuracion/AplicacionTui_Configuracion.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Configuracion/AplicacionTui_SelectorColor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Configuracion/SelectorColor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/Terminal/PreferenciasTui.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/AplicacionTui_Core.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/ModelosHF/AplicacionTui_ModelosHF.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Tui/ModelosHF/AplicacionTui_ModelosHF_Logic.cpp

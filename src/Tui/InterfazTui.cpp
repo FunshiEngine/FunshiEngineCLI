@@ -20,6 +20,7 @@
 #include "Tui/InterfazTui.h"
 
 #include "Tui/AplicacionTui.h"
+#include "Tui/Terminal/PreferenciasTui.h"
 #include "Agente/Documentos/Embeddings.h"
 #include "Tui/Terminal/EntradaRespaldo.h"
 
@@ -57,6 +58,7 @@ int ejecutarTui(int seccionInicial) {
     // Silvy las usa para ejecutar órdenes desde la sección Chat.
     auto llmConfig = agente::llm::LlmConfig::load();
     llmConfig.aplicarRutasEntorno();
+    tui::cargarPreferencias();  // idioma y colores guardados
     // Servidores que dejó una sesión anterior (cerrada o caída) y cierre del
     // servidor si la terminal se cierra o llega una señal.
     agente::llm::limpiarServidoresHuerfanos(llmConfig.localInferenceDirEfectivo(),
