@@ -65,7 +65,7 @@ Reglas:
 | `Validacion/` | Validación de argumentos por tabla | `validarArgumentos()`, `argumentoProyecto()` | — |
 | `Proyectos/` | Resolver un proyecto por nombre o ruta | `resolverProyectoPorNombre()` | motor |
 | `Escena/` | Armazón RAII de escena y serialización a JSON | `ContextoEscena`, `sceneHierarchyJson()` | motor |
-| `Comandos/` | Un manejador por comando (`ResultadoComando f(const json&)`); `ComandosBorrado`: borrar objetos (con copia para deshacer), scripts y assets quitando sus referencias, y listar assets | `escena*`, `proyecto*`, `script*`, `escenaObjetoBorrar()`, `quitarReferenciasA()`… | Validacion, Proyectos, Escena, motor |
+| `Comandos/` | Un manejador por comando (`ResultadoComando f(const json&)`); `ComandosBorrado`: borrar objetos (con copia para deshacer), scripts y assets quitando sus referencias, y listar assets; `ComandosPapelera`: lo borrado va a `<proyecto>/Memory/papelera` con un índice (`indice.json`) y se recupera con sus referencias | `escena*`, `proyecto*`, `script*`, `escenaObjetoBorrar()`, `quitarReferenciasA()`, `moverAPapelera()`, `papeleraRestaurar()`… | Validacion, Proyectos, Escena, motor |
 | `Agente/` | Silvy (enrutado y armado de cada pedido), Harness (ejecución auditada y serializada), Auditoría | `Silvy::procesar(texto, SesionAgente&, onEvent)`, `Harness::ejecutar()` | Nucleo, Agente/LLM |
 | `Agente/Conocimiento` | RAG: índice BM25 sobre la ayuda de los comandos, guías (incluidas la de lenguajes y extensiones, armada con `TiposArchivo` del motor, y la de scripts del motor, armada con `FileManager::plantillaScript`) y documentos del usuario; validación de scripts | `BaseConocimiento::global()`, `contextoParaPedido()`, `documentoScripts()`, `problemaDeScript()` | Nucleo/AyudaComandos, motor |
 | `Agente/Subagentes` | Instrucciones de Silvy y subagentes; delegación de tareas | `GestorSubagentes`, `LanzarSubagentesTool`, `instruccionesPrincipal()` | Agente/LLM, Conocimiento |
@@ -284,6 +284,15 @@ documentación de los comandos que nombran.
   la TUI muestra la pregunta en la sesión y espera en una variable de condición
   (con `chatMutex_`); cancelar el pedido cuenta como no. Sin `confirmar`, se
   niega. Subagentes incluidos.
+- **Papelera**: `moverAPapelera` mueve el archivo o la carpeta a
+  `<papelera>/<id>/` y anota en `indice.json` su ruta, tipo, fecha y las
+  referencias quitadas; `anotarObjetoEnPapelera` anota el prefab de un objeto.
+  `trash.restore` mueve el archivo de vuelta y vuelve a agregar los
+  componentes con `scene.object.addcomponent` (Script, Model, AudioSource) o
+  restaura el mapa del Material; para un objeto, instancia el prefab y quita
+  su borrado del historial de deshacer. `scene.undo` de un borrado saca la
+  entrada de la papelera (`quitarDePapeleraPorPrefab`) y `scene.redo` la
+  vuelve a anotar.
 - **Borrar un objeto con hijos**: `SceneRegistry::deleteObject` del motor solo
   saca el nodo del árbol; los descendientes seguirían en el registro y
   reaparecerían en la raíz al guardar. `borrarConDescendientes` los borra de las

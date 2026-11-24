@@ -87,6 +87,7 @@ src/
 │   ├── ComandosEscena.*    #   scene.list/objects/object.get/hierarchy
 │   ├── ComandosAssets.*    #   asset.import
 │   ├── ComandosBorrado.*   #   scene.object.delete, script.delete, asset.list/delete
+│   ├── ComandosPapelera.*  #   trash.list/restore/empty
 │   ├── ComandosScripts.*   #   script.list/compile
 │   ├── ComandosDiagnosticos.*  # diagnostics.list/clear
 │   └── ComandosArchivos.*  #   project.src.create/dir.import/fs.create, file.create
