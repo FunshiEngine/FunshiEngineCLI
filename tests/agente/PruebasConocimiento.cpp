@@ -81,6 +81,10 @@ void probarConocimiento() {
                   !con::problemaDeScript("Scripts/S.java", "public class S implements Comportamiento {\n"
                                                             "  public void iniciar(long o) { Nativo.imprimir(\"}\"); }\n}").empty(),
               "scripts: Java sin clase, con llaves sobrantes o sin actualizar se rechaza");
+        CHECK(!con::problemaDeScript("Scripts/S.java", "public class S implements Comportamiento {\n"
+                                                        "  public void iniciar(long o) {}\n  public void iniciar(long o) {}\n"
+                                                        "  public void actualizar(long o, double d) {}\n}").empty(),
+              "scripts: un método del ciclo de vida repetido se rechaza");
         CHECK(con::problemaDeScript("Scripts/S.java", "public class S implements Comportamiento {\n"
                                                        "  // una llave en un comentario: }\n"
                                                        "  public void iniciar(long o) { Nativo.imprimir(\"{\"); }\n"

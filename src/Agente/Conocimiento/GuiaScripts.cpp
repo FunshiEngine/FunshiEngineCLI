@@ -103,6 +103,16 @@ bool llavesBalanceadas(const std::string& c) {
     return nivel == 0;
 }
 
+// El primero de `metodos` que se define más de una vez ("void nombre(").
+std::string metodoRepetido(const std::string& c, std::initializer_list<const char*> metodos) {
+    for (const char* m : metodos) {
+        const std::regex def(std::string(R"(void\s+)") + m + R"(\s*\()");
+        const auto n = std::distance(std::sregex_iterator(c.begin(), c.end(), def), std::sregex_iterator());
+        if (n > 1) return m;
+    }
+    return {};
+}
+
 }  // namespace
 
 std::string documentoScripts() {
@@ -163,6 +173,9 @@ std::string problemaDeScript(const std::string& ruta, const std::string& conteni
             return "falta la clase " + clase + " (public class " + clase + " implements Comportamiento)";
         }
         if (!llavesBalanceadas(contenido)) return "las llaves { } no están balanceadas";
+        if (const std::string d = metodoRepetido(contenido, {"iniciar", "actualizar", "detener"}); !d.empty()) {
+            return "el método " + d + " está más de una vez: cada uno va una sola vez";
+        }
         if (contenido.find("implements Comportamiento") != std::string::npos &&
             (!std::regex_search(contenido, std::regex(R"(void\s+iniciar\s*\()")) ||
              !std::regex_search(contenido, std::regex(R"(void\s+actualizar\s*\()")))) {
@@ -180,6 +193,9 @@ std::string problemaDeScript(const std::string& ruta, const std::string& conteni
             return "falta la fábrica FUNSHI_CREAR_COMPORTAMIENTO al final (sin ella el motor no carga el script)";
         }
         if (!llavesBalanceadas(contenido)) return "las llaves { } no están balanceadas";
+        if (const std::string d = metodoRepetido(contenido, {"onStart", "onUpdate", "onStop"}); !d.empty()) {
+            return "el método " + d + " está más de una vez: cada uno va una sola vez";
+        }
         return {};
     }
     return {};
