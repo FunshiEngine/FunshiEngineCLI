@@ -12,6 +12,8 @@
 //   tui.idioma <código>
 #include "Tui/AplicacionTui.h"
 
+#include "Agente/LLM/Config/LlmConfig.h"
+
 #include "Tui/Terminal/PreferenciasTui.h"
 #include "Tui/Terminal/TemaTui.h"
 #include "Tui/Terminal/UtilTui.h"
@@ -359,6 +361,8 @@ bool AplicacionTui::eventoSelectorModelos(ftxui::Event evento) {
         const std::string modelRef = m.value("modelRef", s.provider + "/" + m.value("id", std::string{}));
         auto r = llamar("cli.config.set", nlohmann::json{{"modelRef", modelRef}});
         if (r.respuesta.correcta) {
+            auto cfg = agente::llm::LlmConfig::load();
+            if (cfg.mode == agente::llm::LlmMode::REMOTE && cfg.validate().empty()) silvy_.configurarLlm(cfg, true);
             mensaje_ = "Modelo configurado: " + modelRef;
             mensajeEsError_ = false;
             s.abierto = false;
