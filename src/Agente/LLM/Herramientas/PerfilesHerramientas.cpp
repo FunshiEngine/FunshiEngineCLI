@@ -22,7 +22,7 @@ const std::set<std::string>& comandosLectura() {
         "scene.list", "scene.objects", "scene.object.get", "scene.object.getglobalpos",
         "scene.hierarchy", "scene.object.components", "scene.object.findbytag",
         "scene.object.findbyname", "scene.object.getglobaltransform", "asset.validar",
-        "asset.extensions", "asset.list", "script.list", "diagnostics.list", "cli.config.get", "trash.list",
+        "asset.extensions", "asset.list", "script.list", "diagnostics.list", "cli.config.get", "cli.models.list", "trash.list",
     };
     return s;
 }

@@ -122,9 +122,12 @@ void AplicacionTui::cargarSeccionConfiguracion(EstadoSeccion& estado, bool infor
     itemLlm("provider", "Proveedor", llm.value("provider", std::string{}), llm.value("provider", std::string{}), false);
     itemLlm("remoteBaseUrl", "URL base remota", llm.value("remoteBaseUrl", std::string{}), llm.value("remoteBaseUrl", std::string{}), false);
     itemLlm("modelName", "Modelo remoto", llm.value("modelName", std::string{}), llm.value("modelName", std::string{}), false);
+    itemLlm("thinking", "Pensamiento", llm.value("thinking", std::string("off")), llm.value("thinking", std::string("off")), false);
+    itemLlm("power", "Calidad/power", llm.value("power", std::string("medium")), llm.value("power", std::string("medium")), false);
     itemLlm("googleApiKey", "API key Google", llm.value("hasGoogleApiKey", false) ? "configurada" : "", "configurada / no configurada", true);
     itemLlm("nvidiaApiKey", "API key NVIDIA", llm.value("hasNvidiaApiKey", false) ? "configurada" : "", "configurada / no configurada", true);
     itemLlm("apiKey", "API key genérica", llm.value("hasApiKey", false) ? "configurada" : "", "configurada / no configurada", true);
+    estado.items.push_back({{"kind", "llm-modelos-listar"}, {"label", "Listar modelos remotos del proveedor configurado"}});
     agregarItemsApariencia(estado.items);
     estado.error.clear();
     const int tope = static_cast<int>(estado.items.size()) - 1;
@@ -167,7 +170,37 @@ void AplicacionTui::accionConfiguracion(const nlohmann::json& item) {
             mensajeEsError_ = false;
             return;
         }
+        if (clave == "thinking") {
+            textoComando_ = "cli.config.set thinking=\"medium\"";
+            cursorComando_ = static_cast<int>(textoComando_.size()) - 1;
+            focoEnEntrada_ = true;
+            mensaje_ = "Valores: off, low, medium, high, xhigh (si el proveedor lo soporta)";
+            mensajeEsError_ = false;
+            return;
+        }
+        if (clave == "power") {
+            textoComando_ = "cli.config.set power=\"medium\"";
+            cursorComando_ = static_cast<int>(textoComando_.size()) - 1;
+            focoEnEntrada_ = true;
+            mensaje_ = "Valores: low, medium, high, xhigh";
+            mensajeEsError_ = false;
+            return;
+        }
+        if (clave == "modelName") {
+            textoComando_ = "cli.config.set modelName=\"\"";
+            cursorComando_ = static_cast<int>(textoComando_.size()) - 1;
+            focoEnEntrada_ = true;
+            mensaje_ = "Escribe el id del modelo remoto; usa 'Listar modelos remotos' para ver opciones";
+            mensajeEsError_ = false;
+            return;
+        }
         editarRutaConfiguracion(item);
+    } else if (tipo == "llm-modelos-listar") {
+        textoComando_ = "cli.models.list";
+        cursorComando_ = static_cast<int>(textoComando_.size());
+        focoEnEntrada_ = true;
+        mensaje_ = "Pulsa Enter para listar modelos del provider configurado; usa provider=\"google\" o \"nvidia\" si hace falta";
+        mensajeEsError_ = false;
     } else if (tipo == "idioma") {
         tui::fijarIdioma(tui::siguienteIdioma());
         tui::guardarPreferencias();
@@ -241,7 +274,7 @@ ftxui::Element AplicacionTui::filaConfiguracion(const nlohmann::json& item, std:
     if (tipo == "titulo") {
         return ftxui::text(" " + recortar(etiqueta, ancho)) | ftxui::bold | ftxui::color(kAcento);
     }
-    if (tipo == "restablecer" || tipo == "docs-actualizar") {
+    if (tipo == "restablecer" || tipo == "docs-actualizar" || tipo == "llm-modelos-listar") {
         return ftxui::text("  " + recortar(etiqueta, ancho)) | ftxui::color(kTexto);
     }
     if (tipo == "info") {

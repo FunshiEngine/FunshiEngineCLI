@@ -111,7 +111,15 @@ En la pestaña **Chat Silvy** (o con `--chat`):
 | **Local (auto)** | `bartowski/Qwen2.5-7B-Instruct-GGUF` | Todo automático desde Modelos HF |
 | **Ollama** | `http://localhost:11434/v1` | `ollama pull qwen2.5:7b && ollama serve` |
 | **LM Studio** | `http://localhost:1234/v1` | Cargar GGUF → "Start Server" |
-| **vLLM / OpenAI** | `http://localhost:8000/v1` | API key si es remoto |
+| **OpenAI-compatible** | `http://localhost:8000/v1` | `remoteBaseUrl` + `apiKey` si es remoto |
+| **Google Gemini** | `https://generativelanguage.googleapis.com/v1beta/openai/` | `cli.config.set provider="google" googleApiKey="..." modelName="..."` |
+| **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1` | `cli.config.set provider="nvidia" nvidiaApiKey="..." modelName="..."` |
+
+Para listar modelos disponibles con la key configurada:
+
+```bash
+printf '{"command":"cli.models.list","args":{"provider":"nvidia"}}' | FunshiCLI --request
+```
 
 ## Documentación
 

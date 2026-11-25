@@ -423,6 +423,7 @@ La pestaña tiene dos vistas; `Tab` alterna entre ellas:
 | Grupo | Qué se configura | Cómo |
 |---|---|---|
 | Rutas y modelo | Datos/proyectos, inferencia, modelos, caché de Hugging Face, `llama-server`, contexto | `Enter` prellena `cli.config.set clave="valor"` en la caja de comandos |
+| Modelo remoto / API | Proveedor, URL base, modelo, thinking, power y estado de API keys (Google/NVIDIA/genérica) | `Enter` prellena `cli.config.set ...`; las keys no se muestran, solo su estado. «Listar modelos remotos» prellena `cli.models.list` |
 | Interfaz | Idioma: Español, English, Português, Français, Italiano, Deutsch | `Enter` pasa al siguiente. **Por ahora solo se guarda**: los textos siguen en español |
 | Colores | Cada color de la TUI: fondos (general, paneles, barras, selección, avisos), texto, texto tenue, acento, éxito, advertencia y error | Clic o `Enter` abre el **selector de color** |
 | | Restablecer todos los colores | `Enter` |
@@ -463,14 +464,25 @@ FunshiCLI --chat
 La CLI permite consultar y modificar las rutas/directorios usados para datos/proyectos y para inferencia/modelos locales, persistiendo los cambios en `.agentes/llm-config.json` (en el directorio de trabajo):
 
 ```bash
-# Ver rutas configuradas y efectivas
+# Ver rutas/configuración efectiva (las API keys se muestran enmascaradas)
 printf '{"command":"cli.config.get","args":{}}' | FunshiCLI --request
 
 # Modificar rutas (cadena vacía = valor por defecto)
 printf '{"command":"cli.config.set","args":{"projectsDataDir":"/ruta/datos","modelsDir":"/ruta/modelos","hfCacheDir":"/ruta/cache-hf","localInferenceDir":"/ruta/inferencia"}}' | FunshiCLI --request
+
+# Configurar Google Gemini (OpenAI-compatible)
+printf '{"command":"cli.config.set","args":{"provider":"google","googleApiKey":"...","modelName":"gemini-2.5-flash"}}' | FunshiCLI --request
+
+# Configurar NVIDIA NIM (OpenAI-compatible)
+printf '{"command":"cli.config.set","args":{"provider":"nvidia","nvidiaApiKey":"...","modelName":"meta/llama-3.1-8b-instruct"}}' | FunshiCLI --request
+
+# Listar modelos disponibles con la key configurada
+printf '{"command":"cli.models.list","args":{"provider":"nvidia"}}' | FunshiCLI --request
 ```
 
-Claves admitidas por `cli.config.set`: `projectsDataDir`, `localInferenceDir`, `modelsDir`, `hfCacheDir`, `llamaServerPath` y `contextSize` (entero, tokens de contexto del modelo local; por defecto `32768`). `llamaRepoDir` y `gitBin` se aceptan por compatibilidad pero ya no se usan.
+Claves admitidas por `cli.config.set`: rutas (`projectsDataDir`, `localInferenceDir`, `modelsDir`, `hfCacheDir`, `llamaServerPath`, `contextSize`) y LLM remoto (`provider`, `remoteBaseUrl`, `modelName`, `apiKey`, `googleApiKey`, `nvidiaApiKey`, `thinking`, `power`). `llamaRepoDir` y `gitBin` se aceptan por compatibilidad pero ya no se usan.
+
+`cli.config.get` devuelve además un bloque `llm` con `provider`, `remoteBaseUrl`, `modelName`, `thinking`, `power` y estado de claves (`has*ApiKey`, `apiKeyMasked`); **no expone claves en claro**. Las claves se guardan localmente en `llm-config.json`.
 
 **Dónde se guarda la configuración** (`configPath` en `cli.config.get`), en este orden:
 1. `$FUNSHI_CONFIG_DIR/llm-config.json`, si la variable está definida.
@@ -728,8 +740,9 @@ agregar funcionalidad; los campos nuevos se agregan al final.
 | `script.compile` | `args.project` (string, requerido) | Compila **todos** los scripts (C++ y Java) del proyecto vía `ScriptRuntime`. |
 | `diagnostics.list` | `args.limit` (opcional, máx 1000, default 100) | Devuelve los últimos eventos del registro de diagnósticos. |
 | `diagnostics.clear` | ninguno | Borra el archivo de diagnósticos. |
-| `cli.config.get` | ninguno | Devuelve las rutas configuradas y efectivas. |
-| `cli.config.set` | `args.<ruta>` (string; una o más de `projectsDataDir`, `localInferenceDir`, `modelsDir`, `hfCacheDir`, `llamaServerPath`, `llamaRepoDir`, `gitBin`) | Persiste rutas y las aplica al entorno. |
+| `cli.config.get` | ninguno | Devuelve rutas/configuración efectiva; incluye bloque `llm` con secretos enmascarados. |
+| `cli.config.set` | `args.*` (rutas/contexto y/o `provider`, `remoteBaseUrl`, `modelName`, `apiKey`, `googleApiKey`, `nvidiaApiKey`, `thinking`, `power`) | Persiste configuración y la aplica al entorno. |
+| `cli.models.list` | `provider`/`remoteBaseUrl`/keys opcionales | Lista modelos consultando el endpoint OpenAI-compatible configurado. |
 | `agente.procesar` | `args.text` (string, requerido) | Entrega el texto a Silvy y devuelve la respuesta interna y el rastro de auditoría. |
 
 ## Crear proyecto con dimensión
