@@ -35,7 +35,8 @@ namespace funshi {
 namespace fs = std::filesystem;
 
 
-ResultadoComando proyectoSrcCrear(const nlohmann::json& argumentos) {
+ResultadoComando proyectoSrcCrear(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     std::string error;
     const std::vector<RequisitoArg> requisitos = {
@@ -118,7 +119,8 @@ ResultadoComando proyectoSrcCrear(const nlohmann::json& argumentos) {
 }
 
 
-ResultadoComando proyectoFsCrear(const nlohmann::json& argumentos) {
+ResultadoComando proyectoFsCrear(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     std::string error;
     const std::vector<RequisitoArg> requisitos = {
@@ -168,7 +170,8 @@ ResultadoComando proyectoFsCrear(const nlohmann::json& argumentos) {
     });
 }
 
-ResultadoComando archivoCrear(const nlohmann::json& argumentos) {
+ResultadoComando archivoCrear(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     std::string error;
     const std::vector<RequisitoArg> requisitos = {

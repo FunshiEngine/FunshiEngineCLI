@@ -82,6 +82,7 @@ void AplicacionTui::cargarSeccionConfiguracion(EstadoSeccion& estado, bool infor
     const nlohmann::json paths = r.value("paths", nlohmann::json::object());
     const nlohmann::json efectivas = r.value("effectivePaths", nlohmann::json::object());
     const nlohmann::json ajustes = r.value("settings", nlohmann::json::object());
+    const nlohmann::json llm = r.value("llm", nlohmann::json::object());
 
     auto comoTexto = [](const nlohmann::json& obj, const char* clave) -> std::string {
         if (!obj.contains(clave)) return {};
@@ -106,6 +107,24 @@ void AplicacionTui::cargarSeccionConfiguracion(EstadoSeccion& estado, bool infor
             {"kind", "ruta"},
         });
     }
+    estado.items.push_back({{"kind", "titulo"}, {"label", "Modelo remoto / API"}});
+    auto itemLlm = [&](const char* clave, const char* etiqueta, const std::string& valor,
+                       const std::string& efectivo, bool secreto) {
+        estado.items.push_back({
+            {"kind", "llm"},
+            {"key", clave},
+            {"label", etiqueta},
+            {"value", valor},
+            {"effective", efectivo},
+            {"secret", secreto},
+        });
+    };
+    itemLlm("provider", "Proveedor", llm.value("provider", std::string{}), llm.value("provider", std::string{}), false);
+    itemLlm("remoteBaseUrl", "URL base remota", llm.value("remoteBaseUrl", std::string{}), llm.value("remoteBaseUrl", std::string{}), false);
+    itemLlm("modelName", "Modelo remoto", llm.value("modelName", std::string{}), llm.value("modelName", std::string{}), false);
+    itemLlm("googleApiKey", "API key Google", llm.value("hasGoogleApiKey", false) ? "configurada" : "", "configurada / no configurada", true);
+    itemLlm("nvidiaApiKey", "API key NVIDIA", llm.value("hasNvidiaApiKey", false) ? "configurada" : "", "configurada / no configurada", true);
+    itemLlm("apiKey", "API key genérica", llm.value("hasApiKey", false) ? "configurada" : "", "configurada / no configurada", true);
     agregarItemsApariencia(estado.items);
     estado.error.clear();
     const int tope = static_cast<int>(estado.items.size()) - 1;
@@ -138,7 +157,16 @@ void AplicacionTui::editarRutaConfiguracion(const nlohmann::json& item) {
 
 void AplicacionTui::accionConfiguracion(const nlohmann::json& item) {
     const std::string tipo = item.value("kind", std::string{});
-    if (tipo == "ruta") {
+    if (tipo == "ruta" || tipo == "llm") {
+        const std::string clave = item.value("key", std::string{});
+        if (item.value("secret", false)) {
+            textoComando_ = "cli.config.set " + clave + "=\"\"";
+            cursorComando_ = static_cast<int>(textoComando_.size()) - 1;
+            focoEnEntrada_ = true;
+            mensaje_ = "Escribe la API key entre comillas y pulsa Enter · no se muestra la key guardada";
+            mensajeEsError_ = false;
+            return;
+        }
         editarRutaConfiguracion(item);
     } else if (tipo == "idioma") {
         tui::fijarIdioma(tui::siguienteIdioma());
@@ -244,18 +272,21 @@ ftxui::Element AplicacionTui::filaConfiguracion(const nlohmann::json& item, std:
                 ftxui::color(porDefecto ? kTextoTenue : kExito),
         });
     }
-    // Ruta o ajuste de la CLI.
+    // Ruta o ajuste de la CLI / LLM.
     const std::string valor = item.value("value", std::string{});
     const std::string efectiva = item.value("effective", std::string{});
+    const bool secreto = item.value("secret", false);
     const bool porDefecto = valor.empty();
-    const std::string ruta = porDefecto ? efectiva : valor;
+    const std::string mostrado = secreto ? (valor.empty() ? "no configurada" : "configurada")
+                                         : (porDefecto ? efectiva : valor);
     const std::size_t anchoRuta = ancho > 44 ? ancho - 44 : 10;
     return ftxui::hbox({
         ftxui::text(columna("  " + etiqueta, 30)),
-        ftxui::text(recortar(ruta.empty() ? "(sin definir)" : ruta, anchoRuta)) |
+        ftxui::text(recortar(mostrado.empty() ? "(sin definir)" : mostrado, anchoRuta)) |
             ftxui::color(porDefecto ? kTextoTenue : kAcento),
         ftxui::filler(),
-        ftxui::text(porDefecto ? " por defecto " : " personalizada ") |
+        ftxui::text(secreto ? (porDefecto ? " falta " : " guardada ")
+                            : (porDefecto ? " por defecto " : " personalizada ")) |
             ftxui::color(porDefecto ? kTextoTenue : kExito),
     });
 }

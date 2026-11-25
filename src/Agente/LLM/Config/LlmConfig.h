@@ -56,8 +56,13 @@ struct LlmConfig {
     LlmMode mode = LlmMode::REMOTE;
 
     // ---- REMOTE ----
+    // provider: "", "local", "openai", "google", "nvidia", "custom".
+    // Vacío mantiene compatibilidad con configuraciones anteriores.
+    std::string provider = "";
     std::string remoteBaseUrl = "";
     std::string apiKey = "";
+    std::string googleApiKey = "";
+    std::string nvidiaApiKey = "";
     std::string modelName = "phi-4-mini";
 
     // Parámetros de generación
@@ -126,6 +131,10 @@ struct LlmConfig {
     // Utilidades
     int effectiveMaxTokens() const;
     bool isLocalhostUrl() const;
+    // Clave efectiva para el provider/baseUrl configurado. No expone secretos
+    // fuera de la capa de configuración: la CLI/TUI deben mostrar solo presencia.
+    std::string apiKeyEfectiva() const;
+    std::string providerEfectivo() const;
     std::vector<std::string> validate() const;
 
     // Rutas efectivas de inferencia local/modelos/cache (resueltas con defaults).

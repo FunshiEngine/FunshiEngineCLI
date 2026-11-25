@@ -48,7 +48,8 @@ namespace funshi {
 // ---------------------------------------------------------------------------
 // scene.object.addcomponent
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoAddComponente(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoAddComponente(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -185,7 +186,8 @@ ResultadoComando escenaObjetoAddComponente(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.object.removecomponent
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoQuitarComponente(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoQuitarComponente(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -256,7 +258,8 @@ ResultadoComando escenaObjetoQuitarComponente(const nlohmann::json& argumentos) 
 // ---------------------------------------------------------------------------
 // scene.object.components
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoComponentes(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoComponentes(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;

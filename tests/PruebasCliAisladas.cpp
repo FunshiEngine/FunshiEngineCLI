@@ -61,6 +61,68 @@ void probarConfiguracion(const EntornoAislado& env) {
           "cli.config.get: contextSize persistido");
     j = ejecutar("config-ctx-mal", solicitudJson("cli.config.set", {{"contextSize", 10}}), rc);
     CHECK(rc == 2 && !esRespuestaOk(j), "cli.config.set contextSize fuera de rango: error de uso");
+
+    // LLM remoto: Google/NVIDIA guardan provider y keys enmascaradas.
+    j = ejecutar("config-llm-google", solicitudJson("cli.config.set", {
+        {"provider", "google"}, {"googleApiKey", "g-secret-1234"}, {"modelName", "gemini-2.5-flash"}
+    }), rc);
+    CHECK(rc == 0 && esRespuestaOk(j), "cli.config.set google: respuesta satisfactoria");
+    if (esRespuestaOk(j)) {
+        const auto llm = j["result"].value("llm", nlohmann::json::object());
+        CHECK(llm.value("provider", std::string()) == "google", "cli.config.set google: provider");
+        CHECK(llm.value("hasGoogleApiKey", false), "cli.config.set google: hasGoogleApiKey");
+        CHECK(!llm.value("hasNvidiaApiKey", true), "cli.config.set google: nvidia no marcada");
+        CHECK(llm.value("remoteBaseUrl", std::string()).find("generativelanguage.googleapis.com") != std::string::npos,
+              "cli.config.set google: baseUrl");
+        CHECK(j["result"].dump().find("g-secret-1234") == std::string::npos,
+              "cli.config.set google: no expone la key en claro");
+    }
+
+    j = ejecutar("config-llm-nvidia", solicitudJson("cli.config.set", {
+        {"provider", "nvidia"}, {"nvidiaApiKey", "nv-secret-9876"}, {"modelName", "meta/llama-3.1-8b-instruct"}
+    }), rc);
+    CHECK(rc == 0 && esRespuestaOk(j), "cli.config.set nvidia: respuesta satisfactoria");
+    j = ejecutar("config-get-llm", solicitudJson("cli.config.get"), rc);
+    CHECK(rc == 0 && esRespuestaOk(j), "cli.config.get llm: respuesta satisfactoria");
+    if (esRespuestaOk(j)) {
+        const auto llm = j["result"].value("llm", nlohmann::json::object());
+        CHECK(llm.value("provider", std::string()) == "nvidia", "cli.config.get llm: provider nvidia");
+        CHECK(llm.value("hasNvidiaApiKey", false), "cli.config.get llm: hasNvidiaApiKey");
+        CHECK(llm.value("hasGoogleApiKey", false), "cli.config.get llm: conserva googleApiKey");
+        CHECK(j.dump().find("nv-secret-9876") == std::string::npos, "cli.config.get llm: no expone nvidia key");
+        CHECK(j.dump().find("g-secret-1234") == std::string::npos, "cli.config.get llm: no expone google key");
+    }
+
+    j = ejecutar("config-llm-bad-provider", solicitudJson("cli.config.set", {{"provider", "desconocido"}}), rc);
+    CHECK(rc == 2 && !esRespuestaOk(j), "cli.config.set provider inválido: error de uso");
+}
+
+void probarCoercionArgs(const EntornoAislado& env) {
+    auto ejecutar = [&](const std::string& nombre, const nlohmann::json& req, int& rc) {
+        return env.ejecutar(nombre, req, rc);
+    };
+    int rc = 0;
+    nlohmann::json j = ejecutar("coerce-crear-proyecto",
+        solicitudJson("project.create", {{"name", "Coerce"}, {"dimension", "3d"}}), rc);
+    CHECK(rc == 0 && esRespuestaOk(j), "coercion: crear proyecto");
+
+    j = ejecutar("coerce-crear-obj",
+        solicitudJson("scene.object.create", {{"project", "Coerce"}, {"name", "Pelota"}, {"parentId", "0"}}), rc);
+    CHECK(rc == 0 && esRespuestaOk(j), "coercion: parentId string \"0\" aceptado");
+    int id = 0;
+    if (esRespuestaOk(j) && j["result"].contains("id")) id = j["result"]["id"].get<int>();
+
+    j = ejecutar("coerce-setactive",
+        solicitudJson("scene.object.setactive", {{"project", "Coerce"}, {"id", std::to_string(id)}, {"active", "false"}}), rc);
+    CHECK(rc == 0 && esRespuestaOk(j), "coercion: id y active como string aceptados");
+
+    j = ejecutar("coerce-id-invalido",
+        solicitudJson("scene.object.setactive", {{"project", "Coerce"}, {"id", "5a"}, {"active", "false"}}), rc);
+    CHECK(rc == 2 && !esRespuestaOk(j), "coercion: id \"5a\" rechazado");
+    if (!esRespuestaOk(j)) {
+        const std::string msg = j.value("error", nlohmann::json::object()).value("message", std::string());
+        CHECK(msg.find("sin comillas") != std::string::npos, "coercion: mensaje indica usar número sin comillas");
+    }
 }
 
 void probarEscenaYArchivos(const EntornoAislado& env) {
@@ -89,7 +151,13 @@ void probarEscenaYArchivos(const EntornoAislado& env) {
     for (const fs::path& variante : {datos / "Proyects", datos / "Projects"}) {
         j = ejecutar("config-variante", solicitudJson("cli.config.set", {{"projectsDataDir", variante.string()}}), rc);
         j = ejecutar("lista-variante", solicitudJson("project.list"), rc);
-        CHECK(esRespuestaOk(j) && j["result"].value("count", 0) == 1,
+        bool contieneAislado = false;
+        if (esRespuestaOk(j) && j["result"].contains("projects")) {
+            for (const auto& p : j["result"]["projects"]) {
+                if (p.value("name", std::string()) == "Aislado") contieneAislado = true;
+            }
+        }
+        CHECK(esRespuestaOk(j) && contieneAislado,
               "project.list: tolera projectsDataDir = " + variante.filename().string());
     }
     j = ejecutar("config-restaura", solicitudJson("cli.config.set", {{"projectsDataDir", datos.string()}}), rc);

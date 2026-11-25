@@ -56,9 +56,19 @@ ToolSpec specDesdeAyuda(const ToolSpec& original) {
         nlohmann::ordered_json p = nlohmann::ordered_json::object();
         const std::string tipo = tipoJson(arg.tipo);
         if (!tipo.empty()) p["type"] = tipo;
-        // El formato exacto (x,y,z; valores posibles) va en la descripción.
-        const bool tipoInformativo = tipo.empty() || tipo == "array" || tipo == "object";
-        p["description"] = arg.descripcion + (tipoInformativo ? " (" + arg.tipo + ")" : std::string());
+        // El formato exacto y un ejemplo evitan que modelos chicos envíen el
+        // tipo equivocado (p. ej. "5" en vez de 5).
+        std::string detalle;
+        if (tipo.empty() || tipo == "array" || tipo == "object") {
+            detalle = " (" + arg.tipo + ")";
+        } else if (tipo == "integer") {
+            detalle = " (entero, ej. 6)";
+        } else if (tipo == "number") {
+            detalle = " (número, ej. 1.5)";
+        } else if (tipo == "boolean") {
+            detalle = " (booleano: true o false)";
+        }
+        p["description"] = arg.descripcion + detalle;
         props[arg.nombre] = std::move(p);
         if (arg.requerido) requeridos.push_back(arg.nombre);
     }

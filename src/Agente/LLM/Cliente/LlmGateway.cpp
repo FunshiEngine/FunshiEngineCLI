@@ -76,6 +76,7 @@ OpenAiCompatibleGateway::OpenAiCompatibleGateway(const std::string& baseUrl,
 
     if (power_ == "low") effectiveMaxTokens_ = 256;
     else if (power_ == "high") effectiveMaxTokens_ = std::max(maxTokens_, 4096);
+    else if (power_ == "xhigh") effectiveMaxTokens_ = std::max(maxTokens_, 8192);
     else effectiveMaxTokens_ = maxTokens_;
 
     initCurl();

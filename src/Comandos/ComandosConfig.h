@@ -31,6 +31,10 @@ ResultadoComando cliConfigLeer(const nlohmann::json& argumentos);
 // cli.config.set: actualiza y persiste la configuración de rutas/directorios.
 ResultadoComando cliConfigEscribir(const nlohmann::json& argumentos);
 
+// Lista modelos disponibles usando la configuración LLM efectiva o los
+// argumentos provider/baseUrl/apiKey indicados.
+ResultadoComando cliModelosListar(const nlohmann::json& argumentos);
+
 }  // namespace funshi
 
 #endif  // FUNSHI_COMANDOS_CONFIG_H

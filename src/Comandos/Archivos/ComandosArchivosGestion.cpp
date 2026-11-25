@@ -38,7 +38,8 @@ namespace funshi {
 
 namespace fs = std::filesystem;
 
-ResultadoComando proyectoDirImportar(const nlohmann::json& argumentos) {
+ResultadoComando proyectoDirImportar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     std::string error;
     const std::vector<RequisitoArg> requisitos = {
@@ -138,7 +139,8 @@ ResultadoComando proyectoDirImportar(const nlohmann::json& argumentos) {
     });
 }
 
-ResultadoComando proyectoSrcListar(const nlohmann::json& argumentos) {
+ResultadoComando proyectoSrcListar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -205,7 +207,8 @@ ResultadoComando proyectoSrcListar(const nlohmann::json& argumentos) {
     });
 }
 
-ResultadoComando proyectoSrcBorrar(const nlohmann::json& argumentos) {
+ResultadoComando proyectoSrcBorrar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -265,7 +268,8 @@ ResultadoComando proyectoSrcBorrar(const nlohmann::json& argumentos) {
     });
 }
 
-ResultadoComando proyectoSrcRenombrar(const nlohmann::json& argumentos) {
+ResultadoComando proyectoSrcRenombrar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;

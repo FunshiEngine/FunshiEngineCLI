@@ -48,7 +48,8 @@ namespace funshi {
 // ---------------------------------------------------------------------------
 // scene.script.compile
 // ---------------------------------------------------------------------------
-ResultadoComando escenaScriptCompilar(const nlohmann::json& argumentos) {
+ResultadoComando escenaScriptCompilar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -151,7 +152,8 @@ ResultadoComando escenaScriptCompilar(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.script.reload
 // ---------------------------------------------------------------------------
-ResultadoComando escenaScriptRecargar(const nlohmann::json& argumentos) {
+ResultadoComando escenaScriptRecargar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -210,7 +212,8 @@ ResultadoComando escenaScriptRecargar(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.object.setfield
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoSetField(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoSetField(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;

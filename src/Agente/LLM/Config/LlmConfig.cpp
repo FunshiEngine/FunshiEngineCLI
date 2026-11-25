@@ -158,7 +158,12 @@ LlmConfig LlmConfig::defaults() {
          "unsloth/Llama-3.2-3B-Instruct-GGUF", "Llama-3.2-3B-Instruct-Q4_K_M.gguf", 2.0,
          "El más liviano del catálogo."}
     };
-    cfg.apiPresets = {};
+    cfg.apiPresets = {
+        {"google", "Google Gemini (OpenAI compatible)",
+         "https://generativelanguage.googleapis.com/v1beta/openai/", "", ""},
+        {"nvidia", "NVIDIA NIM (OpenAI compatible)",
+         "https://integrate.api.nvidia.com/v1", "", ""},
+    };
     return cfg;
 }
 
@@ -264,7 +269,26 @@ void LlmConfig::aplicarRutasEntorno() const {
 int LlmConfig::effectiveMaxTokens() const {
     if (power == "low") return 256;
     if (power == "high") return std::max(maxTokens, 4096);
+    if (power == "xhigh") return std::max(maxTokens, 8192);
     return maxTokens;
+}
+
+std::string LlmConfig::providerEfectivo() const {
+    if (!provider.empty()) return provider;
+    if (isLocalhostUrl()) return "local";
+    const std::string url = remoteBaseUrl;
+    if (url.find("generativelanguage.googleapis.com") != std::string::npos) return "google";
+    if (url.find("integrate.api.nvidia.com") != std::string::npos) return "nvidia";
+    if (!remoteBaseUrl.empty()) return "custom";
+    return "";
+}
+
+std::string LlmConfig::apiKeyEfectiva() const {
+    const std::string prov = providerEfectivo();
+    if (prov == "google" && !googleApiKey.empty()) return googleApiKey;
+    if (prov == "nvidia" && !nvidiaApiKey.empty()) return nvidiaApiKey;
+    if (prov == "local" && apiKey.empty()) return "local";
+    return apiKey;
 }
 
 bool LlmConfig::isLocalhostUrl() const {

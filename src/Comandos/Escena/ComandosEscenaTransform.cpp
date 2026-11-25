@@ -46,7 +46,8 @@
 #include "Comandos/Escena/ComandosEscenaInterno.h"
 namespace funshi {
 
-ResultadoComando escenaObjetoSetTransform(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoSetTransform(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -126,7 +127,8 @@ ResultadoComando escenaObjetoSetTransform(const nlohmann::json& argumentos) {
     });
 }
 
-ResultadoComando escenaObjetoSetComponente(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoSetComponente(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;

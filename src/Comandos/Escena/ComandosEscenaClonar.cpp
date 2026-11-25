@@ -48,7 +48,8 @@ namespace funshi {
 // ---------------------------------------------------------------------------
 // scene.object.clone
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoClonar(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoClonar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;

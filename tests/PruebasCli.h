@@ -63,6 +63,7 @@ void probarComandosBasicos(const fs::path& bin, const fs::path& tmp);
 void probarRecorridoProyecto(const fs::path& bin, const fs::path& tmp);
 // PruebasCliAisladas.cpp
 void probarConfiguracion(const EntornoAislado& env);
+void probarCoercionArgs(const EntornoAislado& env);
 void probarEscenaYArchivos(const EntornoAislado& env);
 void probarAgente(const EntornoAislado& env);
 // PruebasCliBorrado.cpp

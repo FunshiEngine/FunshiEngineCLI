@@ -82,6 +82,7 @@ const std::unordered_map<std::string, ComandoCLI>& mapaComandos() {
         {"diagnostics.clear", ComandoCLI::DiagnosticoLimpiar},
         {"cli.config.get", ComandoCLI::CliConfigLeer},
         {"cli.config.set", ComandoCLI::CliConfigEscribir},
+        {"cli.models.list", ComandoCLI::CliModelosListar},
         {"agente.procesar", ComandoCLI::AgenteProcesar},
     };
     return mapa;
@@ -151,6 +152,7 @@ std::string textoDesdeComando(ComandoCLI comando) {
         case ComandoCLI::DiagnosticoLimpiar: return "diagnostics.clear";
         case ComandoCLI::CliConfigLeer: return "cli.config.get";
         case ComandoCLI::CliConfigEscribir: return "cli.config.set";
+        case ComandoCLI::CliModelosListar: return "cli.models.list";
         case ComandoCLI::AgenteProcesar: return "agente.procesar";
         case ComandoCLI::Desconocido: return std::string();
     }
@@ -213,6 +215,7 @@ const std::vector<ComandoCLI>& todosLosComandos() {
         ComandoCLI::DiagnosticoLimpiar,
         ComandoCLI::CliConfigLeer,
         ComandoCLI::CliConfigEscribir,
+        ComandoCLI::CliModelosListar,
         ComandoCLI::AgenteProcesar,
     };
     return lista;

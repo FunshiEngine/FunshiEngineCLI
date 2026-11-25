@@ -50,7 +50,8 @@ namespace funshi {
 // ---------------------------------------------------------------------------
 // scene.object.setparent
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoSetPadre(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoSetPadre(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -125,7 +126,8 @@ ResultadoComando escenaObjetoSetPadre(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.object.create
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoCrear(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoCrear(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -194,7 +196,8 @@ ResultadoComando escenaObjetoCrear(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.object.unparent
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoDesvincularPadre(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoDesvincularPadre(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;

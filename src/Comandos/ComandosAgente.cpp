@@ -28,7 +28,8 @@
 
 namespace funshi {
 
-ResultadoComando agenteProcesar(const nlohmann::json& argumentos) {
+ResultadoComando agenteProcesar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     const std::vector<RequisitoArg> requisitos = {
         {"text", true, nlohmann::json::value_t::string},
     };

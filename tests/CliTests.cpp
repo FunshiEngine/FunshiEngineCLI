@@ -54,6 +54,7 @@ int main(int argc, char** argv) {
     fs::create_directories(env.trabajo);
     fijarVariable("FUNSHI_CONFIG_DIR", (env.trabajo / ".agentes").string());
     probarConfiguracion(env);
+    probarCoercionArgs(env);
     probarEscenaYArchivos(env);
     probarAgente(env);
     probarBorrado(env);

@@ -62,8 +62,9 @@ void idsDelSubarbol(GameObject* obj, nlohmann::json& ids) {
 }
 
 // Ruta de un archivo de src/ desde los argumentos: validada, sin escapar de src/.
-bool archivoDeSrc(const nlohmann::json& argumentos, std::string& proyecto, std::string& rel, fs::path& abs,
+bool archivoDeSrc(const nlohmann::json& argumentosIn, std::string& proyecto, std::string& rel, fs::path& abs,
                   ResultadoComando& resultado) {
+    nlohmann::json argumentos = argumentosIn;
     if (!resolverProyectoDesdeArgs(argumentos, proyecto, resultado)) return false;
     std::string error;
     if (!validarArgumentos(argumentos, {{"path", true, nlohmann::json::value_t::string}}, error)) {
@@ -170,7 +171,8 @@ nlohmann::json quitarReferenciasA(SceneRegistry* registro, const std::string& ru
     return quitadas;
 }
 
-ResultadoComando escenaObjetoBorrar(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoBorrar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string proyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, proyecto, resultado)) return resultado;
@@ -252,7 +254,8 @@ int restaurarObjetoBorrado(ContextoEscena& contexto, const nlohmann::json& antes
     return restaurado->getId();
 }
 
-ResultadoComando scriptBorrar(const nlohmann::json& argumentos) {
+ResultadoComando scriptBorrar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string proyecto, rel;
     fs::path abs;
     ResultadoComando resultado;
@@ -266,7 +269,8 @@ ResultadoComando scriptBorrar(const nlohmann::json& argumentos) {
     return borrarArchivoConReferencias(proyecto, rel, abs, TiposArchivo::nombre(tipo));
 }
 
-ResultadoComando assetBorrar(const nlohmann::json& argumentos) {
+ResultadoComando assetBorrar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string proyecto, rel;
     fs::path abs;
     ResultadoComando resultado;
@@ -286,7 +290,8 @@ ResultadoComando assetBorrar(const nlohmann::json& argumentos) {
     return borrarArchivoConReferencias(proyecto, rel, abs, TiposArchivo::nombre(tipo));
 }
 
-ResultadoComando assetListar(const nlohmann::json& argumentos) {
+ResultadoComando assetListar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string proyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, proyecto, resultado)) return resultado;

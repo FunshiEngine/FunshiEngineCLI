@@ -33,7 +33,8 @@ namespace funshi {
 
 namespace fs = std::filesystem;
 
-ResultadoComando assetImportar(const nlohmann::json& argumentos) {
+ResultadoComando assetImportar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     std::string error;
     const std::vector<RequisitoArg> requisitos = {
@@ -121,7 +122,8 @@ ResultadoComando assetImportar(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // asset.validar
 // ---------------------------------------------------------------------------
-ResultadoComando assetValidar(const nlohmann::json& argumentos) {
+ResultadoComando assetValidar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     const std::vector<RequisitoArg> requisitos = {
         {"path", true, nlohmann::json::value_t::string},
     };
@@ -163,7 +165,8 @@ ResultadoComando assetValidar(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // asset.extensions
 // ---------------------------------------------------------------------------
-ResultadoComando assetListarExtensiones(const nlohmann::json& argumentos) {
+ResultadoComando assetListarExtensiones(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     nlohmann::json modelos = nlohmann::json::array();
     for (const char* ext : {"obj", "fbx", "gltf", "glb", "dae", "blend"})
         modelos.push_back(ext);

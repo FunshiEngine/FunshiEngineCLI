@@ -175,6 +175,8 @@ ResultadoComando ejecutarSolicitud(const Solicitud& solicitud) {
                 return cliConfigLeer(argumentos);
             case ComandoCLI::CliConfigEscribir:
                 return cliConfigEscribir(argumentos);
+            case ComandoCLI::CliModelosListar:
+                return cliModelosListar(argumentos);
             case ComandoCLI::AgenteProcesar:
                 return agenteProcesar(argumentos);
             case ComandoCLI::Desconocido: {

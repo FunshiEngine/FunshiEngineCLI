@@ -82,6 +82,7 @@ enum class ComandoCLI {
     DiagnosticoLimpiar,
     CliConfigLeer,
     CliConfigEscribir,
+    CliModelosListar,
     AgenteProcesar,
     Desconocido
 };

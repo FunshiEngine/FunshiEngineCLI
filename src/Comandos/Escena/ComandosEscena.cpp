@@ -46,7 +46,8 @@
 #include "Comandos/Escena/ComandosEscenaInterno.h"
 namespace funshi {
 
-ResultadoComando escenaListar(const nlohmann::json& argumentos) {
+ResultadoComando escenaListar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -72,7 +73,8 @@ ResultadoComando escenaListar(const nlohmann::json& argumentos) {
         {{"project", nombreProyecto}, {"scenes", std::move(scenes)}, {"count", cantidadScenes}});
 }
 
-ResultadoComando escenaObjetos(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetos(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -83,7 +85,8 @@ ResultadoComando escenaObjetos(const nlohmann::json& argumentos) {
         {{"project", nombreProyecto}, {"root", hierarchy}});
 }
 
-ResultadoComando escenaObjetoObtener(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoObtener(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -111,7 +114,8 @@ ResultadoComando escenaObjetoObtener(const nlohmann::json& argumentos) {
         {{"project", nombreProyecto}, {"object", gameObjectJson(obj)}});
 }
 
-ResultadoComando escenaObjetoPosicionGlobal(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoPosicionGlobal(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -158,7 +162,8 @@ ResultadoComando escenaObjetoPosicionGlobal(const nlohmann::json& argumentos) {
     });
 }
 
-ResultadoComando escenaGuardar(const nlohmann::json& argumentos) {
+ResultadoComando escenaGuardar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -172,7 +177,8 @@ ResultadoComando escenaGuardar(const nlohmann::json& argumentos) {
     });
 }
 
-ResultadoComando escenaJerarquia(const nlohmann::json& argumentos) {
+ResultadoComando escenaJerarquia(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -185,7 +191,8 @@ ResultadoComando escenaJerarquia(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.object.getglobaltransform
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoGetGlobalTransform(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoGetGlobalTransform(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
