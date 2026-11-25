@@ -270,7 +270,7 @@ necesita, sin tener los 48 en el contexto. Además puede:
   no tienen herramienta propia (mover objetos, agregar componentes, listar
   `src/`…). Por seguridad no puede usar `diagnostics.clear`,
   `cli.config.set` ni `agente.procesar`: esos los ejecutas tú con `/comando`.
-- **Borrar, con tu permiso**: antes de `scene.object.delete`, `script.delete`,
+- **Borrar, con tu permiso**: antes de `scene.object.delete`, `scene.objects.delete`, `script.delete`,
   `asset.delete`, `project.src.delete` o `trash.empty` te pregunta qué va a
   borrar (lo borrado va a la papelera y puede recuperarlo con `trash.restore`) («⚠ Silvy
   quiere borrar el objeto «Barril» (id 3) y sus hijos…  S: sí · N: no»). Hasta
@@ -733,6 +733,7 @@ agregar funcionalidad; los campos nuevos se agregan al final.
 | `asset.delete` | `args.project` (string, requerido), `args.path` (string, ruta dentro de `src/`, como la da `asset.list`) | Borra el asset y quita de los objetos los componentes que lo usaban (en un Material solo vacía el mapa). |
 | `script.delete` | `args.project` (string, requerido), `args.path` (string, ruta del `.java`/`.cpp` dentro de `src/`) | Borra el script y quita el componente Script de los objetos que lo usaban. |
 | `scene.object.delete` | `args.project` (string, requerido), `args.id` (int, no 0) | Borra el objeto con sus hijos (a la papelera); `scene.undo` lo restaura (con un id nuevo) y `scene.redo` lo vuelve a borrar. |
+| `scene.objects.delete` | `args.project` (string, requerido), `args.ids` (array<int>, opcional) o `args.all` (bool, opcional) | Borra varios objetos o todos (excepto raíz) en una sola operación/confirmación. Omite ids inexistentes o ya borrados como hijos. |
 | `trash.list` | `args.project` (string, requerido) | Lo que hay en la papelera: id, tipo, ruta o nombre, cuándo se borró y cuántas referencias se quitaron. |
 | `trash.restore` | `args.project` (string, requerido), `args.id` (int), `args.overwrite` (bool, opcional) | Devuelve la entrada a su lugar y vuelve a poner en los objetos los componentes que se le quitaron. |
 | `trash.empty` | `args.project` (string, requerido), `args.id` (int, opcional) | Borra para siempre una entrada o toda la papelera. |
@@ -840,7 +841,7 @@ Respuesta: `{"id": 10, "name": "Enemigo", "parentId": 0, "cloned": true}`.
 
 Respuesta: `{"componentType": "Collider", "id": 6, "removed": true}`.
 
-**Borrar objetos, scripts y assets.** `scene.object.delete` borra un objeto
+**Borrar objetos, scripts y assets.** `scene.object.delete` borra un objeto; `scene.objects.delete` borra varios o todos (`ids=[...]` o `all=true`) con una sola confirmación.
 con todos sus hijos. Antes guarda una copia (un prefab en
 `<proyecto>/Memory/papelera/`), así `scene.undo` lo vuelve a poner donde estaba,
 con sus componentes y un id nuevo:

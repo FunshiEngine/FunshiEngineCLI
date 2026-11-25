@@ -48,7 +48,7 @@ FunshiEngineCLI/
     │   ├── ComandosComun.*   #   resolverProyectoDesdeArgs / rutaSegura
     │   ├── ComandosProyecto.*·ComandosConfig.*·ComandosAssets.*
     │   ├── ComandosScripts.*·ComandosDiagnosticos.*·ComandosAgente.*
-    │   ├── ComandosBorrado.* #   scene.object.delete / script.delete / asset.list / asset.delete
+    │   ├── ComandosBorrado.* #   scene.object.delete/objects.delete / script.delete / asset.list / asset.delete
     │   ├── ComandosPapelera.* #  trash.list / trash.restore / trash.empty (<proyecto>/Memory/papelera)
     │   ├── Archivos/         #   project.src.* / dir.import / fs.create / file.create
     │   └── Escena/           #   scene.* (consultas, transform, jerarquía, clonar,

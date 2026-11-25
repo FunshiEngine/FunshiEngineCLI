@@ -33,7 +33,7 @@ const std::set<std::string>& comandosEscena() {
         "scene.object.setparent", "scene.object.addcomponent", "scene.object.create",
         "scene.object.clone", "scene.object.removecomponent", "scene.object.unparent",
         "scene.object.settag", "scene.object.setactive", "scene.undo", "scene.redo",
-        "scene.autosave", "scene.object.delete", "trash.restore",
+        "scene.autosave", "scene.object.delete", "scene.objects.delete", "trash.restore",
     };
     return s;
 }

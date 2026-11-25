@@ -141,6 +141,8 @@ ResultadoComando ejecutarSolicitud(const Solicitud& solicitud) {
                 return scriptBorrar(argumentos);
             case ComandoCLI::EscenaObjetoBorrar:
                 return escenaObjetoBorrar(argumentos);
+            case ComandoCLI::EscenaObjetosBorrar:
+                return escenaObjetosBorrar(argumentos);
             case ComandoCLI::PapeleraListar:
                 return papeleraListar(argumentos);
             case ComandoCLI::PapeleraRestaurar:

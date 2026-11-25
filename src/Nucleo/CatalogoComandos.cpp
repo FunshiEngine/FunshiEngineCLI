@@ -65,6 +65,7 @@ const std::unordered_map<std::string, ComandoCLI>& mapaComandos() {
         {"asset.delete", ComandoCLI::AssetBorrar},
         {"script.delete", ComandoCLI::ScriptBorrar},
         {"scene.object.delete", ComandoCLI::EscenaObjetoBorrar},
+        {"scene.objects.delete", ComandoCLI::EscenaObjetosBorrar},
         {"trash.list", ComandoCLI::PapeleraListar},
         {"trash.restore", ComandoCLI::PapeleraRestaurar},
         {"trash.empty", ComandoCLI::PapeleraVaciar},
@@ -135,6 +136,7 @@ std::string textoDesdeComando(ComandoCLI comando) {
         case ComandoCLI::AssetBorrar: return "asset.delete";
         case ComandoCLI::ScriptBorrar: return "script.delete";
         case ComandoCLI::EscenaObjetoBorrar: return "scene.object.delete";
+        case ComandoCLI::EscenaObjetosBorrar: return "scene.objects.delete";
         case ComandoCLI::PapeleraListar: return "trash.list";
         case ComandoCLI::PapeleraRestaurar: return "trash.restore";
         case ComandoCLI::PapeleraVaciar: return "trash.empty";
@@ -198,6 +200,7 @@ const std::vector<ComandoCLI>& todosLosComandos() {
         ComandoCLI::AssetBorrar,
         ComandoCLI::ScriptBorrar,
         ComandoCLI::EscenaObjetoBorrar,
+        ComandoCLI::EscenaObjetosBorrar,
         ComandoCLI::PapeleraListar,
         ComandoCLI::PapeleraRestaurar,
         ComandoCLI::PapeleraVaciar,

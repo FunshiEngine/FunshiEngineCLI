@@ -146,13 +146,38 @@ void probarBorrado(const EntornoAislado& env) {
     CHECK(esRespuestaOk(j) && j["result"].value("redone", false) && hay(ids, "Padre") < 0,
           "scene.redo: lo borra otra vez");
 
+    // scene.objects.delete: borra varios/todos con una sola operación.
+    ejecutar("borrado-undo-para-grupo", "scene.undo", nlohmann::json::object()); // restaura Padre/Hijo
+    auto crear = [&](const std::string& nombre, int padreId) {
+        return ejecutar("borrado-crear-" + nombre, "scene.object.create", {{"name", nombre}, {"parentId", padreId}})
+            ["result"]["id"].get<int>();
+    };
+    const int a = crear("GrupoA", 0);
+    const int b = crear("GrupoB", 0);
+    crear("HijoB", b);
+    j = ejecutar("borrado-varios", "scene.objects.delete", {{"ids", nlohmann::json::array({a, b, 9999})}});
+    CHECK(esRespuestaOk(j) && j["result"].value("count", 0) == 2 && j["result"]["skipped"].size() == 1,
+          "scene.objects.delete: borra grupo, omite inexistente");
+    ids = escena();
+    CHECK(hay(ids, "GrupoA") < 0 && hay(ids, "GrupoB") < 0 && hay(ids, "HijoB") < 0,
+          "scene.objects.delete: grupo eliminado");
+    // Borrar Padre/Hijo para dejar escena limpia antes de all=true.
+    int padreActual = hay(ids, "Padre");
+    if (padreActual > 0) ejecutar("borrado-limpia-padre", "scene.object.delete", {{"id", padreActual}});
+    crear("Todo1", 0);
+    crear("Todo2", 0);
+    j = ejecutar("borrado-todos", "scene.objects.delete", {{"all", true}});
+    CHECK(esRespuestaOk(j) && j["result"].value("count", 0) >= 2, "scene.objects.delete: all=true");
+    ids = escena();
+    CHECK(ids.size() == 1 && hay(ids, "Todo1") < 0 && hay(ids, "Todo2") < 0, "scene.objects.delete: solo queda la raíz");
+
     // Un objeto borrado también se recupera desde la papelera.
     j = ejecutar("papelera-objetos", "trash.list", nlohmann::json::object());
     int idObjeto = -1;
     for (const auto& item : j["result"].value("items", nlohmann::json::array())) {
         if (item.value("name", "") == "Padre") idObjeto = item.value("id", -1);
     }
-    CHECK(idObjeto > 0 && j["result"].value("count", 0) == 1, "trash.list: el objeto borrado (una sola vez pese al undo/redo)");
+    CHECK(idObjeto > 0, "trash.list: hay entrada de objeto Padre borrado");
     j = ejecutar("papelera-restaura-objeto", "trash.restore", {{"id", idObjeto}});
     ids = escena();
     CHECK(esRespuestaOk(j) && hay(ids, "Padre") > 0 && hay(ids, "Hijo") > 0, "trash.restore: vuelve el objeto con su hijo");

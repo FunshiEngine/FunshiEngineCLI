@@ -65,6 +65,7 @@ enum class ComandoCLI {
     AssetBorrar,
     ScriptBorrar,
     EscenaObjetoBorrar,
+    EscenaObjetosBorrar,
     PapeleraListar,
     PapeleraRestaurar,
     PapeleraVaciar,

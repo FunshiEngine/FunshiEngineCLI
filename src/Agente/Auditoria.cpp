@@ -58,6 +58,7 @@ const std::vector<std::string>& comandosDeEscritura() {
         "asset.delete",
         "script.delete",
         "scene.object.delete",
+        "scene.objects.delete",
         "trash.restore",
         "trash.empty",
     };
