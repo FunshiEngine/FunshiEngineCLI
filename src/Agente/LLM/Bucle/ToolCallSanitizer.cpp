@@ -22,6 +22,15 @@
 
 namespace funshi::agente::llm {
 
+namespace {
+std::string normalizarNombreHerramienta(const std::string& n) {
+    // Acepta el nombre API saneado (project_create) como alias de project.create.
+    std::string alt = n;
+    for (char& c : alt) if (c == '_') c = '.';
+    return alt;
+}
+}
+
 // ============================================================
 // ToolCallSanitizer implementation
 // ============================================================
