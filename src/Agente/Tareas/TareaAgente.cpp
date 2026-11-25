@@ -93,9 +93,10 @@ std::string pedidoDeCierre(const std::string& pedido, const std::vector<llm::Age
     }
     return "Terminaste una tarea. Tarea del usuario: " + pedido + "\nHerramientas que ejecutaste:\n" +
            (hechos.empty() ? "(ninguna)\n" : hechos) + "Tu respuesta final: " + recortar(respuesta, kMaxRespuesta) +
-           "\n\nLo marcado FALLÓ no se hizo: no digas que se hizo.\n"
+           "\n\nLo marcado FALLÓ no se hizo: no digas que se hizo. Resume SOLO lo que realmente hicieron las herramientas; "
+           "no inventes acciones ni digas que borraste/listaste todo si solo hiciste parte.\n"
            "Escribe SOLO esto, en español:\nLo que hice:\n- <cada acción con su resultado: ids, rutas>\n"
-           "Resumen: <una frase: qué había que hacer y cómo quedó>";
+           "Resumen: <una frase: qué había que hacer y cómo quedó realmente>";
 }
 
 bool leerCierre(const std::string& texto, TareaAgente& tarea) {
