@@ -79,8 +79,10 @@ nlohmann::json llmPublico(const agente::llm::LlmConfig& cfg) {
     return {
         {"mode", cfg.mode == agente::llm::LlmMode::LOCAL ? "local" : "remote"},
         {"provider", cfg.providerEfectivo()},
-        {"remoteBaseUrl", cfg.remoteBaseUrl},
+        {"remoteBaseUrl", cfg.remoteBaseUrlEfectiva()},
         {"modelName", cfg.modelName},
+        {"modelRef", cfg.modelRefEfectivo()},
+        {"variant", cfg.varianteEfectiva()},
         {"thinking", cfg.thinking},
         {"power", cfg.power},
         {"hasApiKey", !cfg.apiKey.empty()},
@@ -109,7 +111,7 @@ ResultadoComando cliConfigEscribir(const nlohmann::json& argumentosIn) {
     const char* clavesTexto[] = {
         "projectsDataDir", "localInferenceDir", "modelsDir", "hfCacheDir",
         "llamaServerPath", "llamaRepoDir", "gitBin",
-        "provider", "remoteBaseUrl", "modelName", "apiKey", "googleApiKey", "nvidiaApiKey",
+        "provider", "remoteBaseUrl", "baseURL", "modelName", "model", "modelRef", "apiKey", "googleApiKey", "nvidiaApiKey",
         "thinking", "power",
     };
     for (const char* clave : clavesTexto) {
@@ -184,8 +186,27 @@ ResultadoComando cliConfigEscribir(const nlohmann::json& argumentosIn) {
             if (cfg.remoteBaseUrl.empty()) cfg.remoteBaseUrl = "http://localhost:11434/v1";
         }
     }
-    aplicar("remoteBaseUrl", cfg.remoteBaseUrl);
-    aplicar("modelName", cfg.modelName);
+    if (argumentos.contains("remoteBaseUrl")) { cfg.remoteBaseUrl = argumentos["remoteBaseUrl"].get<std::string>(); cambios = true; }
+    if (argumentos.contains("baseURL")) { cfg.remoteBaseUrl = argumentos["baseURL"].get<std::string>(); cambios = true; }
+    if (argumentos.contains("modelName")) { cfg.modelName = argumentos["modelName"].get<std::string>(); cambios = true; }
+    if (argumentos.contains("model")) {
+        const std::string mv = argumentos["model"].get<std::string>();
+        if (mv.find('/') != std::string::npos) {
+            std::string err;
+            if (!cfg.aplicarModelRef(mv, err)) { registrarErrorUso("invalid_request", err); return ResultadoComando::fallo("invalid_request", err, codigosSalida::kErrorUso); }
+        } else {
+            cfg.modelName = mv;
+        }
+        cambios = true;
+    }
+    if (argumentos.contains("modelRef")) {
+        std::string err;
+        if (!cfg.aplicarModelRef(argumentos["modelRef"].get<std::string>(), err)) {
+            registrarErrorUso("invalid_request", err);
+            return ResultadoComando::fallo("invalid_request", err, codigosSalida::kErrorUso);
+        }
+        cambios = true;
+    }
     aplicar("apiKey", cfg.apiKey);
     aplicar("googleApiKey", cfg.googleApiKey);
     aplicar("nvidiaApiKey", cfg.nvidiaApiKey);
@@ -218,7 +239,7 @@ ResultadoComando cliConfigEscribir(const nlohmann::json& argumentosIn) {
 
     if (!cambios) {
         const std::string mensaje =
-            "No se indicó ningún valor a modificar (projectsDataDir, localInferenceDir, modelsDir, hfCacheDir, llamaServerPath, contextSize, provider, remoteBaseUrl, modelName, apiKey, googleApiKey, nvidiaApiKey, thinking, power)";
+            "No se indicó ningún valor a modificar (projectsDataDir, localInferenceDir, modelsDir, hfCacheDir, llamaServerPath, contextSize, provider, remoteBaseUrl, modelName, modelRef, apiKey, googleApiKey, nvidiaApiKey, thinking, power)";
         registrarErrorUso("invalid_request", mensaje);
         return ResultadoComando::fallo("invalid_request", mensaje,
                                        codigosSalida::kErrorUso);
@@ -251,7 +272,7 @@ ResultadoComando cliConfigEscribir(const nlohmann::json& argumentosIn) {
 
 ResultadoComando cliModelosListar(const nlohmann::json& argumentosIn) {
     nlohmann::json argumentos = argumentosIn;
-    const char* clavesTexto[] = {"provider", "remoteBaseUrl", "apiKey", "googleApiKey", "nvidiaApiKey"};
+    const char* clavesTexto[] = {"provider", "remoteBaseUrl", "baseURL", "apiKey", "googleApiKey", "nvidiaApiKey"};
     for (const char* clave : clavesTexto) {
         if (!esCadena(argumentos, clave)) {
             const std::string mensaje = std::string("args.") + clave + " debe ser un string";
@@ -275,11 +296,12 @@ ResultadoComando cliModelosListar(const nlohmann::json& argumentosIn) {
         if (provider == "nvidia") cfg.remoteBaseUrl = "https://integrate.api.nvidia.com/v1";
     }
     if (argumentos.contains("remoteBaseUrl")) cfg.remoteBaseUrl = argumentos["remoteBaseUrl"].get<std::string>();
+    if (argumentos.contains("baseURL")) cfg.remoteBaseUrl = argumentos["baseURL"].get<std::string>();
     if (argumentos.contains("apiKey")) cfg.apiKey = argumentos["apiKey"].get<std::string>();
     if (argumentos.contains("googleApiKey")) cfg.googleApiKey = argumentos["googleApiKey"].get<std::string>();
     if (argumentos.contains("nvidiaApiKey")) cfg.nvidiaApiKey = argumentos["nvidiaApiKey"].get<std::string>();
 
-    if (cfg.remoteBaseUrl.empty()) {
+    if (cfg.remoteBaseUrlEfectiva().empty()) {
         const std::string mensaje = "Falta remoteBaseUrl para listar modelos";
         registrarErrorUso("invalid_request", mensaje);
         return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
@@ -292,7 +314,7 @@ ResultadoComando cliModelosListar(const nlohmann::json& argumentosIn) {
     }
 
     try {
-        agente::llm::OpenAiCompatibleGateway gw(cfg.remoteBaseUrl, key, cfg.modelName.empty() ? "model" : cfg.modelName,
+        agente::llm::OpenAiCompatibleGateway gw(cfg.remoteBaseUrlEfectiva(), key, cfg.modelName.empty() ? "model" : cfg.modelName,
                                                cfg.temperature, cfg.effectiveMaxTokens(), cfg.chatTimeoutMs,
                                                cfg.thinking, cfg.power);
         const auto modelos = gw.listModels();
@@ -300,7 +322,7 @@ ResultadoComando cliModelosListar(const nlohmann::json& argumentosIn) {
         for (const auto& m : modelos) arr.push_back(m);
         return ResultadoComando::exito({
             {"provider", cfg.providerEfectivo()},
-            {"remoteBaseUrl", cfg.remoteBaseUrl},
+            {"remoteBaseUrl", cfg.remoteBaseUrlEfectiva()},
             {"count", static_cast<int>(modelos.size())},
             {"models", arr},
         });

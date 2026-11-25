@@ -276,7 +276,7 @@ int LlmConfig::effectiveMaxTokens() const {
 std::string LlmConfig::providerEfectivo() const {
     if (!provider.empty()) return provider;
     if (isLocalhostUrl()) return "local";
-    const std::string url = remoteBaseUrl;
+    const std::string url = remoteBaseUrlEfectiva();
     if (url.find("generativelanguage.googleapis.com") != std::string::npos) return "google";
     if (url.find("integrate.api.nvidia.com") != std::string::npos) return "nvidia";
     if (!remoteBaseUrl.empty()) return "custom";
@@ -285,22 +285,77 @@ std::string LlmConfig::providerEfectivo() const {
 
 std::string LlmConfig::apiKeyEfectiva() const {
     const std::string prov = providerEfectivo();
-    if (prov == "google" && !googleApiKey.empty()) return googleApiKey;
-    if (prov == "nvidia" && !nvidiaApiKey.empty()) return nvidiaApiKey;
+    auto res = [](const std::string& v){ return LlmConfig::resolverValorConfig(v); };
+    if (prov == "google" && !googleApiKey.empty()) return res(googleApiKey);
+    if (prov == "nvidia" && !nvidiaApiKey.empty()) return res(nvidiaApiKey);
     if (prov == "local" && apiKey.empty()) return "local";
-    return apiKey;
+    return res(apiKey);
+}
+
+std::string LlmConfig::remoteBaseUrlEfectiva() const {
+    return resolverValorConfig(remoteBaseUrl);
+}
+
+std::string LlmConfig::varianteEfectiva() const {
+    if (thinking.empty() || thinking == "off") return {};
+    return thinking;
+}
+
+std::string LlmConfig::modelRefEfectivo() const {
+    const std::string prov = providerEfectivo();
+    if (prov.empty() || modelName.empty()) return {};
+    std::string ref = prov + "/" + modelName;
+    const std::string var = varianteEfectiva();
+    if (!var.empty()) ref += "#" + var;
+    return ref;
+}
+
+bool LlmConfig::aplicarModelRef(const std::string& ref, std::string& error) {
+    if (ref.empty()) { modelRef.clear(); return true; }
+    const auto hash = ref.find('#');
+    const std::string base = hash == std::string::npos ? ref : ref.substr(0, hash);
+    const std::string var = hash == std::string::npos ? std::string() : ref.substr(hash + 1);
+    const auto slash = base.find('/');
+    if (slash == std::string::npos || slash == 0 || slash + 1 >= base.size()) {
+        error = "modelRef debe tener formato provider/model o provider/model#variant";
+        return false;
+    }
+    const std::string prov = base.substr(0, slash);
+    const std::string model = base.substr(slash + 1);
+    if (prov.find('/') != std::string::npos || prov.find('#') != std::string::npos ||
+        model.find('#') != std::string::npos) {
+        error = "modelRef inválido";
+        return false;
+    }
+    static const std::vector<std::string> variantesOk = {"", "off", "low", "medium", "high", "xhigh"};
+    if (std::find(variantesOk.begin(), variantesOk.end(), var) == variantesOk.end()) {
+        error = "variante de modelRef debe ser low, medium, high, xhigh u off";
+        return false;
+    }
+    provider = prov;
+    modelName = model;
+    if (!var.empty()) thinking = var;
+    modelRef = ref;
+    // Ajustar URL por defecto para providers conocidos.
+    if (prov == "google" && remoteBaseUrl.empty()) remoteBaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai/";
+    if (prov == "nvidia" && remoteBaseUrl.empty()) remoteBaseUrl = "https://integrate.api.nvidia.com/v1";
+    if ((prov == "google" || prov == "nvidia" || prov == "openai" || prov == "custom") && !remoteBaseUrl.empty()) {
+        mode = LlmMode::REMOTE;
+    }
+    return true;
 }
 
 bool LlmConfig::isLocalhostUrl() const {
-    if (remoteBaseUrl.empty()) return false;
+    const std::string url = remoteBaseUrlEfectiva();
+    if (url.empty()) return false;
     try {
         std::string host;
         size_t proto = remoteBaseUrl.find("://");
         size_t start = (proto == std::string::npos) ? 0 : proto + 3;
-        size_t end = remoteBaseUrl.find(':', start);
-        if (end == std::string::npos) end = remoteBaseUrl.find('/', start);
-        if (end == std::string::npos) end = remoteBaseUrl.size();
-        host = remoteBaseUrl.substr(start, end - start);
+        size_t end = url.find(':', start);
+        if (end == std::string::npos) end = url.find('/', start);
+        if (end == std::string::npos) end = url.size();
+        host = url.substr(start, end - start);
         std::transform(host.begin(), host.end(), host.begin(),
                        [](unsigned char c){ return std::tolower(c); });
         return host == "localhost" || host == "127.0.0.1" || host == "::1" ||

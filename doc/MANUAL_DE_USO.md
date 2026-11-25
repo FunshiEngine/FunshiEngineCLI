@@ -480,9 +480,9 @@ printf '{"command":"cli.config.set","args":{"provider":"nvidia","nvidiaApiKey":"
 printf '{"command":"cli.models.list","args":{"provider":"nvidia"}}' | FunshiCLI --request
 ```
 
-Claves admitidas por `cli.config.set`: rutas (`projectsDataDir`, `localInferenceDir`, `modelsDir`, `hfCacheDir`, `llamaServerPath`, `contextSize`) y LLM remoto (`provider`, `remoteBaseUrl`, `modelName`, `apiKey`, `googleApiKey`, `nvidiaApiKey`, `thinking`, `power`). `llamaRepoDir` y `gitBin` se aceptan por compatibilidad pero ya no se usan.
+Claves admitidas por `cli.config.set`: rutas (`projectsDataDir`, `localInferenceDir`, `modelsDir`, `hfCacheDir`, `llamaServerPath`, `contextSize`) y LLM remoto (`provider`, `remoteBaseUrl`, `modelName`, `modelRef`, `apiKey`, `googleApiKey`, `nvidiaApiKey`, `thinking`, `power`). `modelRef` acepta `provider/model` o `provider/model#variant`. Los strings de config pueden usar `{env:VAR}` y `{file:ruta}`. `llamaRepoDir` y `gitBin` se aceptan por compatibilidad pero ya no se usan.
 
-`cli.config.get` devuelve además un bloque `llm` con `provider`, `remoteBaseUrl`, `modelName`, `thinking`, `power` y estado de claves (`has*ApiKey`, `apiKeyMasked`); **no expone claves en claro**. Las claves se guardan localmente en `llm-config.json`.
+`cli.config.get` devuelve además un bloque `llm` con `provider`, `remoteBaseUrl`, `modelName`, `modelRef`, `variant`, `thinking`, `power` y estado de claves (`has*ApiKey`, `apiKeyMasked`); **no expone claves en claro**. Las claves se guardan localmente en `llm-config.json`.
 
 **Dónde se guarda la configuración** (`configPath` en `cli.config.get`), en este orden:
 1. `$FUNSHI_CONFIG_DIR/llm-config.json`, si la variable está definida.
@@ -742,7 +742,7 @@ agregar funcionalidad; los campos nuevos se agregan al final.
 | `diagnostics.list` | `args.limit` (opcional, máx 1000, default 100) | Devuelve los últimos eventos del registro de diagnósticos. |
 | `diagnostics.clear` | ninguno | Borra el archivo de diagnósticos. |
 | `cli.config.get` | ninguno | Devuelve rutas/configuración efectiva; incluye bloque `llm` con secretos enmascarados. |
-| `cli.config.set` | `args.*` (rutas/contexto y/o `provider`, `remoteBaseUrl`, `modelName`, `apiKey`, `googleApiKey`, `nvidiaApiKey`, `thinking`, `power`) | Persiste configuración y la aplica al entorno. |
+| `cli.config.set` | `args.*` (rutas/contexto y/o `provider`, `remoteBaseUrl`, `modelName`, `modelRef`, `apiKey`, `googleApiKey`, `nvidiaApiKey`, `thinking`, `power`) | Persiste configuración y la aplica al entorno. |
 | `cli.models.list` | `provider`/`remoteBaseUrl`/keys opcionales | Lista modelos consultando el endpoint OpenAI-compatible configurado. |
 | `agente.procesar` | `args.text` (string, requerido) | Entrega el texto a Silvy y devuelve la respuesta interna y el rastro de auditoría. |
 

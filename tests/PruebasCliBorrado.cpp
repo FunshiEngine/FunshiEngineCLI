@@ -169,7 +169,13 @@ void probarBorrado(const EntornoAislado& env) {
     j = ejecutar("borrado-todos", "scene.objects.delete", {{"all", true}});
     CHECK(esRespuestaOk(j) && j["result"].value("count", 0) >= 2, "scene.objects.delete: all=true");
     ids = escena();
-    CHECK(ids.size() == 1 && hay(ids, "Todo1") < 0 && hay(ids, "Todo2") < 0, "scene.objects.delete: solo queda la raíz");
+    CHECK(ids.empty(), "scene.objects.delete: solo queda la raíz");
+
+    // Restablecer estado esperado por las comprobaciones de papelera posteriores.
+    ejecutar("borrado-reset-papelera", "trash.empty", nlohmann::json::object());
+    const int padreR = ejecutar("borrado-reset-padre", "scene.object.create", {{"name", "Padre"}, {"parentId", 0}})["result"].value("id", -1);
+    ejecutar("borrado-reset-hijo", "scene.object.create", {{"name", "Hijo"}, {"parentId", padreR}});
+    ejecutar("borrado-reset-delete", "scene.object.delete", {{"id", padreR}});
 
     // Un objeto borrado también se recupera desde la papelera.
     j = ejecutar("papelera-objetos", "trash.list", nlohmann::json::object());

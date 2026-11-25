@@ -141,10 +141,17 @@ std::string OpenAiCompatibleGateway::buildRequestBody(const std::vector<ChatMess
         body["tools"] = toolsJson_;
         body["tool_choice"] = "auto";
     }
-    if (thinking_ != "off") body["reasoning_effort"] = thinking_;
+    if (thinking_ != "off") {
+        // reasoning_effort es común en endpoints OpenAI-compatible, pero no
+        // universal; se envía solo para providers/modelos donde suele ser aceptado.
+        const std::string base = baseUrl_;
+        const bool pareceCompatible = base.find("api.openai.com") != std::string::npos ||
+                                      base.find("generativelanguage.googleapis.com") != std::string::npos ||
+                                      base.find("integrate.api.nvidia.com") != std::string::npos ||
+                                      isLocalhostUrl();
+        if (pareceCompatible) body["reasoning_effort"] = thinking_;
+    }
     if (isLocalhostUrl()) {
-        // llama-server: reutilizar la caché KV del prefijo común (historial) y
-        // devolver el uso de tokens al final del stream.
         body["cache_prompt"] = true;
         if (stream) body["stream_options"] = {{"include_usage", true}};
         if (tunel_ >= 0) body["id_slot"] = tunel_;
