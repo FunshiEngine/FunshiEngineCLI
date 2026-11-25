@@ -142,14 +142,18 @@ std::string OpenAiCompatibleGateway::buildRequestBody(const std::vector<ChatMess
         body["tool_choice"] = "auto";
     }
     if (thinking_ != "off") {
-        // reasoning_effort es común en endpoints OpenAI-compatible, pero no
-        // universal; se envía solo para providers/modelos donde suele ser aceptado.
         const std::string base = baseUrl_;
-        const bool pareceCompatible = base.find("api.openai.com") != std::string::npos ||
-                                      base.find("generativelanguage.googleapis.com") != std::string::npos ||
-                                      base.find("integrate.api.nvidia.com") != std::string::npos ||
-                                      isLocalhostUrl();
-        if (pareceCompatible) body["reasoning_effort"] = thinking_;
+        const bool esGoogle = base.find("generativelanguage.googleapis.com") != std::string::npos;
+        const bool esNvidia = base.find("integrate.api.nvidia.com") != std::string::npos;
+        const bool esOpenAi = base.find("api.openai.com") != std::string::npos;
+        if (esOpenAi || esNvidia || isLocalhostUrl()) {
+            body["reasoning_effort"] = thinking_;
+        } else if (esGoogle) {
+            // Gemini OpenAI-compatible: reasoning_effort es aceptado en modelos recientes;
+            // mantener fallback seguro sin romper si el endpoint lo ignora/rechaza por modelo.
+            body["reasoning_effort"] = thinking_;
+        }
+        // Otros providers custom: no enviar por defecto para evitar 400 por incompatibilidad.
     }
     if (isLocalhostUrl()) {
         body["cache_prompt"] = true;
