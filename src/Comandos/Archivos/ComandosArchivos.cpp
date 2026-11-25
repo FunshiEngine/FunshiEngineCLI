@@ -108,6 +108,7 @@ ResultadoComando proyectoSrcCrear(const nlohmann::json& argumentosIn) {
         {"path", true, nlohmann::json::value_t::string},
         {"file", false, nlohmann::json::value_t::boolean},
         {"content", false, nlohmann::json::value_t::string},
+        {"sobrescribir", false, nlohmann::json::value_t::boolean},
     };
     if (!validarArgumentos(argumentos, requisitos, error)) {
         registrarErrorUso("invalid_request", error);
@@ -117,6 +118,7 @@ ResultadoComando proyectoSrcCrear(const nlohmann::json& argumentosIn) {
     const std::string rutaRelativa = argumentos["path"].get<std::string>();
     const bool esArchivo = argumentos.value("file", false);
     const std::string contenido = argumentos.value("content", std::string{});
+    const bool sobrescribir = argumentos.value("sobrescribir", false);
 
     ProjectManager::Proyecto proyecto;
     if (!resolverProyectoPorNombre(nombreProyecto, proyecto, error)) {
@@ -126,8 +128,8 @@ ResultadoComando proyectoSrcCrear(const nlohmann::json& argumentosIn) {
     }
 
     if (esArchivo) {
-        auto r = escribirArchivoSrc(nombreProyecto, rutaRelativa, contenido, true, false, "file_created");
-        if (r.respuesta.ok) r.respuesta.resultado["created"] = true;
+        auto r = escribirArchivoSrc(nombreProyecto, rutaRelativa, contenido, true, sobrescribir, "file_created");
+        if (r.respuesta.ok) r.respuesta.resultado["created"] = !sobrescribir;
         return r;
     }
 

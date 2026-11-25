@@ -196,12 +196,16 @@ ResultadoComando* Harness::rechazoDeArchivo(const Solicitud& solicitud, Resultad
     }
     std::error_code ec;
     const std::filesystem::path completa = std::filesystem::path(ProjectPaths::directorioSrc(proyecto)) / ruta;
-    if (a.value("sobrescribir", false) || !std::filesystem::is_regular_file(completa, ec)) return nullptr;
-    if (conservaContenido(completa, a.value("content", std::string()))) return nullptr;
+    if (!std::filesystem::is_regular_file(completa, ec)) return nullptr;
+    if (a.value("sobrescribir", false)) return nullptr; // permitido: CLI recibirá sobrescribir
+    if (conservaContenido(completa, a.value("content", std::string()))) {
+        // Permitir agregar contenido preservando lo existente; la CLI necesita sobrescribir=true.
+        const_cast<nlohmann::json&>(a)["sobrescribir"] = true;
+        return nullptr;
+    }
     destino = ResultadoComando::fallo("file_exists",
-                                      "Ya existe " + ruta + " y su contenido se perdería. Si el usuario pidió "
-                                      "cambiarlo, repite la llamada con \"sobrescribir\": true y el contenido "
-                                      "completo; si no, no lo toques.",
+                                      "Ya existe " + ruta + " y su contenido se perdería. Para editarlo usa project.src.write con el contenido completo; "
+                                      "si realmente quieres recrearlo, repite project.src.create con \"sobrescribir\": true.",
                                       codigosSalida::kErrorUso);
     return &destino;
 }
@@ -240,7 +244,8 @@ ResultadoComando Harness::ejecutar(const Solicitud& solicitud,
     normalizarRutasSrc(efectiva);
     ResultadoComando rechazo;
     const ResultadoComando* motivo = rechazoDeArchivo(efectiva, rechazo);
-    if (efectiva.argumentos.is_object()) efectiva.argumentos.erase("sobrescribir");
+    // rechazoDeArchivo puede marcar sobrescribir=true para el caso "conserva contenido";
+    // se pasa al comando solo cuando la protección del agente lo permitió explícitamente.
     ResultadoComando resultado = motivo ? *motivo : ejecutarSolicitud(efectiva);
 
     EntradaAuditoria entrada;
