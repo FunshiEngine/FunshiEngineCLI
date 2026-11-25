@@ -255,6 +255,11 @@ ResultadoComando escenaObjetoSetField(const nlohmann::json& argumentosIn) {
                                       codigosSalida::kRecursoNoEncontrado);
     }
 
+    // Cargar si aún no se intentó (p. ej. script agregado por CLI sin ciclo de play).
+    if (!script->estaCargado() && !script->rutaFuente().empty()) {
+        script->cargarSiNecesario();
+    }
+
     const auto& campos = script->obtenerCampos();
     int indiceCampo = -1;
     for (size_t i = 0; i < campos.size(); ++i) {
@@ -271,6 +276,7 @@ ResultadoComando escenaObjetoSetField(const nlohmann::json& argumentosIn) {
         mensaje += " Campos disponibles: " + disponibles.dump() + ".";
         if (campos.empty()) {
             mensaje += " El script no expone campos serializables; verifica que esté compilado/cargado, que los campos sean públicos, y recarga con scene.script.reload o re-agrega el componente Script.";
+            if (!script->estaCargado()) mensaje += " ultimoError=" + script->ultimoError();
         }
         registrarErrorUso("field_not_found", mensaje);
         return ResultadoComando::fallo("field_not_found", mensaje,
