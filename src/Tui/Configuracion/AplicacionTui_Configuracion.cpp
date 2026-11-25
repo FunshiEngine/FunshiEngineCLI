@@ -122,6 +122,7 @@ void AplicacionTui::cargarSeccionConfiguracion(EstadoSeccion& estado, bool infor
     itemLlm("provider", "Proveedor", llm.value("provider", std::string{}), llm.value("provider", std::string{}), false);
     itemLlm("remoteBaseUrl", "URL base remota", llm.value("remoteBaseUrl", std::string{}), llm.value("remoteBaseUrl", std::string{}), false);
     itemLlm("modelName", "Modelo remoto", llm.value("modelName", std::string{}), llm.value("modelName", std::string{}), false);
+    itemLlm("modelRef", "Modelo (provider/model#variant)", llm.value("modelRef", std::string{}), llm.value("modelRef", std::string{}), false);
     itemLlm("thinking", "Pensamiento", llm.value("thinking", std::string("off")), llm.value("thinking", std::string("off")), false);
     itemLlm("power", "Calidad/power", llm.value("power", std::string("medium")), llm.value("power", std::string("medium")), false);
     itemLlm("googleApiKey", "API key Google", llm.value("hasGoogleApiKey", false) ? "configurada" : "", "configurada / no configurada", true);
@@ -191,6 +192,14 @@ void AplicacionTui::accionConfiguracion(const nlohmann::json& item) {
             cursorComando_ = static_cast<int>(textoComando_.size()) - 1;
             focoEnEntrada_ = true;
             mensaje_ = "Escribe el id del modelo remoto; usa 'Listar modelos remotos' para ver opciones";
+            mensajeEsError_ = false;
+            return;
+        }
+        if (clave == "modelRef") {
+            textoComando_ = "cli.config.set modelRef=\"\"";
+            cursorComando_ = static_cast<int>(textoComando_.size()) - 1;
+            focoEnEntrada_ = true;
+            mensaje_ = "Formato: provider/model o provider/model#variant (ej. google/gemini-2.5-pro#high)";
             mensajeEsError_ = false;
             return;
         }

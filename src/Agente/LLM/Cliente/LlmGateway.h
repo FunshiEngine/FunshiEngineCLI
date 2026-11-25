@@ -99,10 +99,23 @@ public:
      */
     virtual std::string chat(const std::vector<ChatMessage>& messages) = 0;
 
+    struct ModelInfo {
+        std::string id;
+        std::string provider;
+        bool razonamiento = false;
+        std::vector<std::string> variantes;
+        nlohmann::json raw = nlohmann::json::object();
+    };
+
     /**
      * Lista los modelos del endpoint (GET /models). Sirve para "Probar conexión".
      */
     virtual std::vector<std::string> listModels() = 0;
+    virtual std::vector<ModelInfo> listModelsInfo() {
+        std::vector<ModelInfo> out;
+        for (const auto& id : listModels()) out.push_back({id, "", false, {}, nlohmann::json::object()});
+        return out;
+    }
 
     virtual void close() = 0;
 
@@ -137,6 +150,7 @@ public:
     std::string chatText(const std::vector<ChatMessage>& messages) override;
     std::string chat(const std::vector<ChatMessage>& messages) override;
     std::vector<std::string> listModels() override;
+    std::vector<ModelInfo> listModelsInfo() override;
     void close() override;
     EstadisticasLlamada ultimaLlamada() const override { return ultima_; }
     void setTunel(int slot) override { tunel_ = slot; }

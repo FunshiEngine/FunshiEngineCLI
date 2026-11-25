@@ -97,30 +97,92 @@ std::filesystem::path LlmConfig::directorioBaseConfig() {
     return dirConfig;
 }
 
+namespace {
+
+std::string quitarComentariosJsonc(const std::string& in) {
+    std::string out; out.reserve(in.size());
+    bool str=false, esc=false, line=false, block=false;
+    for (size_t i=0;i<in.size();++i) {
+        char c=in[i], n=i+1<in.size()?in[i+1]:0;
+        if (line) { if (c=='\n'){line=false; out.push_back(c);} continue; }
+        if (block) { if (c=='*'&&n=='/'){block=false;++i;} continue; }
+        if (str) { out.push_back(c); if (esc) esc=false; else if (c=='\\') esc=true; else if (c=='"') str=false; continue; }
+        if (c=='/'&&n=='/') { line=true; ++i; continue; }
+        if (c=='/'&&n=='*') { block=true; ++i; continue; }
+        if (c=='"') str=true; out.push_back(c);
+    }
+    return out;
+}
+
+std::optional<nlohmann::json> leerJsonFlexible(const std::filesystem::path& p) {
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(p, ec)) return std::nullopt;
+    std::ifstream f(p); if (!f.is_open()) return std::nullopt;
+    std::string contenido((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    try { return nlohmann::json::parse(contenido); } catch (...) {}
+    try { return nlohmann::json::parse(quitarComentariosJsonc(contenido)); } catch (...) {}
+    return std::nullopt;
+}
+
+void aplicarConfigCompat(LlmConfig& cfg, const nlohmann::json& j) {
+    if (j.contains("provider") && j["provider"].is_string()) cfg.provider = j["provider"].get<std::string>();
+    if (j.contains("model") && j["model"].is_string()) {
+        std::string err; if (!cfg.aplicarModelRef(j["model"].get<std::string>(), err)) cfg.modelName = j["model"].get<std::string>();
+    }
+    if (j.contains("modelName") && j["modelName"].is_string()) cfg.modelName = j["modelName"].get<std::string>();
+    if (j.contains("baseURL") && j["baseURL"].is_string()) cfg.remoteBaseUrl = j["baseURL"].get<std::string>();
+    if (j.contains("remoteBaseUrl") && j["remoteBaseUrl"].is_string()) cfg.remoteBaseUrl = j["remoteBaseUrl"].get<std::string>();
+    if (j.contains("apiKey") && j["apiKey"].is_string()) cfg.apiKey = j["apiKey"].get<std::string>();
+    auto aplicarKey = [&](const std::string& prov, const std::string& key){
+        if (prov=="google") cfg.googleApiKey=key; else if (prov=="nvidia") cfg.nvidiaApiKey=key; else cfg.apiKey=key;
+    };
+    const std::string prov = cfg.providerEfectivo();
+    if (j.contains("providers") && j["providers"].is_object()) {
+        auto it = j["providers"].find(prov);
+        if (it != j["providers"].end() && it->is_object()) {
+            const auto& p = *it;
+            if (p.contains("options") && p["options"].is_object()) {
+                const auto& o = p["options"];
+                if (o.contains("apiKey") && o["apiKey"].is_string()) aplicarKey(prov, o["apiKey"].get<std::string>());
+                if (o.contains("baseURL") && o["baseURL"].is_string()) cfg.remoteBaseUrl = o["baseURL"].get<std::string>();
+            }
+            if (p.contains("apiKey") && p["apiKey"].is_string()) aplicarKey(prov, p["apiKey"].get<std::string>());
+        }
+    }
+}
+
+}  // namespace
+
 LlmConfig LlmConfig::load() {
     const auto path = configPath();
     std::error_code ec;
-    if (!std::filesystem::is_regular_file(path, ec)) return defaults();
-    const auto modificado = std::filesystem::last_write_time(path, ec);
-    const auto tamano = std::filesystem::file_size(path, ec);
-    {
-        std::lock_guard<std::mutex> lock(mutexConfig());
-        const CacheConfig& c = cacheConfig();
-        if (c.valida && c.ruta == path && c.modificado == modificado && c.tamano == tamano) {
-            return c.config;
+    LlmConfig cfg = defaults();
+    if (std::filesystem::is_regular_file(path, ec)) {
+        const auto modificado = std::filesystem::last_write_time(path, ec);
+        const auto tamano = std::filesystem::file_size(path, ec);
+        bool desdeCache = false;
+        {
+            std::lock_guard<std::mutex> lock(mutexConfig());
+            const CacheConfig& c = cacheConfig();
+            if (c.valida && c.ruta == path && c.modificado == modificado && c.tamano == tamano) {
+                cfg = c.config; desdeCache = true;
+            }
+        }
+        if (!desdeCache) {
+            try { std::ifstream f(path); nlohmann::json j = nlohmann::json::parse(f); cfg = fromJson(j); }
+            catch (...) { cfg = defaults(); }
+            std::lock_guard<std::mutex> lock(mutexConfig());
+            cacheConfig() = CacheConfig{path, modificado, tamano, cfg, true};
         }
     }
-    try {
-        std::ifstream f(path);
-        nlohmann::json j = nlohmann::json::parse(f);
-        LlmConfig cfg = fromJson(j);
-        std::lock_guard<std::mutex> lock(mutexConfig());
-        cacheConfig() = CacheConfig{path, modificado, tamano, cfg, true};
-        return cfg;
-    } catch (...) {
-        // Si falla, config por defecto
-    }
-    return defaults();
+    const std::vector<std::filesystem::path> candidatos = {
+        directorioBaseConfig() / "opencode.json",
+        directorioBaseConfig() / "opencode.jsonc",
+        std::filesystem::current_path() / "opencode.json",
+        std::filesystem::current_path() / "opencode.jsonc",
+    };
+    for (const auto& c : candidatos) if (auto j = leerJsonFlexible(c)) aplicarConfigCompat(cfg, *j);
+    return cfg;
 }
 
 void LlmConfig::save() const {

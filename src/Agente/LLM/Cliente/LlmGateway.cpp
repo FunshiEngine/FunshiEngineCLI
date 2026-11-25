@@ -185,6 +185,12 @@ std::string OpenAiCompatibleGateway::chat(const std::vector<ChatMessage>& messag
 }
 
 std::vector<std::string> OpenAiCompatibleGateway::listModels() {
+    std::vector<std::string> out;
+    for (const auto& m : listModelsInfo()) out.push_back(m.id);
+    return out;
+}
+
+std::vector<LlmGateway::ModelInfo> OpenAiCompatibleGateway::listModelsInfo() {
     if (!curl_) initCurl();
 
     std::string url = baseUrl_ + "/models";
@@ -212,12 +218,24 @@ std::vector<std::string> OpenAiCompatibleGateway::listModels() {
 
     try {
         auto json = nlohmann::json::parse(responseBuffer);
-        std::vector<std::string> models;
+        std::vector<ModelInfo> models;
         if (json.contains("data") && json["data"].is_array()) {
             for (const auto& item : json["data"]) {
-                if (item.contains("id") && item["id"].is_string()) {
-                    models.push_back(item["id"].get<std::string>());
+                if (!item.contains("id") || !item["id"].is_string()) continue;
+                ModelInfo m;
+                m.id = item["id"].get<std::string>();
+                m.raw = item;
+                if (item.value("reasoning", false) || item.value("supports_reasoning", false)) m.razonamiento = true;
+                if (item.contains("capabilities") && item["capabilities"].is_object()) {
+                    const auto& c = item["capabilities"];
+                    m.razonamiento = m.razonamiento || c.value("reasoning", false) || c.value("thinking", false);
                 }
+                if (item.contains("supported_reasoning_efforts") && item["supported_reasoning_efforts"].is_array()) {
+                    m.razonamiento = true;
+                    for (const auto& v : item["supported_reasoning_efforts"]) if (v.is_string()) m.variantes.push_back(v.get<std::string>());
+                }
+                if (m.razonamiento && m.variantes.empty()) m.variantes = {"low", "medium", "high"};
+                models.push_back(std::move(m));
             }
         }
         return models;

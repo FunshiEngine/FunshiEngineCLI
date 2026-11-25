@@ -317,9 +317,14 @@ ResultadoComando cliModelosListar(const nlohmann::json& argumentosIn) {
         agente::llm::OpenAiCompatibleGateway gw(cfg.remoteBaseUrlEfectiva(), key, cfg.modelName.empty() ? "model" : cfg.modelName,
                                                cfg.temperature, cfg.effectiveMaxTokens(), cfg.chatTimeoutMs,
                                                cfg.thinking, cfg.power);
-        const auto modelos = gw.listModels();
+        const auto modelos = gw.listModelsInfo();
         nlohmann::json arr = nlohmann::json::array();
-        for (const auto& m : modelos) arr.push_back(m);
+        for (const auto& m : modelos) {
+            nlohmann::json item = {{"id", m.id}, {"reasoning", m.razonamiento}, {"variants", m.variantes}};
+            if (!m.raw.is_null() && !m.raw.empty()) item["raw"] = m.raw;
+            item["modelRef"] = cfg.providerEfectivo() + "/" + m.id;
+            arr.push_back(item);
+        }
         return ResultadoComando::exito({
             {"provider", cfg.providerEfectivo()},
             {"remoteBaseUrl", cfg.remoteBaseUrlEfectiva()},
