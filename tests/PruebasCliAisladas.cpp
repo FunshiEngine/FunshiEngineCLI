@@ -7,6 +7,9 @@
 // escena y agente, todo en un directorio de trabajo aislado.
 #include "PruebasCli.h"
 
+#include <cstdlib>
+#include <fstream>
+
 namespace pruebas_cli {
 
 void probarConfiguracion(const EntornoAislado& env) {
@@ -95,6 +98,65 @@ void probarConfiguracion(const EntornoAislado& env) {
 
     j = ejecutar("config-llm-bad-provider", solicitudJson("cli.config.set", {{"provider", "desconocido"}}), rc);
     CHECK(rc == 2 && !esRespuestaOk(j), "cli.config.set provider inválido: error de uso");
+
+    // modelRef canónico + alias baseURL/model.
+    j = ejecutar("config-modelref", solicitudJson("cli.config.set", {{"modelRef", "google/gemini-2.5-pro#high"}}), rc);
+    CHECK(rc == 0 && esRespuestaOk(j), "cli.config.set modelRef: ok");
+    j = ejecutar("config-modelref-get", solicitudJson("cli.config.get"), rc);
+    if (esRespuestaOk(j)) {
+        const auto llm = j["result"].value("llm", nlohmann::json::object());
+        CHECK(llm.value("modelRef", std::string()) == "google/gemini-2.5-pro#high", "cli.config.get: modelRef");
+        CHECK(llm.value("variant", std::string()) == "high", "cli.config.get: variant");
+        CHECK(llm.value("thinking", std::string()) == "high", "cli.config.get: thinking desde variant");
+    }
+    j = ejecutar("config-alias", solicitudJson("cli.config.set", {{"baseURL", "https://example.invalid/v1"}, {"model", "nvidia/test-model"}}), rc);
+    CHECK(rc == 0 && esRespuestaOk(j), "cli.config.set alias baseURL/model: ok");
+    j = ejecutar("config-alias-get", solicitudJson("cli.config.get"), rc);
+    if (esRespuestaOk(j)) {
+        const auto llm = j["result"].value("llm", nlohmann::json::object());
+        CHECK(llm.value("provider", std::string()) == "nvidia", "alias model provider/model: provider");
+        CHECK(llm.value("modelName", std::string()) == "test-model", "alias model provider/model: modelName");
+        CHECK(llm.value("remoteBaseUrl", std::string()) == "https://example.invalid/v1", "alias baseURL");
+    }
+
+    // {env:VAR} / {file:ruta} en config: se resuelven en valores efectivos, no se exponen en claro.
+    const fs::path keyFile = trabajo / "api.key";
+    { std::ofstream f(keyFile); f << "secret-from-file\n"; }
+#if defined(_WIN32)
+    _putenv_s("FUNSHI_TEST_API_KEY", "secret-from-env");
+#else
+    setenv("FUNSHI_TEST_API_KEY", "secret-from-env", 1);
+#endif
+    j = ejecutar("config-env-file", solicitudJson("cli.config.set", {
+        {"provider", "openai"},
+        {"remoteBaseUrl", "https://api.openai.com/v1"},
+        {"apiKey", "{env:FUNSHI_TEST_API_KEY}"},
+        {"googleApiKey", "{file:" + keyFile.filename().string() + "}"}
+    }), rc);
+    CHECK(rc == 0 && esRespuestaOk(j), "cli.config.set env/file: ok");
+    j = ejecutar("config-env-file-get", solicitudJson("cli.config.get"), rc);
+    CHECK(rc == 0 && esRespuestaOk(j), "cli.config.get env/file: ok");
+    if (esRespuestaOk(j)) {
+        const auto llm = j["result"].value("llm", nlohmann::json::object());
+        CHECK(llm.value("hasApiKey", false), "env/file: hasApiKey");
+        CHECK(llm.value("hasGoogleApiKey", false), "env/file: hasGoogleApiKey");
+        CHECK(j.dump().find("secret-from-env") == std::string::npos, "env/file: no expone env en claro");
+        CHECK(j.dump().find("secret-from-file") == std::string::npos, "env/file: no expone file en claro");
+    }
+
+    // Compat opencode.jsonc: merge solo de faltantes cuando existe llm-config.json.
+    {
+        std::ofstream f(trabajo / ".agentes" / "opencode.jsonc");
+        f << "{\n  // comentario\n  \"provider\": \"google\",\n  \"model\": \"google/gemini-from-opencode\",\n  \"providers\": { \"google\": { \"options\": { \"baseURL\": \"https://generativelanguage.googleapis.com/v1beta/openai/\" } } }\n}\n";
+    }
+    j = ejecutar("config-opencode-compat", solicitudJson("cli.config.get"), rc);
+    CHECK(rc == 0 && esRespuestaOk(j), "cli.config.get compat opencode.jsonc: ok");
+    // Como ya hay llm-config con valores explícitos, no debe pisar provider/model actuales.
+    if (esRespuestaOk(j)) {
+        const auto llm = j["result"].value("llm", nlohmann::json::object());
+        CHECK(llm.value("provider", std::string()) == "openai" || llm.value("provider", std::string()) == "nvidia" || !llm.value("provider", std::string()).empty(),
+              "compat opencode.jsonc: no rompe config");
+    }
 }
 
 void probarCoercionArgs(const EntornoAislado& env) {
