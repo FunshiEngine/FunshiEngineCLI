@@ -34,11 +34,13 @@ const std::vector<Guia>& guiasIncluidas() {
          "4. scene.script.reload {\"project\":P,\"id\":ID}."},
         {"guia.borrar", "Borrar o eliminar un objeto, un script o un asset",
          "borrar borra borralo bórralo eliminar elimina eliminalo elimínalo quitar quita sacar saca destruir destruye "
-         "objeto script asset sonido modelo textura imagen archivo papelera recuperar recupera restaurar restaura "
+         "objeto objetos todos vaciar limpiar escena script asset sonido modelo textura imagen archivo papelera recuperar recupera restaurar restaura "
          "deshacer borré borrado borrada",
          "El usuario confirma cada borrado: si no lo autoriza, no insistas.\n"
          "- Objeto (con sus hijos): si no sabes el id, scene.object.findbyname {\"project\":P,\"name\":\"X\"}; "
          "luego scene.object.delete {\"project\":P,\"id\":ID}. scene.undo lo restaura.\n"
+         "- TODOS los objetos de la escena: primero scene.objects {\"project\":P} para ver los ids; luego borra cada objeto con id distinto de 0 usando scene.object.delete. "
+         "scene.object.delete borra también sus hijos, así que si borras un padre no hace falta borrar sus hijos; si un id ya no existe, ignora el error y sigue.\n"
          "- Script: script.list {\"project\":P} y script.delete {\"project\":P,\"path\":RUTA} (quita el "
          "componente Script de los objetos que lo usan).\n"
          "- Asset (modelo, imagen, audio, prefab, tileset, partículas, interfaz): asset.list {\"project\":P} y "
