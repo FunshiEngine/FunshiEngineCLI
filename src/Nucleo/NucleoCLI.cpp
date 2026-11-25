@@ -81,6 +81,8 @@ ResultadoComando ejecutarSolicitud(const Solicitud& solicitud) {
                 return proyectoSrcCrear(argumentos);
             case ComandoCLI::ProyectoSrcListar:
                 return proyectoSrcListar(argumentos);
+            case ComandoCLI::ProyectoSrcLeer:
+                return proyectoSrcLeer(argumentos);
             case ComandoCLI::ProyectoSrcBorrar:
                 return proyectoSrcBorrar(argumentos);
             case ComandoCLI::ProyectoSrcRenombrar:

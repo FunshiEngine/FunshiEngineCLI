@@ -38,7 +38,10 @@
 #include <Objetos/Componentes/Audio/AudioSource.h>
 #include <Objetos/Componentes/Colliders/EsfereCollider.h>
 #include <Objetos/Componentes/Colliders/CubeCollider.h>
+#include <Objetos/Componentes/Colliders/TilemapCollider.h>
 #include <Objetos/Componentes/RigidBody/RigidBody.h>
+#include <Objetos/Componentes/Juego2D/Tilemap.h>
+#include <Objetos/Componentes/Render/SpriteRenderer.h>
 
 #include <filesystem>
 #include <fstream>
@@ -168,6 +171,51 @@ ResultadoComando escenaObjetoAddComponente(const nlohmann::json& argumentosIn) {
         }
         auto* rigidBody = new RigidBody(collider, masa);
         obj->addComponent(std::unique_ptr<Component>(rigidBody));
+    } else if (componentType == "SpriteRenderer" || componentType == "Sprite") {
+        auto* sprite = new SpriteRenderer();
+        if (argumentos.contains("value") && argumentos["value"].is_string()) {
+            sprite->setRutaTextura(argumentos["value"].get<std::string>());
+        }
+        if (argumentos.contains("texture") && argumentos["texture"].is_string()) {
+            sprite->setRutaTextura(argumentos["texture"].get<std::string>());
+        }
+        if (argumentos.contains("tint") && argumentos["tint"].is_array() && argumentos["tint"].size() >= 4) {
+            const auto& t = argumentos["tint"];
+            sprite->setTint(static_cast<float>(t[0].get<double>()), static_cast<float>(t[1].get<double>()),
+                            static_cast<float>(t[2].get<double>()), static_cast<float>(t[3].get<double>()));
+        }
+        if (argumentos.contains("size") && argumentos["size"].is_array() && argumentos["size"].size() >= 2) {
+            const auto& s = argumentos["size"];
+            sprite->setTamano(static_cast<float>(s[0].get<double>()), static_cast<float>(s[1].get<double>()));
+        }
+        obj->addComponent(std::unique_ptr<Component>(sprite));
+        componentType = "SpriteRenderer";
+    } else if (componentType == "Tilemap") {
+        auto* tilemap = new Tilemap();
+        if (argumentos.contains("value") && argumentos["value"].is_string()) {
+            tilemap->setRutaTileset(argumentos["value"].get<std::string>());
+        }
+        if (argumentos.contains("tileset") && argumentos["tileset"].is_string()) {
+            tilemap->setRutaTileset(argumentos["tileset"].get<std::string>());
+        }
+        if (argumentos.contains("layer") && argumentos["layer"].is_object()) {
+            const auto& l = argumentos["layer"];
+            const std::string nombre = l.value("name", std::string("Capa"));
+            const int ancho = l.value("width", 0);
+            const int alto = l.value("height", 0);
+            const bool colision = l.value("collision", false);
+            if (ancho > 0 && alto > 0) tilemap->agregarCapa(nombre, ancho, alto, colision);
+        }
+        obj->addComponent(std::unique_ptr<Component>(tilemap));
+    } else if (componentType == "TilemapCollider") {
+        Transform* transform = obj->getComponent<Transform>();
+        if (!transform) {
+            registrarErrorUso("invalid_request", "El objeto no tiene Transform; no se puede agregar TilemapCollider");
+            return ResultadoComando::fallo("invalid_request", "Falta Transform",
+                                          codigosSalida::kErrorUso);
+        }
+        auto* collider = new TilemapCollider(1.0f, transform, obj);
+        obj->addComponent(std::unique_ptr<Component>(collider));
     } else {
         std::string mensaje = "Tipo de componente no soportado para agregar: " + componentType;
         registrarErrorUso("unsupported", mensaje);

@@ -275,6 +275,14 @@ void probarEscenaYArchivos(const EntornoAislado& env) {
     CHECK(rc == 0, "project.src.list: codigo de salida");
     CHECK(esRespuestaOk(j), "project.src.list: respuesta satisfactoria");
 
+    j = ejecutar("src-leer", solicitudJson("project.src.read", {
+        {"project", "Aislado"}, {"path", "Directorio/Archivo.txt"}
+    }), rc);
+    CHECK(rc == 0, "project.src.read: codigo de salida");
+    CHECK(esRespuestaOk(j), "project.src.read: respuesta satisfactoria");
+    CHECK(j.value("result", nlohmann::json::object()).value("content", std::string()) == "contenido",
+          "project.src.read: contenido");
+
     j = ejecutar("src-escape", solicitudJson("project.src.create", {
         {"project", "Aislado"}, {"path", "../fuera.txt"}, {"file", true}
     }), rc);
