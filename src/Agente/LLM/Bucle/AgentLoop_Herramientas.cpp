@@ -193,8 +193,16 @@ ToolResult AgentLoop::executeTool(const std::string& name, const nlohmann::json&
     }
     if (!tool) tool = registry_->byName(nombreParecido(name));
     if (!tool) {
-        return ToolResult::error("Herramienta desconocida: " + name +
-                                 ". Usa solo las herramientas de la lista (o ejecutar_comando).");
+        std::string sugerencia = nombreParecido(name);
+        std::string msg = "Herramienta desconocida: " + name + ".";
+        if (!sugerencia.empty()) msg += " ¿Quisiste decir \"" + sugerencia + "\"?";
+        msg += " Revisa qué querías hacer y usa una herramienta existente.";
+        msg += " Puedes usar buscar_comandos para encontrar el comando correcto, o ejecutar_comando para correr un comando CLI.";
+        msg += "\nHerramientas disponibles:";
+        for (const auto& spec : registry_->specs()) {
+            msg += "\n- " + spec.name + ": " + spec.description;
+        }
+        return ToolResult::error(msg);
     }
     ToolContext ctx; ctx.chatId = callId; ctx.outputsDir = ".agentes/outputs/" + callId;
     ctx.onEvent = onEventActual_;
