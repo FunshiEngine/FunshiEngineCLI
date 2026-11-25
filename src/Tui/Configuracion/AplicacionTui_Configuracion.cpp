@@ -205,11 +205,7 @@ void AplicacionTui::accionConfiguracion(const nlohmann::json& item) {
         }
         editarRutaConfiguracion(item);
     } else if (tipo == "llm-modelos-listar") {
-        textoComando_ = "cli.models.list";
-        cursorComando_ = static_cast<int>(textoComando_.size());
-        focoEnEntrada_ = true;
-        mensaje_ = "Pulsa Enter para listar modelos del provider configurado; usa provider=\"google\" o \"nvidia\" si hace falta";
-        mensajeEsError_ = false;
+        abrirSelectorModelos();
     } else if (tipo == "idioma") {
         tui::fijarIdioma(tui::siguienteIdioma());
         tui::guardarPreferencias();
@@ -331,6 +327,80 @@ ftxui::Element AplicacionTui::filaConfiguracion(const nlohmann::json& item, std:
                             : (porDefecto ? " por defecto " : " personalizada ")) |
             ftxui::color(porDefecto ? kTextoTenue : kExito),
     });
+}
+
+void AplicacionTui::abrirSelectorModelos() {
+    auto res = llamar("cli.models.list", nlohmann::json::object());
+    selectorModelos_ = SelectorModelos{};
+    selectorModelos_.abierto = true;
+    if (!res.respuesta.correcta) {
+        selectorModelos_.error = res.respuesta.codigoError + ": " + res.respuesta.mensajeError;
+        return;
+    }
+    selectorModelos_.provider = res.respuesta.resultado.value("provider", std::string{});
+    const auto& modelos = res.respuesta.resultado.value("models", nlohmann::json::array());
+    if (modelos.is_array()) for (const auto& m : modelos) selectorModelos_.modelos.push_back(m);
+    if (selectorModelos_.modelos.empty()) selectorModelos_.error = "No se recibieron modelos del proveedor.";
+}
+
+bool AplicacionTui::eventoSelectorModelos(ftxui::Event evento) {
+    auto& s = selectorModelos_;
+    if (evento == ftxui::Event::Escape) { s.abierto = false; return true; }
+    if (evento == ftxui::Event::ArrowDown || evento == ftxui::Event::Character('j')) {
+        if (!s.modelos.empty()) s.seleccion = std::min<int>(s.seleccion + 1, (int)s.modelos.size() - 1);
+        return true;
+    }
+    if (evento == ftxui::Event::ArrowUp || evento == ftxui::Event::Character('k')) {
+        if (!s.modelos.empty()) s.seleccion = std::max(0, s.seleccion - 1);
+        return true;
+    }
+    if (evento == ftxui::Event::Return && !s.modelos.empty()) {
+        const auto& m = s.modelos[s.seleccion];
+        const std::string modelRef = m.value("modelRef", s.provider + "/" + m.value("id", std::string{}));
+        auto r = llamar("cli.config.set", nlohmann::json{{"modelRef", modelRef}});
+        if (r.respuesta.correcta) {
+            mensaje_ = "Modelo configurado: " + modelRef;
+            mensajeEsError_ = false;
+            s.abierto = false;
+            recargarSeccionActual(false);
+        } else {
+            s.error = r.respuesta.codigoError + ": " + r.respuesta.mensajeError;
+        }
+        return true;
+    }
+    if (evento == ftxui::Event::Character('r')) {
+        abrirSelectorModelos();
+        return true;
+    }
+    return true;
+}
+
+ftxui::Element AplicacionTui::capaSelectorModelos() {
+    using namespace ftxui;
+    auto& s = selectorModelos_;
+    if (!s.abierto) return emptyElement();
+    Elements filas;
+    filas.push_back(text(" Modelos remotos (" + (s.provider.empty()?"?":s.provider) + ") ") | bold | color(kAcento));
+    filas.push_back(separator());
+    if (!s.error.empty()) filas.push_back(paragraph("Error: " + s.error) | color(kError));
+    int maxVis = 18;
+    int inicio = 0;
+    if (s.seleccion >= maxVis) inicio = s.seleccion - maxVis + 1;
+    int fin = std::min<int>((int)s.modelos.size(), inicio + maxVis);
+    for (int i = inicio; i < fin; ++i) {
+        const auto& m = s.modelos[i];
+        std::string id = m.value("id", std::string{});
+        std::string mr = m.value("modelRef", id);
+        bool razon = m.value("reasoning", false);
+        std::string suf = razon ? " [reasoning]" : "";
+        auto linea = text((i == s.seleccion ? "> " : "  ") + mr + suf);
+        if (i == s.seleccion) linea = linea | inverted;
+        filas.push_back(linea);
+    }
+    if (s.modelos.empty() && s.error.empty()) filas.push_back(text("Cargando/no hay modelos.") | color(kTextoTenue));
+    filas.push_back(separator());
+    filas.push_back(text("Enter aplica modelRef · r recargar · Esc cerrar") | color(kTextoTenue));
+    return dbox({filler() | bgcolor(Color::RGBA(0,0,0,120)), center(vbox(std::move(filas)) | border | bgcolor(kFondoPanel) | size(WIDTH, LESS_THAN, 100) | size(HEIGHT, LESS_THAN, 28))});
 }
 
 }  // namespace funshi

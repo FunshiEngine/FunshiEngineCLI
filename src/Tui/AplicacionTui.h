@@ -105,6 +105,19 @@ class AplicacionTui : public ftxui::ComponentBase {
     bool eventoSelectorColor(ftxui::Event evento);
     ftxui::Element capaSelectorColor();
 
+    // Selector de modelos remotos (Configuracion/AplicacionTui_Configuracion.cpp).
+    struct SelectorModelos {
+        bool abierto = false;
+        std::string provider;
+        std::vector<nlohmann::json> modelos;
+        int seleccion = 0;
+        int desplazamiento = 0;
+        std::string error;
+    } selectorModelos_;
+    void abrirSelectorModelos();
+    bool eventoSelectorModelos(ftxui::Event evento);
+    ftxui::Element capaSelectorModelos();
+
     void enfocarChat();
     void desenfocarChat();
     bool eventoEnChat(ftxui::Event evento);

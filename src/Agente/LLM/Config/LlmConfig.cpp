@@ -124,17 +124,22 @@ std::optional<nlohmann::json> leerJsonFlexible(const std::filesystem::path& p) {
     return std::nullopt;
 }
 
-void aplicarConfigCompat(LlmConfig& cfg, const nlohmann::json& j) {
-    if (j.contains("provider") && j["provider"].is_string()) cfg.provider = j["provider"].get<std::string>();
-    if (j.contains("model") && j["model"].is_string()) {
+void aplicarConfigCompat(LlmConfig& cfg, const nlohmann::json& j, bool soloFaltantes) {
+    auto setStr = [&](const char* k, std::string& dst) {
+        if (j.contains(k) && j[k].is_string() && (!soloFaltantes || dst.empty())) dst = j[k].get<std::string>();
+    };
+    setStr("provider", cfg.provider);
+    if (j.contains("model") && j["model"].is_string() && (!soloFaltantes || cfg.modelName.empty() || cfg.modelName == "phi-4-mini")) {
         std::string err; if (!cfg.aplicarModelRef(j["model"].get<std::string>(), err)) cfg.modelName = j["model"].get<std::string>();
     }
-    if (j.contains("modelName") && j["modelName"].is_string()) cfg.modelName = j["modelName"].get<std::string>();
-    if (j.contains("baseURL") && j["baseURL"].is_string()) cfg.remoteBaseUrl = j["baseURL"].get<std::string>();
-    if (j.contains("remoteBaseUrl") && j["remoteBaseUrl"].is_string()) cfg.remoteBaseUrl = j["remoteBaseUrl"].get<std::string>();
-    if (j.contains("apiKey") && j["apiKey"].is_string()) cfg.apiKey = j["apiKey"].get<std::string>();
+    setStr("modelName", cfg.modelName);
+    if (j.contains("baseURL") && j["baseURL"].is_string() && (!soloFaltantes || cfg.remoteBaseUrl.empty())) cfg.remoteBaseUrl = j["baseURL"].get<std::string>();
+    if (j.contains("remoteBaseUrl") && j["remoteBaseUrl"].is_string() && (!soloFaltantes || cfg.remoteBaseUrl.empty())) cfg.remoteBaseUrl = j["remoteBaseUrl"].get<std::string>();
+    if (j.contains("apiKey") && j["apiKey"].is_string() && (!soloFaltantes || cfg.apiKey.empty())) cfg.apiKey = j["apiKey"].get<std::string>();
     auto aplicarKey = [&](const std::string& prov, const std::string& key){
-        if (prov=="google") cfg.googleApiKey=key; else if (prov=="nvidia") cfg.nvidiaApiKey=key; else cfg.apiKey=key;
+        if (prov=="google") { if (!soloFaltantes || cfg.googleApiKey.empty()) cfg.googleApiKey=key; }
+        else if (prov=="nvidia") { if (!soloFaltantes || cfg.nvidiaApiKey.empty()) cfg.nvidiaApiKey=key; }
+        else { if (!soloFaltantes || cfg.apiKey.empty()) cfg.apiKey=key; }
     };
     const std::string prov = cfg.providerEfectivo();
     if (j.contains("providers") && j["providers"].is_object()) {
@@ -144,9 +149,13 @@ void aplicarConfigCompat(LlmConfig& cfg, const nlohmann::json& j) {
             if (p.contains("options") && p["options"].is_object()) {
                 const auto& o = p["options"];
                 if (o.contains("apiKey") && o["apiKey"].is_string()) aplicarKey(prov, o["apiKey"].get<std::string>());
-                if (o.contains("baseURL") && o["baseURL"].is_string()) cfg.remoteBaseUrl = o["baseURL"].get<std::string>();
+                if (o.contains("baseURL") && o["baseURL"].is_string() && (!soloFaltantes || cfg.remoteBaseUrl.empty())) cfg.remoteBaseUrl = o["baseURL"].get<std::string>();
             }
             if (p.contains("apiKey") && p["apiKey"].is_string()) aplicarKey(prov, p["apiKey"].get<std::string>());
+            // providers.<prov>.models: si hay modelo configurado, conservar; si no, tomar el primero/default.
+            if (p.contains("models") && p["models"].is_object() && (cfg.modelName.empty() || cfg.modelName == "phi-4-mini")) {
+                for (auto m = p["models"].begin(); m != p["models"].end(); ++m) { cfg.modelName = m.key(); break; }
+            }
         }
     }
 }
@@ -181,7 +190,8 @@ LlmConfig LlmConfig::load() {
         std::filesystem::current_path() / "opencode.json",
         std::filesystem::current_path() / "opencode.jsonc",
     };
-    for (const auto& c : candidatos) if (auto j = leerJsonFlexible(c)) aplicarConfigCompat(cfg, *j);
+    const bool tieneConfigNativa = std::filesystem::is_regular_file(path, ec);
+    for (const auto& c : candidatos) if (auto j = leerJsonFlexible(c)) aplicarConfigCompat(cfg, *j, tieneConfigNativa);
     return cfg;
 }
 
