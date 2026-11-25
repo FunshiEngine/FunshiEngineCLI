@@ -141,7 +141,16 @@ public:
     std::shared_ptr<Tool> byName(const std::string& name) const {
         construirCache();
         auto it = porNombre_.find(name);
-        return it == porNombre_.end() ? nullptr : it->second;
+        if (it != porNombre_.end()) return it->second;
+        // El modelo puede devolver el nombre saneado para la API (puntos -> guiones bajos).
+        std::string alt = name;
+        for (char& c : alt) if (c == '_') c = '.';
+        if (alt != name) {
+            it = porNombre_.find(alt);
+            if (it != porNombre_.end()) return it->second;
+        }
+        for (char& c : alt) if (c == '.') c = '_'; // por si vino con puntos
+        return nullptr;
     }
 
     const std::vector<ToolSpec>& specs() const {

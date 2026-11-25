@@ -23,6 +23,12 @@
 
 namespace funshi::agente::llm {
 
+inline std::string nombreHerramientaApi(const std::string& name) {
+    std::string out; out.reserve(name.size());
+    for (char c : name) out += (c == '.') ? '_' : c;
+    return out;
+}
+
 /**
  * Definición de una herramienta para el modelo (formato OpenAI):
  * nombre, descripción y JSON Schema de los argumentos.
@@ -36,7 +42,7 @@ struct ToolSpec {
         return {
             {"type", "function"},
             {"function", {
-                {"name", name},
+                {"name", nombreHerramientaApi(name)},
                 {"description", description},
                 {"parameters", nlohmann::json::parse(parametersSchema)}
             }}
