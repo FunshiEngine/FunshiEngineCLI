@@ -17,6 +17,7 @@
 // AgentLoop — herramientas: ejecución, alias, nombres mal escritos y
 // llamadas sin nombre.
 #include "Agente/LLM/Bucle/AgentLoop.h"
+#include "Util/LogCrash.h"
 
 #include <cstring>
 
@@ -183,6 +184,7 @@ std::size_t distancia(const std::string& a, const std::string& b) {
 }  // namespace
 
 ToolResult AgentLoop::executeTool(const std::string& name, const nlohmann::json& args, const std::string& callId) {
+    util::anotarCrash("tool start: " + name);
     auto tool = registry_->byName(name);
     nlohmann::json argsReales = args;
     if (!tool && alias_) {

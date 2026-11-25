@@ -157,6 +157,7 @@ add_library(funshi_cli_core STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Local/LlamaBinarios_Release.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/LLM/Local/RegistroServidor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Util/Clipboard.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Util/LogCrash.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Util/Metricas.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Silvy_Llm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Agente/Conocimiento/IndiceBm25.cpp
