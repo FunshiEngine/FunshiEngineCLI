@@ -89,11 +89,12 @@ const std::vector<Guia>& guiasIncluidas() {
          "scene.object.setfield {\"project\":P,\"id\":ID,\"field\":\"nombre\",\"value\":{\"v\":VALOR}} "
          "— VALOR puede ser número, texto, booleano o [x,y,z]."},
         {"guia.archivos", "Trabajar con archivos del proyecto",
-         "archivo carpeta src crear renombrar mover listar importar leer script tilemap json",
+         "archivo carpeta src crear renombrar mover listar importar leer escribir editar script tilemap json",
          "- Listar: project.src.list {\"project\":P,\"path\":\"Scripts\"}.\n"
          "- Leer archivo de texto (script, tilemap .json, tileset .json, etc.): project.src.read {\"project\":P,\"path\":\"Scripts/A.java\"}.\n"
-         "- Crear archivo: project.src.create {..,\"path\":\"Carpeta/A.txt\",\"file\":true,\"content\":\"...\"}; "
+         "- Crear archivo nuevo (no sobrescribe): project.src.create {..,\"path\":\"Carpeta/A.txt\",\"file\":true,\"content\":\"...\"}; "
          "carpeta: sin file.\n"
+         "- Editar/sobrescribir archivo existente: project.src.write {\"project\":P,\"path\":\"Scripts/A.java\",\"content\":\"...\"}. Tras editar un script: script.compile y scene.script.reload si está en un objeto.\n"
          "- Renombrar/mover: project.src.rename {..,\"path\":\"A\",\"newPath\":\"B\"}.\n"
          "- Importar carpeta externa: project.dir.import {..,\"source\":\"/abs\",\"path\":\"Destino\"}."},
         {"guia.errores", "Ver errores de compilación y diagnósticos",

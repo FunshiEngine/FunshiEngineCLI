@@ -34,6 +34,9 @@ ResultadoComando proyectoSrcListar(const nlohmann::json& argumentos);
 // project.src.read: lee un archivo de texto dentro de src/<proyecto>.
 ResultadoComando proyectoSrcLeer(const nlohmann::json& argumentos);
 
+// project.src.write: escribe/sobrescribe un archivo de texto dentro de src/<proyecto>.
+ResultadoComando proyectoSrcEscribir(const nlohmann::json& argumentos);
+
 // project.src.delete: borra un archivo o directorio dentro de src/<proyecto>.
 ResultadoComando proyectoSrcBorrar(const nlohmann::json& argumentos);
 

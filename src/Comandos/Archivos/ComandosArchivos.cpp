@@ -35,6 +35,70 @@ namespace funshi {
 namespace fs = std::filesystem;
 
 
+namespace {
+
+ResultadoComando escribirArchivoSrc(const std::string& nombreProyecto,
+                                    const std::string& rutaRelativa,
+                                    const std::string& contenido,
+                                    bool crearPadres,
+                                    bool sobrescribir,
+                                    const char* etiquetaLog) {
+    const std::string srcDir = ProjectPaths::directorioSrc(nombreProyecto);
+    std::error_code ec;
+    const fs::path rutaCompleta = fs::path(srcDir) / rutaRelativa;
+
+    ResultadoComando errorRuta;
+    if (!rutaSegura(srcDir, rutaCompleta,
+                    "La ruta intenta escapar del directorio src del proyecto",
+                    errorRuta)) {
+        return errorRuta;
+    }
+
+    if (fs::exists(rutaCompleta, ec) && fs::is_directory(rutaCompleta, ec)) {
+        const std::string mensaje = "La ruta es un directorio: " + rutaRelativa;
+        registrarErrorUso("invalid_request", mensaje);
+        return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
+    }
+    if (!sobrescribir && fs::exists(rutaCompleta, ec)) {
+        const std::string mensaje = "El archivo ya existe: " + rutaRelativa + " (usa project.src.write para sobrescribir)";
+        registrarErrorUso("already_exists", mensaje);
+        return ResultadoComando::fallo("already_exists", mensaje, codigosSalida::kErrorUso);
+    }
+
+    if (crearPadres) {
+        fs::create_directories(rutaCompleta.parent_path(), ec);
+        if (ec) {
+            const std::string mensaje = "No se pudieron crear directorios padre: " + ec.message();
+            registrarErrorOperacional("create_failed", mensaje);
+            return ResultadoComando::fallo("create_failed", mensaje, codigosSalida::kFalloEscritura);
+        }
+    } else if (!fs::exists(rutaCompleta.parent_path(), ec)) {
+        const std::string mensaje = "El directorio padre no existe: " + rutaCompleta.parent_path().string();
+        registrarErrorOperacional("not_found", mensaje);
+        return ResultadoComando::fallo("not_found", mensaje, codigosSalida::kRecursoNoEncontrado);
+    }
+
+    std::ofstream archivo(rutaCompleta, std::ios::binary | std::ios::trunc);
+    if (!archivo) {
+        registrarErrorOperacional("create_failed", "No se pudo crear el archivo: " + rutaCompleta.string());
+        return ResultadoComando::fallo("create_failed", "No se pudo crear el archivo",
+                                       codigosSalida::kFalloEscritura);
+    }
+    archivo << contenido;
+    archivo.close();
+
+    registrarErrorOperacional(etiquetaLog, std::string(etiquetaLog) + ": " + rutaRelativa);
+    return ResultadoComando::exito({
+        {"project", nombreProyecto},
+        {"path", rutaRelativa},
+        {"type", "file"},
+        {"written", true},
+        {"bytesWritten", static_cast<long long>(contenido.size())}
+    });
+}
+
+}  // namespace
+
 ResultadoComando proyectoSrcCrear(const nlohmann::json& argumentosIn) {
     nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
@@ -61,47 +125,23 @@ ResultadoComando proyectoSrcCrear(const nlohmann::json& argumentosIn) {
                                        codigosSalida::kProyectoInvalido);
     }
 
+    if (esArchivo) {
+        auto r = escribirArchivoSrc(nombreProyecto, rutaRelativa, contenido, true, false, "file_created");
+        if (r.respuesta.ok) r.respuesta.resultado["created"] = true;
+        return r;
+    }
+
     const std::string srcDir = ProjectPaths::directorioSrc(nombreProyecto);
     std::error_code ec;
     const fs::path rutaCompleta = fs::path(srcDir) / rutaRelativa;
 
-    // Validar que la ruta no escape del directorio src.
     ResultadoComando errorRuta;
-    if (!rutaSegura(srcDir, rutaCompleta.parent_path(),
+    if (!rutaSegura(srcDir, rutaCompleta,
                     "La ruta intenta escapar del directorio src del proyecto",
                     errorRuta)) {
         return errorRuta;
     }
 
-    if (esArchivo) {
-        // Crear directorios padre si no existen.
-        fs::create_directories(rutaCompleta.parent_path(), ec);
-        if (ec) {
-            const std::string mensaje =
-                "No se pudieron crear directorios padre: " + ec.message();
-            registrarErrorOperacional("create_failed", mensaje);
-            return ResultadoComando::fallo("create_failed", mensaje,
-                                           codigosSalida::kFalloEscritura);
-        }
-        // Crear archivo.
-        std::ofstream archivo(rutaCompleta, std::ios::binary | std::ios::trunc);
-        if (!archivo) {
-            registrarErrorOperacional("create_failed",
-                                      "No se pudo crear el archivo: " + rutaCompleta.string());
-            return ResultadoComando::fallo("create_failed", "No se pudo crear el archivo",
-                                           codigosSalida::kFalloEscritura);
-        }
-        archivo << contenido;
-        archivo.close();
-        registrarErrorOperacional("file_created", "Archivo creado: " + rutaRelativa);
-        return ResultadoComando::exito({
-            {"project", nombreProyecto},
-            {"path", rutaRelativa},
-            {"type", "file"},
-            {"created", true}
-        });
-    }
-    // Crear directorio.
     const bool creado = fs::create_directories(rutaCompleta, ec);
     if (ec) {
         const std::string mensaje = "No se pudo crear el directorio: " + ec.message();
@@ -116,6 +156,33 @@ ResultadoComando proyectoSrcCrear(const nlohmann::json& argumentosIn) {
         {"type", "directory"},
         {"created", creado}
     });
+}
+
+ResultadoComando proyectoSrcEscribir(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
+    std::string nombreProyecto;
+    std::string error;
+    const std::vector<RequisitoArg> requisitos = {
+        {"project", true, nlohmann::json::value_t::string},
+        {"path", true, nlohmann::json::value_t::string},
+        {"content", true, nlohmann::json::value_t::string},
+    };
+    if (!validarArgumentos(argumentos, requisitos, error)) {
+        registrarErrorUso("invalid_request", error);
+        return ResultadoComando::fallo("invalid_request", error, codigosSalida::kErrorUso);
+    }
+    nombreProyecto = argumentos["project"].get<std::string>();
+    const std::string rutaRelativa = argumentos["path"].get<std::string>();
+    const std::string contenido = argumentos["content"].get<std::string>();
+
+    ProjectManager::Proyecto proyecto;
+    if (!resolverProyectoPorNombre(nombreProyecto, proyecto, error)) {
+        registrarErrorOperacional("invalid_project", error);
+        return ResultadoComando::fallo("invalid_project", error,
+                                       codigosSalida::kProyectoInvalido);
+    }
+
+    return escribirArchivoSrc(nombreProyecto, rutaRelativa, contenido, true, true, "file_written");
 }
 
 

@@ -36,6 +36,7 @@ enum class ComandoCLI {
     ProyectoSrcCrear,
     ProyectoSrcListar,
     ProyectoSrcLeer,
+    ProyectoSrcEscribir,
     ProyectoSrcBorrar,
     ProyectoSrcRenombrar,
     ProyectoDirImportar,
