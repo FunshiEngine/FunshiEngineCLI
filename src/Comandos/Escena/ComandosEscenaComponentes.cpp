@@ -283,10 +283,19 @@ ResultadoComando escenaObjetoQuitarComponente(const nlohmann::json& argumentosIn
     }
 
     if (!eliminado) {
-        registrarErrorUso("component_not_found",
-                                   "Componente no encontrado en el objeto");
-        return ResultadoComando::fallo("component_not_found",
-                                      "Componente no encontrado en el objeto",
+        nlohmann::json presentes = nlohmann::json::array();
+        if (componentes && !componentes->isEmpty()) {
+            Position<Component*>* p = componentes->first();
+            while (p != nullptr) {
+                presentes.push_back(tipoComponenteNombre(p->getElement()));
+                p = (p != componentes->last()) ? componentes->next(p) : nullptr;
+            }
+        }
+        std::string mensaje = "Componente no encontrado en el objeto: " + componentType;
+        mensaje += ". Componentes presentes: " + presentes.dump();
+        mensaje += ". Usa scene.object.components para inspeccionar el objeto antes de quitar.";
+        registrarErrorUso("component_not_found", mensaje);
+        return ResultadoComando::fallo("component_not_found", mensaje,
                                       codigosSalida::kRecursoNoEncontrado);
     }
 
