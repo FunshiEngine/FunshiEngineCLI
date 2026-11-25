@@ -97,7 +97,7 @@ std::vector<AyudaComando> construirAyuda() {
           {"autoplay", "true | false", false, "AudioSource: reproducir al iniciar"},
           {"espacial", "true | false", false, "AudioSource: audio 3D"},
           {"masa", "número", false, "RigidBody: masa (por defecto 1)"}},
-         "scene.object.addcomponent id=6 componentType=Color value=[1,0,0,1]"},
+         "scene.object.addcomponent id=6 componentType=Collider value={\"tipo\":\"esfera\",\"radio\":0.5}"},
         {"scene.object.create", "Crea un objeto vacío en la escena.", true,
          {{"name", "texto", true, "Nombre del objeto"},
           {"parentId", "entero", false, "Id del padre (por defecto la raíz)"}},

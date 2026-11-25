@@ -94,12 +94,19 @@ ResultadoComando escenaObjetoObtener(const nlohmann::json& argumentosIn) {
     ContextoEscena contexto(nombreProyecto);
 
     GameObject* obj = nullptr;
-    if (argumentos.contains("id") && argumentos["id"].is_number_integer()) {
-        obj = findObjectById(&contexto.registro(), argumentos["id"].get<int>());
+    if (argumentos.contains("id") && (argumentos["id"].is_number_integer() || argumentos["id"].is_number_unsigned() || argumentos["id"].is_string())) {
+        try {
+            int id = argumentos["id"].is_string() ? std::stoi(argumentos["id"].get<std::string>()) : argumentos["id"].get<int>();
+            obj = findObjectById(&contexto.registro(), id);
+        } catch (...) {
+            const std::string mensaje = "args.id debe ser un entero";
+            registrarErrorUso("invalid_request", mensaje);
+            return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
+        }
     } else if (argumentos.contains("tag") && argumentos["tag"].is_string()) {
         obj = findObjectByTag(&contexto.registro(), argumentos["tag"].get<std::string>());
     } else {
-        const std::string mensaje = "args.id (int) o args.tag (string) es requerido";
+        const std::string mensaje = "args.id (entero) o args.tag (string) es requerido";
         registrarErrorUso("invalid_request", mensaje);
         return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
     }
@@ -123,12 +130,19 @@ ResultadoComando escenaObjetoPosicionGlobal(const nlohmann::json& argumentosIn) 
     ContextoEscena contexto(nombreProyecto);
 
     GameObject* obj = nullptr;
-    if (argumentos.contains("id") && argumentos["id"].is_number_integer()) {
-        obj = findObjectById(&contexto.registro(), argumentos["id"].get<int>());
+    if (argumentos.contains("id") && (argumentos["id"].is_number_integer() || argumentos["id"].is_number_unsigned() || argumentos["id"].is_string())) {
+        try {
+            int id = argumentos["id"].is_string() ? std::stoi(argumentos["id"].get<std::string>()) : argumentos["id"].get<int>();
+            obj = findObjectById(&contexto.registro(), id);
+        } catch (...) {
+            const std::string mensaje = "args.id debe ser un entero";
+            registrarErrorUso("invalid_request", mensaje);
+            return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
+        }
     } else if (argumentos.contains("tag") && argumentos["tag"].is_string()) {
         obj = findObjectByTag(&contexto.registro(), argumentos["tag"].get<std::string>());
     } else {
-        const std::string mensaje = "args.id (int) o args.tag (string) es requerido";
+        const std::string mensaje = "args.id (entero) o args.tag (string) es requerido";
         registrarErrorUso("invalid_request", mensaje);
         return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
     }

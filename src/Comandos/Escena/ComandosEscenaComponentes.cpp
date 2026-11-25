@@ -130,12 +130,14 @@ ResultadoComando escenaObjetoAddComponente(const nlohmann::json& argumentosIn) {
         audio->setEspacial(argumentos.value("espacial", false));
         obj->addComponent(std::unique_ptr<Component>(audio));
     } else if (componentType == "Collider") {
-        if (!argumentos.contains("value") || !argumentos["value"].is_object()) {
-            registrarErrorUso("invalid_request", "Collider requiere campo 'value' con {tipo, radio}");
-            return ResultadoComando::fallo("invalid_request", "Falta configuracion de Collider",
-                                          codigosSalida::kErrorUso);
+        nlohmann::json val = nlohmann::json::object();
+        if (argumentos.contains("value") && argumentos["value"].is_object()) {
+            val = argumentos["value"];
+        } else if (argumentos.contains("value") && argumentos["value"].is_string()) {
+            // Tolerar "esfera"/"cubo" o JSON serializado simple.
+            const std::string s = argumentos["value"].get<std::string>();
+            if (s == "esfera" || s == "cubo") val["tipo"] = s;
         }
-        const auto& val = argumentos["value"];
         std::string tipo = val.value("tipo", std::string("esfera"));
         float radio = static_cast<float>(val.value("radio", 1.0));
         Transform* transform = obj->getComponent<Transform>();
