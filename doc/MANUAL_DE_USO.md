@@ -270,7 +270,7 @@ necesita, sin tener los 48 en el contexto. Además puede:
   no tienen herramienta propia (mover objetos, agregar componentes, listar
   `src/`…). Por seguridad no puede usar `diagnostics.clear`,
   `cli.config.set` ni `agente.procesar`: esos los ejecutas tú con `/comando`.
-- **Borrar, con tu permiso**: antes de `scene.object.delete`, `script.delete`,
+- **Borrar, con tu permiso**: antes de `scene.object.delete`, `scene.objects.delete`, `script.delete`,
   `asset.delete`, `project.src.delete` o `trash.empty` te pregunta qué va a
   borrar (lo borrado va a la papelera y puede recuperarlo con `trash.restore`) («⚠ Silvy
   quiere borrar el objeto «Barril» (id 3) y sus hijos…  S: sí · N: no»). Hasta
@@ -423,6 +423,7 @@ La pestaña tiene dos vistas; `Tab` alterna entre ellas:
 | Grupo | Qué se configura | Cómo |
 |---|---|---|
 | Rutas y modelo | Datos/proyectos, inferencia, modelos, caché de Hugging Face, `llama-server`, contexto | `Enter` prellena `cli.config.set clave="valor"` en la caja de comandos |
+| Modelo remoto / API | Proveedor, URL base, modelo, thinking, power y estado de API keys (Google/NVIDIA/genérica) | `Enter` prellena `cli.config.set ...`; las keys no se muestran, solo su estado. «Listar modelos remotos» prellena `cli.models.list` |
 | Interfaz | Idioma: Español, English, Português, Français, Italiano, Deutsch | `Enter` pasa al siguiente. **Por ahora solo se guarda**: los textos siguen en español |
 | Colores | Cada color de la TUI: fondos (general, paneles, barras, selección, avisos), texto, texto tenue, acento, éxito, advertencia y error | Clic o `Enter` abre el **selector de color** |
 | | Restablecer todos los colores | `Enter` |
@@ -463,14 +464,25 @@ FunshiCLI --chat
 La CLI permite consultar y modificar las rutas/directorios usados para datos/proyectos y para inferencia/modelos locales, persistiendo los cambios en `.agentes/llm-config.json` (en el directorio de trabajo):
 
 ```bash
-# Ver rutas configuradas y efectivas
+# Ver rutas/configuración efectiva (las API keys se muestran enmascaradas)
 printf '{"command":"cli.config.get","args":{}}' | FunshiCLI --request
 
 # Modificar rutas (cadena vacía = valor por defecto)
 printf '{"command":"cli.config.set","args":{"projectsDataDir":"/ruta/datos","modelsDir":"/ruta/modelos","hfCacheDir":"/ruta/cache-hf","localInferenceDir":"/ruta/inferencia"}}' | FunshiCLI --request
+
+# Configurar Google Gemini (OpenAI-compatible)
+printf '{"command":"cli.config.set","args":{"provider":"google","googleApiKey":"...","modelName":"gemini-2.5-flash"}}' | FunshiCLI --request
+
+# Configurar NVIDIA NIM (OpenAI-compatible)
+printf '{"command":"cli.config.set","args":{"provider":"nvidia","nvidiaApiKey":"...","modelName":"meta/llama-3.1-8b-instruct"}}' | FunshiCLI --request
+
+# Listar modelos disponibles con la key configurada
+printf '{"command":"cli.models.list","args":{"provider":"nvidia"}}' | FunshiCLI --request
 ```
 
-Claves admitidas por `cli.config.set`: `projectsDataDir`, `localInferenceDir`, `modelsDir`, `hfCacheDir`, `llamaServerPath` y `contextSize` (entero, tokens de contexto del modelo local; por defecto `32768`). `llamaRepoDir` y `gitBin` se aceptan por compatibilidad pero ya no se usan.
+Claves admitidas por `cli.config.set`: rutas (`projectsDataDir`, `localInferenceDir`, `modelsDir`, `hfCacheDir`, `llamaServerPath`, `contextSize`) y LLM remoto (`provider`, `remoteBaseUrl`/`baseURL`, `modelName`/`model`, `modelRef`, `apiKey`, `googleApiKey`, `nvidiaApiKey`, `thinking`, `power`). `modelRef` acepta `provider/model` o `provider/model#variant`. Los strings de config pueden usar `{env:VAR}` y `{file:ruta}` (útil para API keys). También se hace merge compatible de `opencode.json`/`opencode.jsonc` cuando existe, sin sobrescribir valores explícitos de `llm-config.json`. `llamaRepoDir` y `gitBin` se aceptan por compatibilidad pero ya no se usan.
+
+`cli.config.get` devuelve además un bloque `llm` con `provider`, `remoteBaseUrl`, `modelName`, `modelRef`, `variant`, `thinking`, `power` y estado de claves (`has*ApiKey`, `apiKeyMasked`); **no expone claves en claro**. Las claves se guardan localmente en `llm-config.json`.
 
 **Dónde se guarda la configuración** (`configPath` en `cli.config.get`), en este orden:
 1. `$FUNSHI_CONFIG_DIR/llm-config.json`, si la variable está definida.
@@ -721,6 +733,7 @@ agregar funcionalidad; los campos nuevos se agregan al final.
 | `asset.delete` | `args.project` (string, requerido), `args.path` (string, ruta dentro de `src/`, como la da `asset.list`) | Borra el asset y quita de los objetos los componentes que lo usaban (en un Material solo vacía el mapa). |
 | `script.delete` | `args.project` (string, requerido), `args.path` (string, ruta del `.java`/`.cpp` dentro de `src/`) | Borra el script y quita el componente Script de los objetos que lo usaban. |
 | `scene.object.delete` | `args.project` (string, requerido), `args.id` (int, no 0) | Borra el objeto con sus hijos (a la papelera); `scene.undo` lo restaura (con un id nuevo) y `scene.redo` lo vuelve a borrar. |
+| `scene.objects.delete` | `args.project` (string, requerido), `args.ids` (array<int>, opcional) o `args.all` (bool, opcional) | Borra varios objetos o todos (excepto raíz) en una sola operación/confirmación. Omite ids inexistentes o ya borrados como hijos. |
 | `trash.list` | `args.project` (string, requerido) | Lo que hay en la papelera: id, tipo, ruta o nombre, cuándo se borró y cuántas referencias se quitaron. |
 | `trash.restore` | `args.project` (string, requerido), `args.id` (int), `args.overwrite` (bool, opcional) | Devuelve la entrada a su lugar y vuelve a poner en los objetos los componentes que se le quitaron. |
 | `trash.empty` | `args.project` (string, requerido), `args.id` (int, opcional) | Borra para siempre una entrada o toda la papelera. |
@@ -728,8 +741,9 @@ agregar funcionalidad; los campos nuevos se agregan al final.
 | `script.compile` | `args.project` (string, requerido) | Compila **todos** los scripts (C++ y Java) del proyecto vía `ScriptRuntime`. |
 | `diagnostics.list` | `args.limit` (opcional, máx 1000, default 100) | Devuelve los últimos eventos del registro de diagnósticos. |
 | `diagnostics.clear` | ninguno | Borra el archivo de diagnósticos. |
-| `cli.config.get` | ninguno | Devuelve las rutas configuradas y efectivas. |
-| `cli.config.set` | `args.<ruta>` (string; una o más de `projectsDataDir`, `localInferenceDir`, `modelsDir`, `hfCacheDir`, `llamaServerPath`, `llamaRepoDir`, `gitBin`) | Persiste rutas y las aplica al entorno. |
+| `cli.config.get` | ninguno | Devuelve rutas/configuración efectiva; incluye bloque `llm` con secretos enmascarados. |
+| `cli.config.set` | `args.*` (rutas/contexto y/o `provider`, `remoteBaseUrl`, `modelName`, `modelRef`, `apiKey`, `googleApiKey`, `nvidiaApiKey`, `thinking`, `power`) | Persiste configuración y la aplica al entorno. |
+| `cli.models.list` | `provider`/`remoteBaseUrl`/keys opcionales | Lista modelos consultando el endpoint OpenAI-compatible configurado. |
 | `agente.procesar` | `args.text` (string, requerido) | Entrega el texto a Silvy y devuelve la respuesta interna y el rastro de auditoría. |
 
 ## Crear proyecto con dimensión
@@ -827,7 +841,7 @@ Respuesta: `{"id": 10, "name": "Enemigo", "parentId": 0, "cloned": true}`.
 
 Respuesta: `{"componentType": "Collider", "id": 6, "removed": true}`.
 
-**Borrar objetos, scripts y assets.** `scene.object.delete` borra un objeto
+**Borrar objetos, scripts y assets.** `scene.object.delete` borra un objeto; `scene.objects.delete` borra varios o todos (`ids=[...]` o `all=true`) con una sola confirmación.
 con todos sus hijos. Antes guarda una copia (un prefab en
 `<proyecto>/Memory/papelera/`), así `scene.undo` lo vuelve a poner donde estaba,
 con sus componentes y un id nuevo:

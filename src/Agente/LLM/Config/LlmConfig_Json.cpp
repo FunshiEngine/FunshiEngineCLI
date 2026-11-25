@@ -26,16 +26,79 @@
 #include <mutex>
 #include <stdexcept>
 
+#include <cctype>
+#include <cstdlib>
+
 namespace funshi::agente::llm {
+
+namespace {
+
+std::string expandirRefConfigImpl(std::string v, const std::filesystem::path& base) {
+    // Soporta {env:VAR} y {file:ruta} dentro de strings de config.
+    auto reemplazar = [&](const std::string& pref, auto resolver) {
+        std::string out;
+        std::size_t i = 0;
+        while (i < v.size()) {
+            std::size_t p = v.find(pref, i);
+            if (p == std::string::npos) { out += v.substr(i); break; }
+            std::size_t fin = v.find('}', p);
+            if (fin == std::string::npos) { out += v.substr(i); break; }
+            out += v.substr(i, p - i);
+            out += resolver(v.substr(p + pref.size(), fin - (p + pref.size())));
+            i = fin + 1;
+        }
+        v.swap(out);
+    };
+    reemplazar("{env:", [](const std::string& nombre) -> std::string {
+        if (const char* val = std::getenv(nombre.c_str()); val && *val) return val;
+        return {};
+    });
+    reemplazar("{file:", [&](const std::string& ruta) -> std::string {
+        std::filesystem::path p(ruta);
+        if (ruta.size() >= 2 && ruta[0] == '~' && ruta[1] == '/') {
+            const char* home = std::getenv("HOME");
+#ifdef _WIN32
+            if (!home) home = std::getenv("USERPROFILE");
+#endif
+            p = std::filesystem::path(home ? home : "") / ruta.substr(2);
+        } else if (!p.is_absolute()) {
+            p = base / p;
+        }
+        std::error_code ec;
+        if (!std::filesystem::is_regular_file(p, ec)) return {};
+        std::ifstream f(p, std::ios::binary);
+        std::string contenido((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        while (!contenido.empty() && (contenido.back()=='\n' || contenido.back()=='\r')) contenido.pop_back();
+        return contenido;
+    });
+    return v;
+}
+
+ }  // namespace
+
+std::string LlmConfig::resolverValorConfig(const std::string& v) {
+    return expandirRefConfigImpl(v, directorioBaseConfig());
+}
+
 
 std::vector<std::string> LlmConfig::validate() const {
     std::vector<std::string> errors;
+    const std::string prov = providerEfectivo();
+    if (!provider.empty()) {
+        const bool conocido = provider == "local" || provider == "openai" || provider == "google" ||
+                              provider == "nvidia" || provider == "custom";
+        if (!conocido) errors.push_back("provider desconocido: " + provider + " (usa google, nvidia, openai, custom o local)");
+    }
     if (mode == LlmMode::REMOTE) {
         if (remoteBaseUrl.empty()) {
             errors.push_back("Modo REMOTE: falta remoteBaseUrl (ej. http://localhost:11434/v1)");
         }
-        if (apiKey.empty() && !isLocalhostUrl()) {
-            errors.push_back("Modo REMOTE: falta apiKey para " + remoteBaseUrl + " (endpoints localhost no la necesitan)");
+        if (apiKeyEfectiva().empty() && !isLocalhostUrl()) {
+            const std::string quien = prov == "google" ? "googleApiKey"
+                                     : prov == "nvidia" ? "nvidiaApiKey"
+                                                        : "apiKey";
+            errors.push_back("Modo REMOTE: falta " + quien + " para " + remoteBaseUrl +
+                             " (endpoints localhost no la necesitan)");
         }
         if (modelName.empty()) {
             errors.push_back("Modo REMOTE: falta modelName");
@@ -56,9 +119,13 @@ std::vector<std::string> LlmConfig::validate() const {
 nlohmann::json LlmConfig::toJson() const {
     nlohmann::json j;
     j["mode"] = (mode == LlmMode::LOCAL) ? "local" : "remote";
+    j["provider"] = provider;
     j["remoteBaseUrl"] = remoteBaseUrl;
     j["apiKey"] = apiKey;
+    j["googleApiKey"] = googleApiKey;
+    j["nvidiaApiKey"] = nvidiaApiKey;
     j["modelName"] = modelName;
+    j["modelRef"] = modelRef;
     j["temperature"] = temperature;
     j["maxTokens"] = maxTokens;
     j["chatTimeoutMs"] = chatTimeoutMs;
@@ -105,9 +172,13 @@ LlmConfig LlmConfig::fromJson(const nlohmann::json& j) {
     LlmConfig cfg;
     std::string modeStr = j.value("mode", "remote");
     cfg.mode = (modeStr == "local") ? LlmMode::LOCAL : LlmMode::REMOTE;
+    cfg.provider = j.value("provider", "");
     cfg.remoteBaseUrl = j.value("remoteBaseUrl", "");
     cfg.apiKey = j.value("apiKey", "");
+    cfg.googleApiKey = j.value("googleApiKey", "");
+    cfg.nvidiaApiKey = j.value("nvidiaApiKey", "");
     cfg.modelName = j.value("modelName", "phi-4-mini");
+    cfg.modelRef = j.value("modelRef", "");
     cfg.temperature = j.value("temperature", 0.7);
     cfg.maxTokens = j.value("maxTokens", 4096);
     cfg.chatTimeoutMs = j.value("chatTimeoutMs", 0L);
@@ -162,6 +233,15 @@ LlmConfig LlmConfig::fromJson(const nlohmann::json& j) {
             cfg.apiPresets.push_back(std::move(p));
         }
     }
+    // Asegurar presets conocidos sin pisar los del usuario.
+    auto asegurarPreset = [&](const ApiPreset& base) {
+        for (const auto& p : cfg.apiPresets) if (p.id == base.id) return;
+        cfg.apiPresets.push_back(base);
+    };
+    asegurarPreset({"google", "Google Gemini (OpenAI compatible)",
+                    "https://generativelanguage.googleapis.com/v1beta/openai/", "", ""});
+    asegurarPreset({"nvidia", "NVIDIA NIM (OpenAI compatible)",
+                    "https://integrate.api.nvidia.com/v1", "", ""});
     return cfg;
 }
 

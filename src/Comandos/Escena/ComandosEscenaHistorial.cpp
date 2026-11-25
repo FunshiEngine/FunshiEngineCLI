@@ -53,7 +53,8 @@ namespace funshi {
 // ---------------------------------------------------------------------------
 // scene.undo
 // ---------------------------------------------------------------------------
-ResultadoComando escenaUndo(const nlohmann::json& argumentos) {
+ResultadoComando escenaUndo(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -133,7 +134,8 @@ ResultadoComando escenaUndo(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.redo
 // ---------------------------------------------------------------------------
-ResultadoComando escenaRedo(const nlohmann::json& argumentos) {
+ResultadoComando escenaRedo(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -209,7 +211,8 @@ ResultadoComando escenaRedo(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.autosave
 // ---------------------------------------------------------------------------
-ResultadoComando escenaAutoSave(const nlohmann::json& argumentos) {
+ResultadoComando escenaAutoSave(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;

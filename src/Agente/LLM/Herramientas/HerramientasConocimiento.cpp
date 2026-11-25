@@ -67,8 +67,8 @@ const std::set<std::string>& EjecutarComandoTool::bloqueados() {
 }
 
 const std::set<std::string>& EjecutarComandoTool::requierenConfirmacion() {
-    static const std::set<std::string> c = {"scene.object.delete", "script.delete", "asset.delete", "project.src.delete",
-                                            "trash.empty"};
+    static const std::set<std::string> c = {"scene.object.delete", "scene.objects.delete", "script.delete", "asset.delete",
+                                            "project.src.delete", "trash.empty"};
     return c;
 }
 
@@ -89,6 +89,13 @@ std::string EjecutarComandoTool::descripcionDeBorrado(const std::string& comando
         }
         return "borrar el objeto " + (nombre.empty() ? "" : "«" + nombre + "» ") + "(id " + id + ") y sus hijos de la escena" +
                enProyecto;
+    }
+    if (comando == "scene.objects.delete") {
+        if (argumentos.value("all", false)) return "borrar TODOS los objetos de la escena" + enProyecto + " (la raíz se conserva)";
+        if (argumentos.contains("ids") && argumentos["ids"].is_array()) {
+            return "borrar " + std::to_string(argumentos["ids"].size()) + " objeto(s) de la escena" + enProyecto + " y sus hijos";
+        }
+        return "borrar objetos de la escena" + enProyecto;
     }
     if (comando == "trash.empty") {
         return argumentos.contains("id") ? "borrar para siempre la entrada " + argumentos["id"].dump() + " de la papelera" + enProyecto

@@ -66,8 +66,7 @@ std::string contenidoComando(const AyudaComando& a) {
             o << "\n- resumen (texto): una frase con lo que contiene y hace el archivo; la extensión "
                  "del archivo debe ser la de su lenguaje (scripts del motor: .java o .cpp)"
                << (a.comando == "project.src.create"
-                       ? "\n- sobrescribir (bool): true para reemplazar un archivo que ya existe; sin él la "
-                         "llamada falla y el archivo queda como estaba"
+                       ? "\n- sobrescribir (bool): solo para recrear reemplazando deliberadamente; para editar un archivo existente usa project.src.write"
                        : "");
         }
         o << "\n";

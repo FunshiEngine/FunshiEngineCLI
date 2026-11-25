@@ -81,6 +81,10 @@ ResultadoComando ejecutarSolicitud(const Solicitud& solicitud) {
                 return proyectoSrcCrear(argumentos);
             case ComandoCLI::ProyectoSrcListar:
                 return proyectoSrcListar(argumentos);
+            case ComandoCLI::ProyectoSrcLeer:
+                return proyectoSrcLeer(argumentos);
+            case ComandoCLI::ProyectoSrcEscribir:
+                return proyectoSrcEscribir(argumentos);
             case ComandoCLI::ProyectoSrcBorrar:
                 return proyectoSrcBorrar(argumentos);
             case ComandoCLI::ProyectoSrcRenombrar:
@@ -141,6 +145,8 @@ ResultadoComando ejecutarSolicitud(const Solicitud& solicitud) {
                 return scriptBorrar(argumentos);
             case ComandoCLI::EscenaObjetoBorrar:
                 return escenaObjetoBorrar(argumentos);
+            case ComandoCLI::EscenaObjetosBorrar:
+                return escenaObjetosBorrar(argumentos);
             case ComandoCLI::PapeleraListar:
                 return papeleraListar(argumentos);
             case ComandoCLI::PapeleraRestaurar:
@@ -175,6 +181,8 @@ ResultadoComando ejecutarSolicitud(const Solicitud& solicitud) {
                 return cliConfigLeer(argumentos);
             case ComandoCLI::CliConfigEscribir:
                 return cliConfigEscribir(argumentos);
+            case ComandoCLI::CliModelosListar:
+                return cliModelosListar(argumentos);
             case ComandoCLI::AgenteProcesar:
                 return agenteProcesar(argumentos);
             case ComandoCLI::Desconocido: {

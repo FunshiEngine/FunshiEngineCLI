@@ -42,7 +42,8 @@ nlohmann::json eventoJson(const EventoDiagnostico& evento) {
 
 }  // namespace
 
-ResultadoComando diagnosticoListar(const nlohmann::json& argumentos) {
+ResultadoComando diagnosticoListar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::size_t limite = 100;
     if (argumentos.contains("limit")) {
         const nlohmann::json& valorLimite = argumentos["limit"];

@@ -97,7 +97,7 @@ bool Silvy::configurarLlm(const llm::LlmConfig& config, bool nativeToolCalls) {
     auto estado = std::make_shared<EstadoLlm>();
     estado->fabrica = [config]() -> std::shared_ptr<llm::LlmGateway> {
         return std::make_shared<llm::OpenAiCompatibleGateway>(
-            config.remoteBaseUrl, config.apiKey, config.modelName, config.temperature,
+            config.remoteBaseUrlEfectiva(), config.apiKeyEfectiva(), config.modelName, config.temperature,
             config.effectiveMaxTokens(), config.chatTimeoutMs, config.thinking, config.power);
     };
     estado->nativas = nativeToolCalls;
@@ -108,7 +108,7 @@ bool Silvy::configurarLlm(const llm::LlmConfig& config, bool nativeToolCalls) {
     // en la carpeta que el servidor usa para eso (--slot-save-path).
     if (config.isLocalhostUrl()) {
         estado->tuneles =
-            llm::AsignadorTuneles::paraServidor(config.remoteBaseUrl, config.localInferenceDirEfectivo() / "slots");
+            llm::AsignadorTuneles::paraServidor(config.remoteBaseUrlEfectiva(), config.localInferenceDirEfectivo() / "slots");
     }
     try {
         estado->fabrica();  // valida que el gateway se pueda crear

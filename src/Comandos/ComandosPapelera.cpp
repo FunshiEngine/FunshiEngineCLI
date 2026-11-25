@@ -142,7 +142,8 @@ void restaurarReferencias(const std::string& proyecto, const std::string& ruta, 
     if (cambio) guardarEscena(contexto, proyecto);
 }
 
-bool idDeArgs(const nlohmann::json& argumentos, bool requerido, int& id, ResultadoComando& resultado) {
+bool idDeArgs(const nlohmann::json& argumentosIn, bool requerido, int& id, ResultadoComando& resultado) {
+    nlohmann::json argumentos = argumentosIn;
     std::string error;
     if (!validarArgumentos(argumentos, {{"id", requerido, nlohmann::json::value_t::number_unsigned}}, error)) {
         registrarErrorUso("invalid_request", error);
@@ -197,7 +198,8 @@ void quitarDePapeleraPorPrefab(const std::string& proyecto, const std::string& p
     if (e.size() != antes) escribirIndice(proyecto, indice);
 }
 
-ResultadoComando papeleraListar(const nlohmann::json& argumentos) {
+ResultadoComando papeleraListar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string proyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, proyecto, resultado)) return resultado;
@@ -214,7 +216,8 @@ ResultadoComando papeleraListar(const nlohmann::json& argumentos) {
                                     {"folder", carpetaPapelera(proyecto).string()}});
 }
 
-ResultadoComando papeleraRestaurar(const nlohmann::json& argumentos) {
+ResultadoComando papeleraRestaurar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string proyecto;
     ResultadoComando resultado;
     int id = -1;
@@ -272,7 +275,8 @@ ResultadoComando papeleraRestaurar(const nlohmann::json& argumentos) {
     return ResultadoComando::exito(respuesta);
 }
 
-ResultadoComando papeleraVaciar(const nlohmann::json& argumentos) {
+ResultadoComando papeleraVaciar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string proyecto;
     ResultadoComando resultado;
     int id = -1;

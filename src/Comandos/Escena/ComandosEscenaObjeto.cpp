@@ -48,7 +48,8 @@ namespace funshi {
 // ---------------------------------------------------------------------------
 // scene.object.settag
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoSetTag(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoSetTag(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -98,7 +99,8 @@ ResultadoComando escenaObjetoSetTag(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.object.setactive
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoSetActivo(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoSetActivo(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -147,7 +149,8 @@ ResultadoComando escenaObjetoSetActivo(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.object.findbytag
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoBuscarPorTag(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoBuscarPorTag(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -195,7 +198,8 @@ ResultadoComando escenaObjetoBuscarPorTag(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.object.findbyname
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoBuscarPorNombre(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoBuscarPorNombre(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;

@@ -33,7 +33,8 @@
 
 namespace funshi {
 
-ResultadoComando scriptListar(const nlohmann::json& argumentos) {
+ResultadoComando scriptListar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -62,7 +63,8 @@ ResultadoComando scriptListar(const nlohmann::json& argumentos) {
     return ResultadoComando::exito({{"scripts", std::move(scripts)}, {"count", cantidadScripts}});
 }
 
-ResultadoComando scriptCompilar(const nlohmann::json& argumentos) {
+ResultadoComando scriptCompilar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;

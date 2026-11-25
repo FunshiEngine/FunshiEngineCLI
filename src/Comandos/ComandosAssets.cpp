@@ -28,12 +28,15 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 
 namespace funshi {
 
 namespace fs = std::filesystem;
 
-ResultadoComando assetImportar(const nlohmann::json& argumentos) {
+ResultadoComando assetImportar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     std::string error;
     const std::vector<RequisitoArg> requisitos = {
@@ -67,7 +70,7 @@ ResultadoComando assetImportar(const nlohmann::json& argumentos) {
                                        codigosSalida::kRecursoNoEncontrado);
     }
 
-    // Clasificación por extensión: modelo, textura o audio.
+    // Clasificación por extensión: modelo, textura, audio o tileset JSON.
     const std::string ext = AssetPath::extension(fuente);
     std::string tipo;
     std::string subcarpeta;
@@ -83,6 +86,23 @@ ResultadoComando assetImportar(const nlohmann::json& argumentos) {
     } else if (std::find(std::begin(extAudio), std::end(extAudio), ext) != std::end(extAudio)) {
         tipo = "audio";
         subcarpeta = "Sonidos";
+    } else if (ext == "json") {
+        // Detectar tileset estilo Tiled por contenido mínimo.
+        bool esTileset = false;
+        {
+            std::ifstream f(origen, std::ios::binary);
+            std::string contenido((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+            auto j = nlohmann::json::parse(contenido, nullptr, false);
+            esTileset = j.is_object() && j.contains("tilewidth") && j.contains("tileheight") && j.contains("image");
+        }
+        if (!esTileset) {
+            const std::string mensaje = "JSON no soportado para asset.import: solo tilesets (tilewidth/tileheight/image). Usa project.src.create para otros JSON.";
+            registrarErrorUso("unsupported_extension", mensaje);
+            return ResultadoComando::fallo("unsupported_extension", mensaje,
+                                           codigosSalida::kErrorUso);
+        }
+        tipo = "tileset";
+        subcarpeta = "Tiles";
     } else {
         const std::string mensaje = "Extension no soportada para importar: " + ext;
         registrarErrorUso("unsupported_extension", mensaje);
@@ -121,7 +141,8 @@ ResultadoComando assetImportar(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // asset.validar
 // ---------------------------------------------------------------------------
-ResultadoComando assetValidar(const nlohmann::json& argumentos) {
+ResultadoComando assetValidar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     const std::vector<RequisitoArg> requisitos = {
         {"path", true, nlohmann::json::value_t::string},
     };
@@ -150,6 +171,9 @@ ResultadoComando assetValidar(const nlohmann::json& argumentos) {
     } else if (std::find(std::begin(extAudio), std::end(extAudio), ext) != std::end(extAudio)) {
         tipo = "audio";
         soportado = true;
+    } else if (ext == "json") {
+        tipo = "tileset";
+        soportado = true; // validación de contenido ocurre en importación
     }
 
     return ResultadoComando::exito({
@@ -163,7 +187,8 @@ ResultadoComando assetValidar(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // asset.extensions
 // ---------------------------------------------------------------------------
-ResultadoComando assetListarExtensiones(const nlohmann::json& argumentos) {
+ResultadoComando assetListarExtensiones(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     nlohmann::json modelos = nlohmann::json::array();
     for (const char* ext : {"obj", "fbx", "gltf", "glb", "dae", "blend"})
         modelos.push_back(ext);
@@ -176,10 +201,14 @@ ResultadoComando assetListarExtensiones(const nlohmann::json& argumentos) {
     for (const char* ext : {"wav", "ogg", "mp3", "flac"})
         audios.push_back(ext);
 
+    nlohmann::json tilesets = nlohmann::json::array();
+    tilesets.push_back("json (tileset Tiled: tilewidth/tileheight/image)");
+
     return ResultadoComando::exito({
         {"model", modelos},
         {"texture", texturas},
-        {"audio", audios}
+        {"audio", audios},
+        {"tileset", tilesets}
     });
 }
 }  // namespace funshi

@@ -21,6 +21,7 @@
 #include "Nucleo/NucleoCLI.h"
 #include "Nucleo/Respuesta.h"
 #include "Nucleo/Solicitud.h"
+#include "Agente/LLM/Config/LlmConfig.h"
 #include "Util/Clipboard.h"
 
 #include <ftxui/component/component.hpp>
@@ -117,6 +118,13 @@ void AplicacionTui::ejecutarComandoEscrito() {
     if (resultado.respuesta.correcta) {
         mensaje_ = comando + ": ok" + resumenResultado(resultado.respuesta.resultado);
         mensajeEsError_ = false;
+        if (comando == "cli.config.set") {
+            auto cfg = agente::llm::LlmConfig::load();
+            if (cfg.mode == agente::llm::LlmMode::REMOTE && cfg.validate().empty()) {
+                silvy_.configurarLlm(cfg, true);
+                mensaje_ += " · agente LLM configurado";
+            }
+        }
     } else {
         mensaje_ = comando + ": " + resultado.respuesta.codigoError + " - " +
                    resultado.respuesta.mensajeError;

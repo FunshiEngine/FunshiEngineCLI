@@ -29,6 +29,7 @@
 #include "Nucleo/Respuesta.h"
 #include "Nucleo/Solicitud.h"
 #include "Tui/InterfazTui.h"
+#include "Util/LogCrash.h"
 
 #include <nlohmann/json.hpp>
 
@@ -56,6 +57,7 @@ int errorUso(const std::string& codigo, const std::string& mensaje,
 }  // namespace
 
 int main(int argc, char* argv[]) {
+    funshi::util::instalarManejadorCrash();
     // Aplicar rutas configuradas/persistidas antes de cualquier operación que
     // pueda resolver ubicaciones (proyectos, modelos, etc.).
     {

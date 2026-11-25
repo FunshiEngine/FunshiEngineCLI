@@ -22,7 +22,7 @@ const std::set<std::string>& comandosLectura() {
         "scene.list", "scene.objects", "scene.object.get", "scene.object.getglobalpos",
         "scene.hierarchy", "scene.object.components", "scene.object.findbytag",
         "scene.object.findbyname", "scene.object.getglobaltransform", "asset.validar",
-        "asset.extensions", "asset.list", "script.list", "diagnostics.list", "cli.config.get", "trash.list",
+        "asset.extensions", "asset.list", "script.list", "diagnostics.list", "cli.config.get", "cli.models.list", "trash.list",
     };
     return s;
 }
@@ -33,7 +33,7 @@ const std::set<std::string>& comandosEscena() {
         "scene.object.setparent", "scene.object.addcomponent", "scene.object.create",
         "scene.object.clone", "scene.object.removecomponent", "scene.object.unparent",
         "scene.object.settag", "scene.object.setactive", "scene.undo", "scene.redo",
-        "scene.autosave", "scene.object.delete", "trash.restore",
+        "scene.autosave", "scene.object.delete", "scene.objects.delete", "trash.restore",
     };
     return s;
 }

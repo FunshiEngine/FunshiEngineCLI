@@ -38,7 +38,10 @@
 #include <Objetos/Componentes/Audio/AudioSource.h>
 #include <Objetos/Componentes/Colliders/EsfereCollider.h>
 #include <Objetos/Componentes/Colliders/CubeCollider.h>
+#include <Objetos/Componentes/Colliders/TilemapCollider.h>
 #include <Objetos/Componentes/RigidBody/RigidBody.h>
+#include <Objetos/Componentes/Juego2D/Tilemap.h>
+#include <Objetos/Componentes/Render/SpriteRenderer.h>
 
 #include <filesystem>
 #include <fstream>
@@ -48,7 +51,8 @@ namespace funshi {
 // ---------------------------------------------------------------------------
 // scene.object.addcomponent
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoAddComponente(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoAddComponente(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -129,12 +133,14 @@ ResultadoComando escenaObjetoAddComponente(const nlohmann::json& argumentos) {
         audio->setEspacial(argumentos.value("espacial", false));
         obj->addComponent(std::unique_ptr<Component>(audio));
     } else if (componentType == "Collider") {
-        if (!argumentos.contains("value") || !argumentos["value"].is_object()) {
-            registrarErrorUso("invalid_request", "Collider requiere campo 'value' con {tipo, radio}");
-            return ResultadoComando::fallo("invalid_request", "Falta configuracion de Collider",
-                                          codigosSalida::kErrorUso);
+        nlohmann::json val = nlohmann::json::object();
+        if (argumentos.contains("value") && argumentos["value"].is_object()) {
+            val = argumentos["value"];
+        } else if (argumentos.contains("value") && argumentos["value"].is_string()) {
+            // Tolerar "esfera"/"cubo" o JSON serializado simple.
+            const std::string s = argumentos["value"].get<std::string>();
+            if (s == "esfera" || s == "cubo") val["tipo"] = s;
         }
-        const auto& val = argumentos["value"];
         std::string tipo = val.value("tipo", std::string("esfera"));
         float radio = static_cast<float>(val.value("radio", 1.0));
         Transform* transform = obj->getComponent<Transform>();
@@ -165,6 +171,51 @@ ResultadoComando escenaObjetoAddComponente(const nlohmann::json& argumentos) {
         }
         auto* rigidBody = new RigidBody(collider, masa);
         obj->addComponent(std::unique_ptr<Component>(rigidBody));
+    } else if (componentType == "SpriteRenderer" || componentType == "Sprite") {
+        auto* sprite = new SpriteRenderer();
+        if (argumentos.contains("value") && argumentos["value"].is_string()) {
+            sprite->setRutaTextura(argumentos["value"].get<std::string>());
+        }
+        if (argumentos.contains("texture") && argumentos["texture"].is_string()) {
+            sprite->setRutaTextura(argumentos["texture"].get<std::string>());
+        }
+        if (argumentos.contains("tint") && argumentos["tint"].is_array() && argumentos["tint"].size() >= 4) {
+            const auto& t = argumentos["tint"];
+            sprite->setTint(static_cast<float>(t[0].get<double>()), static_cast<float>(t[1].get<double>()),
+                            static_cast<float>(t[2].get<double>()), static_cast<float>(t[3].get<double>()));
+        }
+        if (argumentos.contains("size") && argumentos["size"].is_array() && argumentos["size"].size() >= 2) {
+            const auto& s = argumentos["size"];
+            sprite->setTamano(static_cast<float>(s[0].get<double>()), static_cast<float>(s[1].get<double>()));
+        }
+        obj->addComponent(std::unique_ptr<Component>(sprite));
+        componentType = "SpriteRenderer";
+    } else if (componentType == "Tilemap") {
+        auto* tilemap = new Tilemap();
+        if (argumentos.contains("value") && argumentos["value"].is_string()) {
+            tilemap->setRutaTileset(argumentos["value"].get<std::string>());
+        }
+        if (argumentos.contains("tileset") && argumentos["tileset"].is_string()) {
+            tilemap->setRutaTileset(argumentos["tileset"].get<std::string>());
+        }
+        if (argumentos.contains("layer") && argumentos["layer"].is_object()) {
+            const auto& l = argumentos["layer"];
+            const std::string nombre = l.value("name", std::string("Capa"));
+            const int ancho = l.value("width", 0);
+            const int alto = l.value("height", 0);
+            const bool colision = l.value("collision", false);
+            if (ancho > 0 && alto > 0) tilemap->agregarCapa(nombre, ancho, alto, colision);
+        }
+        obj->addComponent(std::unique_ptr<Component>(tilemap));
+    } else if (componentType == "TilemapCollider") {
+        Transform* transform = obj->getComponent<Transform>();
+        if (!transform) {
+            registrarErrorUso("invalid_request", "El objeto no tiene Transform; no se puede agregar TilemapCollider");
+            return ResultadoComando::fallo("invalid_request", "Falta Transform",
+                                          codigosSalida::kErrorUso);
+        }
+        auto* collider = new TilemapCollider(1.0f, transform, obj);
+        obj->addComponent(std::unique_ptr<Component>(collider));
     } else {
         std::string mensaje = "Tipo de componente no soportado para agregar: " + componentType;
         registrarErrorUso("unsupported", mensaje);
@@ -185,7 +236,8 @@ ResultadoComando escenaObjetoAddComponente(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.object.removecomponent
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoQuitarComponente(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoQuitarComponente(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -231,10 +283,19 @@ ResultadoComando escenaObjetoQuitarComponente(const nlohmann::json& argumentos) 
     }
 
     if (!eliminado) {
-        registrarErrorUso("component_not_found",
-                                   "Componente no encontrado en el objeto");
-        return ResultadoComando::fallo("component_not_found",
-                                      "Componente no encontrado en el objeto",
+        nlohmann::json presentes = nlohmann::json::array();
+        if (componentes && !componentes->isEmpty()) {
+            Position<Component*>* p = componentes->first();
+            while (p != nullptr) {
+                presentes.push_back(tipoComponenteNombre(p->getElement()));
+                p = (p != componentes->last()) ? componentes->next(p) : nullptr;
+            }
+        }
+        std::string mensaje = "Componente no encontrado en el objeto: " + componentType;
+        mensaje += ". Componentes presentes: " + presentes.dump();
+        mensaje += ". Usa scene.object.components para inspeccionar el objeto antes de quitar.";
+        registrarErrorUso("component_not_found", mensaje);
+        return ResultadoComando::fallo("component_not_found", mensaje,
                                       codigosSalida::kRecursoNoEncontrado);
     }
 
@@ -256,7 +317,8 @@ ResultadoComando escenaObjetoQuitarComponente(const nlohmann::json& argumentos) 
 // ---------------------------------------------------------------------------
 // scene.object.components
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoComponentes(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoComponentes(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;

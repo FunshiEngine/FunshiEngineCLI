@@ -76,6 +76,7 @@ OpenAiCompatibleGateway::OpenAiCompatibleGateway(const std::string& baseUrl,
 
     if (power_ == "low") effectiveMaxTokens_ = 256;
     else if (power_ == "high") effectiveMaxTokens_ = std::max(maxTokens_, 4096);
+    else if (power_ == "xhigh") effectiveMaxTokens_ = std::max(maxTokens_, 8192);
     else effectiveMaxTokens_ = maxTokens_;
 
     initCurl();
@@ -140,10 +141,21 @@ std::string OpenAiCompatibleGateway::buildRequestBody(const std::vector<ChatMess
         body["tools"] = toolsJson_;
         body["tool_choice"] = "auto";
     }
-    if (thinking_ != "off") body["reasoning_effort"] = thinking_;
+    if (thinking_ != "off") {
+        const std::string base = baseUrl_;
+        const bool esGoogle = base.find("generativelanguage.googleapis.com") != std::string::npos;
+        const bool esNvidia = base.find("integrate.api.nvidia.com") != std::string::npos;
+        const bool esOpenAi = base.find("api.openai.com") != std::string::npos;
+        if (esOpenAi || esNvidia || isLocalhostUrl()) {
+            body["reasoning_effort"] = thinking_;
+        } else if (esGoogle) {
+            // Gemini OpenAI-compatible: reasoning_effort es aceptado en modelos recientes;
+            // mantener fallback seguro sin romper si el endpoint lo ignora/rechaza por modelo.
+            body["reasoning_effort"] = thinking_;
+        }
+        // Otros providers custom: no enviar por defecto para evitar 400 por incompatibilidad.
+    }
     if (isLocalhostUrl()) {
-        // llama-server: reutilizar la caché KV del prefijo común (historial) y
-        // devolver el uso de tokens al final del stream.
         body["cache_prompt"] = true;
         if (stream) body["stream_options"] = {{"include_usage", true}};
         if (tunel_ >= 0) body["id_slot"] = tunel_;
@@ -177,39 +189,57 @@ std::string OpenAiCompatibleGateway::chat(const std::vector<ChatMessage>& messag
 }
 
 std::vector<std::string> OpenAiCompatibleGateway::listModels() {
-    if (!curl_) initCurl();
+    std::vector<std::string> out;
+    for (const auto& m : listModelsInfo()) out.push_back(m.id);
+    return out;
+}
 
+std::vector<LlmGateway::ModelInfo> OpenAiCompatibleGateway::listModelsInfo() {
+    CURL* c = curl_easy_init();
+    if (!c) throw LlmException(LlmException::Code::TRANSPORT, "No se pudo inicializar libcurl");
     std::string url = baseUrl_ + "/models";
     std::string responseBuffer;
-
-    curl_easy_setopt(curl_, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl_, CURLOPT_HTTPGET, 1L);
-    curl_easy_setopt(curl_, CURLOPT_POSTFIELDS, nullptr);
-    curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION,
-        [](char* ptr, size_t size, size_t nmemb, void* userdata) -> size_t {
-            auto* buf = static_cast<std::string*>(userdata);
-            buf->append(ptr, size * nmemb);
-            return size * nmemb;
-        });
-    curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &responseBuffer);
-
-    CURLcode res = curl_easy_perform(curl_);
-    if (res != CURLE_OK) throw transportError(curl_easy_strerror(res));
-
+    struct curl_slist* hdrs = nullptr;
+    hdrs = curl_slist_append(hdrs, "Accept: application/json");
+    if (!apiKey_.empty()) hdrs = curl_slist_append(hdrs, ("Authorization: Bearer " + apiKey_).c_str());
+    curl_easy_setopt(c, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(c, CURLOPT_HTTPGET, 1L);
+    curl_easy_setopt(c, CURLOPT_HTTPHEADER, hdrs);
+    curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, writeCallback);
+    curl_easy_setopt(c, CURLOPT_WRITEDATA, &responseBuffer);
+    curl_easy_setopt(c, CURLOPT_TIMEOUT_MS, 30000L);
+    curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
+    CURLcode res = curl_easy_perform(c);
     long httpCode = 0;
-    curl_easy_getinfo(curl_, CURLINFO_RESPONSE_CODE, &httpCode);
+    curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &httpCode);
+    curl_slist_free_all(hdrs);
+    curl_easy_cleanup(c);
+    if (res != CURLE_OK) throw transportError(curl_easy_strerror(res));
     if (httpCode != 200) {
         throw LlmException::fromHttp(static_cast<int>(httpCode), responseBuffer, isLocalhostUrl());
     }
 
     try {
         auto json = nlohmann::json::parse(responseBuffer);
-        std::vector<std::string> models;
+        std::vector<ModelInfo> models;
         if (json.contains("data") && json["data"].is_array()) {
             for (const auto& item : json["data"]) {
-                if (item.contains("id") && item["id"].is_string()) {
-                    models.push_back(item["id"].get<std::string>());
+                if (!item.contains("id") || !item["id"].is_string()) continue;
+                ModelInfo m;
+                m.id = item["id"].get<std::string>();
+                m.raw = item;
+                if (item.value("reasoning", false) || item.value("supports_reasoning", false)) m.razonamiento = true;
+                if (item.contains("capabilities") && item["capabilities"].is_object()) {
+                    const auto& c = item["capabilities"];
+                    m.razonamiento = m.razonamiento || c.value("reasoning", false) || c.value("thinking", false);
                 }
+                if (item.contains("supported_reasoning_efforts") && item["supported_reasoning_efforts"].is_array()) {
+                    m.razonamiento = true;
+                    for (const auto& v : item["supported_reasoning_efforts"]) if (v.is_string()) m.variantes.push_back(v.get<std::string>());
+                }
+                if (m.razonamiento && m.variantes.empty()) m.variantes = {"low", "medium", "high"};
+                models.push_back(std::move(m));
             }
         }
         return models;

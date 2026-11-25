@@ -34,11 +34,12 @@ const std::vector<Guia>& guiasIncluidas() {
          "4. scene.script.reload {\"project\":P,\"id\":ID}."},
         {"guia.borrar", "Borrar o eliminar un objeto, un script o un asset",
          "borrar borra borralo bórralo eliminar elimina eliminalo elimínalo quitar quita sacar saca destruir destruye "
-         "objeto script asset sonido modelo textura imagen archivo papelera recuperar recupera restaurar restaura "
+         "objeto objetos todos vaciar limpiar escena script asset sonido modelo textura imagen archivo papelera recuperar recupera restaurar restaura "
          "deshacer borré borrado borrada",
          "El usuario confirma cada borrado: si no lo autoriza, no insistas.\n"
          "- Objeto (con sus hijos): si no sabes el id, scene.object.findbyname {\"project\":P,\"name\":\"X\"}; "
          "luego scene.object.delete {\"project\":P,\"id\":ID}. scene.undo lo restaura.\n"
+         "- Varios objetos o todos: usa scene.objects.delete (una sola confirmación). Todos: {\"project\":P,\"all\":true}. Grupo: {\"project\":P,\"ids\":[ID1,ID2]}. Borra también hijos; ids ya borrados como hijos se omiten.\n"
          "- Script: script.list {\"project\":P} y script.delete {\"project\":P,\"path\":RUTA} (quita el "
          "componente Script de los objetos que lo usan).\n"
          "- Asset (modelo, imagen, audio, prefab, tileset, partículas, interfaz): asset.list {\"project\":P} y "
@@ -57,6 +58,17 @@ const std::vector<Guia>& guiasIncluidas() {
          "1. asset.import {\"project\":P,\"source\":\"/ruta/sonido.wav\"} → path.\n"
          "2. scene.object.addcomponent {\"project\":P,\"id\":ID,\"componentType\":\"AudioSource\","
          "\"value\":PATH,\"volume\":0.8,\"loop\":false,\"autoplay\":true,\"espacial\":true}."},
+        {"guia.tilemap-2d", "Crear un tilemap 2D (tileset, tilemap y colisión)",
+         "tilemap tileset 2d sprite grilla mapa nivel plataforma colision tile",
+         "1. Importa la imagen del atlas: asset.import {\"project\":P,\"source\":\"/ruta/atlas.png\"} → PATH_IMAGEN.\n"
+         "2. Crea el tileset JSON en src/ (formato compatible con Tiled, subset): project.src.create {\"project\":P,\"path\":\"Tiles/mi_tileset.json\",\"file\":true,\"content\":JSON}. Ejemplo mínimo:\n"
+         "{\n  \"image\": \"../Assets/Images/atlas.png\",\n  \"imagewidth\": 256, \"imageheight\": 256,\n  \"tilewidth\": 32, \"tileheight\": 32,\n  \"columns\": 8, \"tilecount\": 64,\n  \"margin\": 0, \"spacing\": 0,\n  \"tiles\": [{\"id\": 1, \"properties\": [{\"name\": \"solid\", \"type\": \"bool\", \"value\": true}]}]\n}\n"
+         "La ruta \"image\" es relativa al archivo del tileset. Ajusta medidas/tilecount a tu atlas. Marca tiles sólidos con la propiedad solid=true.\n"
+         "3. Crea el objeto: scene.object.create {\"project\":P,\"name\":\"Tilemap\"} → ID.\n"
+         "4. Agrega el componente Tilemap: scene.object.addcomponent {\"project\":P,\"id\":ID,\"componentType\":\"Tilemap\",\"value\":\"Tiles/mi_tileset.json\",\"layer\":{\"name\":\"Suelo\",\"width\":20,\"height\":10,\"collision\":true}}.\n"
+         "5. (Opcional) Colisión física del tilemap: scene.object.addcomponent {\"project\":P,\"id\":ID,\"componentType\":\"TilemapCollider\"}. Requiere que la capa tenga collision=true y tiles marcados solid.\n"
+         "6. Para sprites 2D sueltos: importa imagen y agrega SpriteRenderer: scene.object.addcomponent {\"project\":P,\"id\":ID_OBJ,\"componentType\":\"SpriteRenderer\",\"value\":\"Assets/Images/player.png\",\"size\":[1,1]}.\n"
+         "7. Guarda: scene.save {\"project\":P}. Para revisar archivos usa project.src.read {\"project\":P,\"path\":\"Tiles/mi_tileset.json\"}."},
         {"guia.jerarquia", "Organizar la jerarquía (padres e hijos)",
          "padre hijo jerarquia agrupar desvincular arbol",
          "- Ver el árbol: scene.hierarchy {\"project\":P}.\n"
@@ -77,10 +89,12 @@ const std::vector<Guia>& guiasIncluidas() {
          "scene.object.setfield {\"project\":P,\"id\":ID,\"field\":\"nombre\",\"value\":{\"v\":VALOR}} "
          "— VALOR puede ser número, texto, booleano o [x,y,z]."},
         {"guia.archivos", "Trabajar con archivos del proyecto",
-         "archivo carpeta src crear renombrar mover listar importar",
+         "archivo carpeta src crear renombrar mover listar importar leer escribir editar script tilemap json",
          "- Listar: project.src.list {\"project\":P,\"path\":\"Scripts\"}.\n"
-         "- Crear archivo: project.src.create {..,\"path\":\"Carpeta/A.txt\",\"file\":true,\"content\":\"...\"}; "
+         "- Leer archivo de texto (script, tilemap .json, tileset .json, etc.): project.src.read {\"project\":P,\"path\":\"Scripts/A.java\"}.\n"
+         "- Crear archivo nuevo (no sobrescribe): project.src.create {..,\"path\":\"Carpeta/A.txt\",\"file\":true,\"content\":\"...\"}; "
          "carpeta: sin file.\n"
+         "- Editar/sobrescribir archivo existente: project.src.write {\"project\":P,\"path\":\"Scripts/A.java\",\"content\":\"...\"}. Tras editar un script: script.compile y scene.script.reload si está en un objeto.\n"
          "- Renombrar/mover: project.src.rename {..,\"path\":\"A\",\"newPath\":\"B\"}.\n"
          "- Importar carpeta externa: project.dir.import {..,\"source\":\"/abs\",\"path\":\"Destino\"}."},
         {"guia.errores", "Ver errores de compilación y diagnósticos",

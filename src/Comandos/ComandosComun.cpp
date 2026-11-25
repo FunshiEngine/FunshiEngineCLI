@@ -17,9 +17,10 @@ namespace fs = std::filesystem;
 
 // Resuelve args.project y el proyecto. Si falla, deja en `resultado` la
 // respuesta de error y devuelve false.
-bool resolverProyectoDesdeArgs(const nlohmann::json& argumentos,
+bool resolverProyectoDesdeArgs(const nlohmann::json& argumentosIn,
                                std::string& nombreProyecto,
                                ResultadoComando& resultado) {
+    nlohmann::json argumentos = argumentosIn;
     std::string error;
     if (!argumentoProyecto(argumentos, nombreProyecto, error)) {
         registrarErrorUso("invalid_request", error);

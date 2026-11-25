@@ -62,8 +62,9 @@ void idsDelSubarbol(GameObject* obj, nlohmann::json& ids) {
 }
 
 // Ruta de un archivo de src/ desde los argumentos: validada, sin escapar de src/.
-bool archivoDeSrc(const nlohmann::json& argumentos, std::string& proyecto, std::string& rel, fs::path& abs,
+bool archivoDeSrc(const nlohmann::json& argumentosIn, std::string& proyecto, std::string& rel, fs::path& abs,
                   ResultadoComando& resultado) {
+    nlohmann::json argumentos = argumentosIn;
     if (!resolverProyectoDesdeArgs(argumentos, proyecto, resultado)) return false;
     std::string error;
     if (!validarArgumentos(argumentos, {{"path", true, nlohmann::json::value_t::string}}, error)) {
@@ -170,7 +171,62 @@ nlohmann::json quitarReferenciasA(SceneRegistry* registro, const std::string& ru
     return quitadas;
 }
 
-ResultadoComando escenaObjetoBorrar(const nlohmann::json& argumentos) {
+namespace {
+struct ObjetoBorrado {
+    int id = 0;
+    std::string nombre;
+    nlohmann::json ids = nlohmann::json::array();
+    bool conCopia = false;
+    int trashId = -1;
+};
+
+bool borrarObjetoEnContexto(ContextoEscena& contexto, const std::string& proyecto, int id, ObjetoBorrado& out,
+                            std::string& codigoError, std::string& mensajeError, int& codigoSalida) {
+    if (id == 0) {
+        codigoError = "invalid_request";
+        mensajeError = "La raíz de la escena (id 0) no se puede borrar";
+        codigoSalida = codigosSalida::kErrorUso;
+        return false;
+    }
+    SceneRegistry* registro = &contexto.registro();
+    GameObject* obj = findObjectById(registro, id);
+    if (!obj) {
+        codigoError = "object_not_found";
+        mensajeError = "Objeto no encontrado: id=" + std::to_string(id);
+        codigoSalida = codigosSalida::kRecursoNoEncontrado;
+        return false;
+    }
+    out.id = id;
+    out.nombre = std::string(obj->inputName);
+    idsDelSubarbol(obj, out.ids);
+    auto* padre = dynamic_cast<GameObject*>(obj->getParentEntity());
+    const int padreId = padre ? padre->getId() : 0;
+
+    const fs::path papelera = carpetaPapelera(proyecto);
+    const auto marca = std::chrono::system_clock::now().time_since_epoch().count();
+    const fs::path copia = papelera / ("objeto-" + std::to_string(id) + "-" + std::to_string(marca) + ".prefab");
+    {
+        RaizAssetsTemporal raiz(papelera);
+        out.conCopia = Prefab::desdeArchivo(copia.string())->guardarDesdeObjeto(obj, &contexto.editor());
+    }
+    if (!borrarConDescendientes(contexto, obj)) {
+        codigoError = "delete_failed";
+        mensajeError = "No se pudo borrar el objeto id=" + std::to_string(id);
+        codigoSalida = codigosSalida::kFalloGeneral;
+        return false;
+    }
+    if (out.conCopia) {
+        registrarOperacionUndo(proyecto, "delete", id,
+                               nlohmann::json{{"prefab", copia.string()}, {"parentId", padreId}, {"name", out.nombre}},
+                               nlohmann::json::object());
+        out.trashId = anotarObjetoEnPapelera(proyecto, out.nombre, id, padreId, copia.string());
+    }
+    return true;
+}
+}  // namespace
+
+ResultadoComando escenaObjetoBorrar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string proyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, proyecto, resultado)) return resultado;
@@ -180,49 +236,102 @@ ResultadoComando escenaObjetoBorrar(const nlohmann::json& argumentos) {
         return ResultadoComando::fallo("invalid_request", error, codigosSalida::kErrorUso);
     }
     const int id = static_cast<int>(argumentos["id"].get<unsigned>());
-    if (id == 0) {
-        registrarErrorUso("invalid_request", "La raíz de la escena no se puede borrar");
-        return ResultadoComando::fallo("invalid_request", "La raíz de la escena (id 0) no se puede borrar",
-                                       codigosSalida::kErrorUso);
-    }
     ContextoEscena contexto(proyecto);
-    SceneRegistry* registro = &contexto.registro();
-    GameObject* obj = findObjectById(registro, id);
-    if (!obj) {
-        registrarErrorUso("object_not_found", "Objeto no encontrado");
-        return ResultadoComando::fallo("object_not_found", "Objeto no encontrado", codigosSalida::kRecursoNoEncontrado);
-    }
-    const std::string nombre = std::string(obj->inputName);
-    nlohmann::json ids = nlohmann::json::array();
-    idsDelSubarbol(obj, ids);
-    auto* padre = dynamic_cast<GameObject*>(obj->getParentEntity());
-    const int padreId = padre ? padre->getId() : 0;
-
-    // Copia para deshacer: el subárbol con sus componentes, como prefab.
-    const fs::path papelera = carpetaPapelera(proyecto);
-    const auto marca = std::chrono::system_clock::now().time_since_epoch().count();
-    const fs::path copia = papelera / ("objeto-" + std::to_string(id) + "-" + std::to_string(marca) + ".prefab");
-    bool conCopia = false;
-    {
-        RaizAssetsTemporal raiz(papelera);
-        conCopia = Prefab::desdeArchivo(copia.string())->guardarDesdeObjeto(obj, &contexto.editor());
-    }
-    if (!borrarConDescendientes(contexto, obj)) {
-        registrarErrorOperacional("delete_failed", "No se pudo borrar el objeto id=" + std::to_string(id));
-        return ResultadoComando::fallo("delete_failed", "No se pudo borrar el objeto", codigosSalida::kFalloGeneral);
-    }
-    int enPapelera = -1;
-    if (conCopia) {
-        registrarOperacionUndo(proyecto, "delete", id,
-                               nlohmann::json{{"prefab", copia.string()}, {"parentId", padreId}, {"name", nombre}},
-                               nlohmann::json::object());
-        enPapelera = anotarObjetoEnPapelera(proyecto, nombre, id, padreId, copia.string());
+    ObjetoBorrado borrado;
+    std::string codigoError, mensajeError;
+    int salida = codigosSalida::kFalloGeneral;
+    if (!borrarObjetoEnContexto(contexto, proyecto, id, borrado, codigoError, mensajeError, salida)) {
+        if (salida == codigosSalida::kErrorUso) registrarErrorUso(codigoError, mensajeError);
+        else registrarErrorOperacional(codigoError, mensajeError);
+        return ResultadoComando::fallo(codigoError, mensajeError, salida);
     }
     guardarEscena(contexto, proyecto);
-    nlohmann::json respuesta = {{"project", proyecto}, {"id", id},          {"name", nombre},
-                                {"deleted", true},     {"deletedIds", ids}, {"undoable", conCopia}};
-    if (enPapelera >= 0) respuesta["trashId"] = enPapelera;
+    nlohmann::json respuesta = {{"project", proyecto}, {"id", borrado.id}, {"name", borrado.nombre},
+                                {"deleted", true}, {"deletedIds", borrado.ids}, {"undoable", borrado.conCopia}};
+    if (borrado.trashId >= 0) respuesta["trashId"] = borrado.trashId;
     return ResultadoComando::exito(respuesta);
+}
+
+ResultadoComando escenaObjetosBorrar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
+    std::string proyecto;
+    ResultadoComando resultado;
+    if (!resolverProyectoDesdeArgs(argumentos, proyecto, resultado)) return resultado;
+
+    const bool tieneIds = argumentos.contains("ids");
+    const bool todos = argumentos.value("all", false);
+    if (tieneIds == todos) {
+        const std::string mensaje = "Indica exactamente uno: ids=[...] o all=true";
+        registrarErrorUso("invalid_request", mensaje);
+        return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
+    }
+
+    std::vector<int> ids;
+    if (tieneIds) {
+        if (!argumentos["ids"].is_array() || argumentos["ids"].empty()) {
+            const std::string mensaje = "args.ids debe ser un array no vacío de enteros";
+            registrarErrorUso("invalid_request", mensaje);
+            return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
+        }
+        for (const auto& v : argumentos["ids"]) {
+            if (!(v.is_number_integer() || v.is_number_unsigned() || v.is_string())) {
+                const std::string mensaje = "args.ids debe contener enteros";
+                registrarErrorUso("invalid_request", mensaje);
+                return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
+            }
+            try {
+                int id = v.is_string() ? std::stoi(v.get<std::string>()) : v.get<int>();
+                if (id != 0) ids.push_back(id);
+            } catch (...) {
+                const std::string mensaje = "args.ids contiene un id inválido";
+                registrarErrorUso("invalid_request", mensaje);
+                return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
+            }
+        }
+    }
+
+    ContextoEscena contexto(proyecto);
+    if (todos) {
+        std::function<void(GameObject*)> recolectar = [&](GameObject* obj) {
+            if (obj->getId() != 0) ids.push_back(obj->getId());
+            for (Entity* hijo : obj->getChildEntities()) {
+                if (auto* go = dynamic_cast<GameObject*>(hijo)) recolectar(go);
+            }
+        };
+        recolectar(contexto.registro().getRoot());
+        std::sort(ids.begin(), ids.end());
+        ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    }
+
+    nlohmann::json borrados = nlohmann::json::array();
+    nlohmann::json omitidos = nlohmann::json::array();
+    nlohmann::json todosIds = nlohmann::json::array();
+    for (int id : ids) {
+        if (!findObjectById(&contexto.registro(), id)) {
+            omitidos.push_back({{"id", id}, {"reason", "not_found"}});
+            continue;
+        }
+        ObjetoBorrado borrado;
+        std::string codigoError, mensajeError;
+        int salida = codigosSalida::kFalloGeneral;
+        if (!borrarObjetoEnContexto(contexto, proyecto, id, borrado, codigoError, mensajeError, salida)) {
+            omitidos.push_back({{"id", id}, {"reason", codigoError}, {"message", mensajeError}});
+            continue;
+        }
+        nlohmann::json item = {{"id", borrado.id}, {"name", borrado.nombre}, {"deletedIds", borrado.ids},
+                               {"undoable", borrado.conCopia}};
+        if (borrado.trashId >= 0) item["trashId"] = borrado.trashId;
+        borrados.push_back(item);
+        for (const auto& d : borrado.ids) todosIds.push_back(d);
+    }
+
+    if (!borrados.empty()) guardarEscena(contexto, proyecto);
+    return ResultadoComando::exito({{"project", proyecto},
+                                    {"deleted", !borrados.empty() || (todos && ids.empty())},
+                                    {"count", borrados.size()},
+                                    {"objects", borrados},
+                                    {"deletedIds", todosIds},
+                                    {"skipped", omitidos}});
 }
 
 // De las hojas hacia arriba: SceneRegistry::deleteObject solo saca el nodo
@@ -252,7 +361,8 @@ int restaurarObjetoBorrado(ContextoEscena& contexto, const nlohmann::json& antes
     return restaurado->getId();
 }
 
-ResultadoComando scriptBorrar(const nlohmann::json& argumentos) {
+ResultadoComando scriptBorrar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string proyecto, rel;
     fs::path abs;
     ResultadoComando resultado;
@@ -266,7 +376,8 @@ ResultadoComando scriptBorrar(const nlohmann::json& argumentos) {
     return borrarArchivoConReferencias(proyecto, rel, abs, TiposArchivo::nombre(tipo));
 }
 
-ResultadoComando assetBorrar(const nlohmann::json& argumentos) {
+ResultadoComando assetBorrar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string proyecto, rel;
     fs::path abs;
     ResultadoComando resultado;
@@ -286,7 +397,8 @@ ResultadoComando assetBorrar(const nlohmann::json& argumentos) {
     return borrarArchivoConReferencias(proyecto, rel, abs, TiposArchivo::nombre(tipo));
 }
 
-ResultadoComando assetListar(const nlohmann::json& argumentos) {
+ResultadoComando assetListar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string proyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, proyecto, resultado)) return resultado;

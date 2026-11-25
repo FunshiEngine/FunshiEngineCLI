@@ -35,6 +35,8 @@ enum class ComandoCLI {
     ProyectoConfigLeer,
     ProyectoSrcCrear,
     ProyectoSrcListar,
+    ProyectoSrcLeer,
+    ProyectoSrcEscribir,
     ProyectoSrcBorrar,
     ProyectoSrcRenombrar,
     ProyectoDirImportar,
@@ -65,6 +67,7 @@ enum class ComandoCLI {
     AssetBorrar,
     ScriptBorrar,
     EscenaObjetoBorrar,
+    EscenaObjetosBorrar,
     PapeleraListar,
     PapeleraRestaurar,
     PapeleraVaciar,
@@ -82,6 +85,7 @@ enum class ComandoCLI {
     DiagnosticoLimpiar,
     CliConfigLeer,
     CliConfigEscribir,
+    CliModelosListar,
     AgenteProcesar,
     Desconocido
 };

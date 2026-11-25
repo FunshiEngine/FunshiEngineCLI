@@ -20,6 +20,10 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
+#include <cmath>
+#include <cstdlib>
+#include <limits>
 
 namespace funshi {
 
@@ -41,9 +45,112 @@ const char* nombreTipo(nlohmann::json::value_t tipo) {
 
 }  // namespace
 
-bool validarArgumentos(const nlohmann::json& argumentos,
-                       const std::vector<RequisitoArg>& requisitos,
-                       std::string& error) {
+namespace {
+
+std::string vistaValor(const nlohmann::json& valor) {
+    if (valor.is_string()) return "texto \"" + valor.get<std::string>() + "\"";
+    return nombreTipo(valor.type());
+}
+
+bool enteroDesdeTexto(const std::string& texto, long long& salida) {
+    if (texto.empty()) return false;
+    std::size_t usado = 0;
+    errno = 0;
+    const long long v = std::strtoll(texto.c_str(), nullptr, 10);
+    std::size_t i = 0;
+    if (texto[i] == '+' || texto[i] == '-') ++i;
+    if (i == texto.size()) return false;
+    for (; i < texto.size(); ++i) {
+        if (!std::isdigit(static_cast<unsigned char>(texto[i]))) return false;
+    }
+    if (errno == ERANGE) return false;
+    salida = v;
+    return true;
+}
+
+bool unsignedDesdeTexto(const std::string& texto, unsigned long long& salida) {
+    if (texto.empty() || texto[0] == '-') return false;
+    std::size_t i = texto[0] == '+' ? 1 : 0;
+    if (i == texto.size()) return false;
+    for (; i < texto.size(); ++i) {
+        if (!std::isdigit(static_cast<unsigned char>(texto[i]))) return false;
+    }
+    errno = 0;
+    const unsigned long long v = std::strtoull(texto.c_str(), nullptr, 10);
+    if (errno == ERANGE) return false;
+    salida = v;
+    return true;
+}
+
+bool numeroDesdeTexto(const std::string& texto, double& salida) {
+    if (texto.empty()) return false;
+    char* fin = nullptr;
+    errno = 0;
+    const double v = std::strtod(texto.c_str(), &fin);
+    if (errno == ERANGE || fin == texto.c_str() || *fin != '\0') return false;
+    if (!std::isfinite(v)) return false;
+    salida = v;
+    return true;
+}
+
+bool coaccionarTipo(nlohmann::json& valor, nlohmann::json::value_t tipo) {
+    if (valor.type() == tipo) return true;
+    // nlohmann usa number_integer y number_unsigned como tipos distintos.
+    if (tipo == nlohmann::json::value_t::number_integer) {
+        if (valor.is_number_unsigned()) {
+            const auto v = valor.get<unsigned long long>();
+            if (v > static_cast<unsigned long long>(std::numeric_limits<long long>::max())) return false;
+            valor = static_cast<long long>(v);
+            return true;
+        }
+        if (valor.is_string()) {
+            long long v = 0;
+            if (!enteroDesdeTexto(valor.get<std::string>(), v)) return false;
+            valor = v;
+            return true;
+        }
+    }
+    if (tipo == nlohmann::json::value_t::number_unsigned) {
+        if (valor.is_number_integer()) {
+            const auto v = valor.get<long long>();
+            if (v < 0) return false;
+            valor = static_cast<unsigned long long>(v);
+            return true;
+        }
+        if (valor.is_string()) {
+            unsigned long long v = 0;
+            if (!unsignedDesdeTexto(valor.get<std::string>(), v)) return false;
+            valor = v;
+            return true;
+        }
+    }
+    if (tipo == nlohmann::json::value_t::number_float) {
+        if (valor.is_number()) {
+            valor = valor.get<double>();
+            return true;
+        }
+        if (valor.is_string()) {
+            double v = 0.0;
+            if (!numeroDesdeTexto(valor.get<std::string>(), v)) return false;
+            valor = v;
+            return true;
+        }
+    }
+    if (tipo == nlohmann::json::value_t::boolean) {
+        if (valor.is_string()) {
+            const std::string t = valor.get<std::string>();
+            if (t == "true") { valor = true; return true; }
+            if (t == "false") { valor = false; return true; }
+        }
+    }
+    return false;
+}
+
+}  // namespace
+
+static bool validarArgumentosImpl(nlohmann::json& argumentos,
+                                   const std::vector<RequisitoArg>& requisitos,
+                                   std::string& error) {
     for (const RequisitoArg& req : requisitos) {
         if (!argumentos.contains(req.nombre)) {
             if (req.requerido) {
@@ -52,13 +159,35 @@ bool validarArgumentos(const nlohmann::json& argumentos,
             }
             continue;
         }
-        const nlohmann::json& valor = argumentos[req.nombre];
-        if (valor.type() != req.tipo) {
-            error = "args." + req.nombre + " debe ser un " + nombreTipo(req.tipo);
-            return false;
+        nlohmann::json& valor = argumentos[req.nombre];
+        if (valor.type() == req.tipo) continue;
+        if (coaccionarTipo(valor, req.tipo)) continue;
+        error = "args." + req.nombre + " debe ser un " + nombreTipo(req.tipo) +
+                " (recibido " + vistaValor(valor) + ")";
+        if ((req.tipo == nlohmann::json::value_t::number_unsigned ||
+             req.tipo == nlohmann::json::value_t::number_integer ||
+             req.tipo == nlohmann::json::value_t::number_float) &&
+            valor.is_string()) {
+            error += "; usa un número JSON sin comillas";
+        } else if (req.tipo == nlohmann::json::value_t::boolean && valor.is_string()) {
+            error += "; usa true o false sin comillas";
         }
+        return false;
     }
     return true;
+}
+
+bool validarArgumentos(nlohmann::json& argumentos,
+                       const std::vector<RequisitoArg>& requisitos,
+                       std::string& error) {
+    return validarArgumentosImpl(argumentos, requisitos, error);
+}
+
+bool validarArgumentos(const nlohmann::json& argumentos,
+                       const std::vector<RequisitoArg>& requisitos,
+                       std::string& error) {
+    nlohmann::json copia = argumentos;
+    return validarArgumentosImpl(copia, requisitos, error);
 }
 
 bool argumentoProyecto(const nlohmann::json& argumentos,

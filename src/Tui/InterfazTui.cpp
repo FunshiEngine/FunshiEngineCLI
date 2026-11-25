@@ -67,6 +67,9 @@ int ejecutarTui(int seccionInicial) {
     Auditoria auditoria;
     Harness harness(auditoria);
     Silvy silvy(harness);
+    if (llmConfig.mode == agente::llm::LlmMode::REMOTE && llmConfig.validate().empty()) {
+        silvy.configurarLlm(llmConfig, true);
+    }
     auto aplicacion = crearAplicacionTui(&pantalla, auditoria, harness, silvy,
                                          seccionInicial);
     // En un pty sin consola FTXUI no lee teclas: se las entrega este lector,

@@ -17,6 +17,7 @@
 // AgentLoop: bucle modelo → herramientas → modelo. El saneado de tool calls
 // está en ToolCallSanitizer.cpp y el modo prompt en PromptToolParser.cpp.
 #include "Agente/LLM/Bucle/AgentLoop.h"
+#include "Util/LogCrash.h"
 #include "Agente/LLM/Cliente/LlmGateway.h"
 #include "Agente/LLM/Bucle/SeparadorPensamiento.h"
 #include <cstdio>

@@ -246,9 +246,9 @@ void probarUsoDeComandos() {
         harness->setProyectoPorDefecto("");
         harness->setCorreccionesDelAgente(false);
         pisar["content"] = "sin protección";
-        pisar.erase("sobrescribir");
+        pisar["sobrescribir"] = true;
         CHECK(harness->ejecutarTexto("project.src.create", pisar).respuesta.correcta,
-              "protección: desactivada, el comando se comporta como siempre");
+              "protección: desactivada, sobrescribir explícito reemplaza");
     }
 
     // 5. Guías convertidas en llamadas y documentación de sus comandos.

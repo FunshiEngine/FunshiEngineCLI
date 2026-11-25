@@ -25,8 +25,9 @@ namespace funshi {
 
 class ContextoEscena;
 
-ResultadoComando escenaObjetoBorrar(const nlohmann::json& argumentos);  // scene.object.delete
-ResultadoComando scriptBorrar(const nlohmann::json& argumentos);        // script.delete
+ResultadoComando escenaObjetoBorrar(const nlohmann::json& argumentos);   // scene.object.delete
+ResultadoComando escenaObjetosBorrar(const nlohmann::json& argumentos);  // scene.objects.delete
+ResultadoComando scriptBorrar(const nlohmann::json& argumentos);         // script.delete
 ResultadoComando assetListar(const nlohmann::json& argumentos);         // asset.list
 ResultadoComando assetBorrar(const nlohmann::json& argumentos);         // asset.delete
 

@@ -48,7 +48,8 @@ namespace funshi {
 // ---------------------------------------------------------------------------
 // scene.script.compile
 // ---------------------------------------------------------------------------
-ResultadoComando escenaScriptCompilar(const nlohmann::json& argumentos) {
+ResultadoComando escenaScriptCompilar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -151,7 +152,8 @@ ResultadoComando escenaScriptCompilar(const nlohmann::json& argumentos) {
 // ---------------------------------------------------------------------------
 // scene.script.reload
 // ---------------------------------------------------------------------------
-ResultadoComando escenaScriptRecargar(const nlohmann::json& argumentos) {
+ResultadoComando escenaScriptRecargar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -186,31 +188,35 @@ ResultadoComando escenaScriptRecargar(const nlohmann::json& argumentos) {
                                       codigosSalida::kRecursoNoEncontrado);
     }
 
-    if (!script->estaCargado()) {
-        return ResultadoComando::exito({
-            {"project", nombreProyecto},
-            {"id", idObjeto},
-            {"reloaded", false},
-            {"message", "El script no estaba cargado; no hay nada que recargar"}
-        });
-    }
-
+    // Carga/recompila aunque no estuviera cargado (p. ej. tras addcomponent en CLI).
     script->recargar(obj);
     obj->setDirty(true);
     guardarEscena(contexto, nombreProyecto);
 
-    return ResultadoComando::exito({
+    const bool cargado = script->estaCargado();
+    nlohmann::json resp = {
         {"project", nombreProyecto},
         {"id", idObjeto},
         {"scriptPath", script->getPath()},
-        {"reloaded", true},
-        {"message", "Script recargado correctamente"}
-    });
+        {"reloaded", cargado},
+        {"loaded", cargado},
+        {"message", cargado ? "Script recargado correctamente" : "El script no se pudo cargar"},
+    };
+    if (!cargado) {
+        resp["error"] = script->ultimoError();
+        resp["fields"] = nlohmann::json::array();
+        return ResultadoComando::exito(resp);
+    }
+    nlohmann::json campos = nlohmann::json::array();
+    for (const auto& c : script->obtenerCampos()) campos.push_back(c.nombre);
+    resp["fields"] = std::move(campos);
+    return ResultadoComando::exito(resp);
 }
 // ---------------------------------------------------------------------------
 // scene.object.setfield
 // ---------------------------------------------------------------------------
-ResultadoComando escenaObjetoSetField(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoSetField(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -249,6 +255,11 @@ ResultadoComando escenaObjetoSetField(const nlohmann::json& argumentos) {
                                       codigosSalida::kRecursoNoEncontrado);
     }
 
+    // Cargar si aún no se intentó (p. ej. script agregado por CLI sin ciclo de play).
+    if (!script->estaCargado() && !script->rutaFuente().empty()) {
+        script->cargarSiNecesario();
+    }
+
     const auto& campos = script->obtenerCampos();
     int indiceCampo = -1;
     for (size_t i = 0; i < campos.size(); ++i) {
@@ -259,10 +270,16 @@ ResultadoComando escenaObjetoSetField(const nlohmann::json& argumentos) {
     }
 
     if (indiceCampo < 0) {
-        registrarErrorUso("field_not_found",
-                         "Campo '" + nombreCampo + "' no encontrado en el script");
-        return ResultadoComando::fallo("field_not_found",
-                                      "Campo '" + nombreCampo + "' no encontrado",
+        nlohmann::json disponibles = nlohmann::json::array();
+        for (const auto& c : campos) disponibles.push_back(c.nombre);
+        std::string mensaje = "Campo '" + nombreCampo + "' no encontrado en el script.";
+        mensaje += " Campos disponibles: " + disponibles.dump() + ".";
+        if (campos.empty()) {
+            mensaje += " El script no expone campos serializables; verifica que esté compilado/cargado, que los campos sean públicos, y recarga con scene.script.reload o re-agrega el componente Script.";
+            if (!script->estaCargado()) mensaje += " ultimoError=" + script->ultimoError();
+        }
+        registrarErrorUso("field_not_found", mensaje);
+        return ResultadoComando::fallo("field_not_found", mensaje,
                                       codigosSalida::kRecursoNoEncontrado);
     }
 

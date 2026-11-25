@@ -38,7 +38,8 @@ namespace funshi {
 
 namespace fs = std::filesystem;
 
-ResultadoComando proyectoDirImportar(const nlohmann::json& argumentos) {
+ResultadoComando proyectoDirImportar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     std::string error;
     const std::vector<RequisitoArg> requisitos = {
@@ -138,7 +139,8 @@ ResultadoComando proyectoDirImportar(const nlohmann::json& argumentos) {
     });
 }
 
-ResultadoComando proyectoSrcListar(const nlohmann::json& argumentos) {
+ResultadoComando proyectoSrcListar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -205,7 +207,87 @@ ResultadoComando proyectoSrcListar(const nlohmann::json& argumentos) {
     });
 }
 
-ResultadoComando proyectoSrcBorrar(const nlohmann::json& argumentos) {
+ResultadoComando proyectoSrcLeer(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
+    std::string nombreProyecto;
+    ResultadoComando resultado;
+    if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
+
+    const std::vector<RequisitoArg> requisitos = {
+        {"path", true, nlohmann::json::value_t::string},
+        {"maxBytes", false, nlohmann::json::value_t::number_unsigned},
+    };
+    std::string errorValidacion;
+    if (!validarArgumentos(argumentos, requisitos, errorValidacion)) {
+        registrarErrorUso("invalid_request", errorValidacion);
+        return ResultadoComando::fallo("invalid_request", errorValidacion,
+                                      codigosSalida::kErrorUso);
+    }
+
+    const std::string rutaRelativa = argumentos["path"].get<std::string>();
+    const std::size_t maxBytes = static_cast<std::size_t>(
+        argumentos.value("maxBytes", static_cast<unsigned long long>(256 * 1024)));
+    const std::string srcDir = ProjectPaths::directorioSrc(nombreProyecto);
+    const fs::path rutaCompleta = fs::path(srcDir) / rutaRelativa;
+
+    ResultadoComando errorRuta;
+    if (!rutaSegura(srcDir, rutaCompleta,
+                    "La ruta intenta escapar del directorio src del proyecto",
+                    errorRuta)) {
+        return errorRuta;
+    }
+
+    std::error_code ec;
+    if (!fs::exists(rutaCompleta, ec) || ec) {
+        const std::string mensaje = "El archivo no existe: " + rutaRelativa;
+        registrarErrorOperacional("not_found", mensaje);
+        return ResultadoComando::fallo("not_found", mensaje, codigosSalida::kRecursoNoEncontrado);
+    }
+    if (fs::is_directory(rutaCompleta, ec)) {
+        const std::string mensaje = "La ruta es un directorio, no un archivo: " + rutaRelativa;
+        registrarErrorUso("invalid_request", mensaje);
+        return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
+    }
+
+    const auto tam = fs::file_size(rutaCompleta, ec);
+    if (ec) {
+        const std::string mensaje = "No se pudo leer el tamaño del archivo: " + ec.message();
+        registrarErrorOperacional("read_failed", mensaje);
+        return ResultadoComando::fallo("read_failed", mensaje, codigosSalida::kFalloEscritura);
+    }
+
+    std::ifstream file(rutaCompleta, std::ios::binary);
+    if (!file) {
+        const std::string mensaje = "No se pudo abrir el archivo: " + rutaRelativa;
+        registrarErrorOperacional("read_failed", mensaje);
+        return ResultadoComando::fallo("read_failed", mensaje, codigosSalida::kFalloEscritura);
+    }
+
+    const std::size_t leer = static_cast<std::size_t>(std::min<std::uintmax_t>(tam, maxBytes));
+    std::string contenido(leer, '\0');
+    file.read(contenido.data(), static_cast<std::streamsize>(leer));
+    const bool truncado = tam > maxBytes;
+
+    // Heurística simple de binario: bytes nulos en la muestra.
+    const bool binario = contenido.find('\0') != std::string::npos;
+    nlohmann::json respuesta = {
+        {"project", nombreProyecto},
+        {"path", rutaRelativa},
+        {"size", static_cast<long long>(tam)},
+        {"truncated", truncado},
+        {"binary", binario},
+    };
+    if (binario) {
+        respuesta["content"] = nullptr;
+        respuesta["message"] = "El archivo parece binario; usa asset.import/asset.list o herramientas externas.";
+    } else {
+        respuesta["content"] = contenido;
+    }
+    return ResultadoComando::exito(respuesta);
+}
+
+ResultadoComando proyectoSrcBorrar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -265,7 +347,8 @@ ResultadoComando proyectoSrcBorrar(const nlohmann::json& argumentos) {
     });
 }
 
-ResultadoComando proyectoSrcRenombrar(const nlohmann::json& argumentos) {
+ResultadoComando proyectoSrcRenombrar(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;

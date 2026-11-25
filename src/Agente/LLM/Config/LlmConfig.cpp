@@ -97,30 +97,102 @@ std::filesystem::path LlmConfig::directorioBaseConfig() {
     return dirConfig;
 }
 
+namespace {
+
+std::string quitarComentariosJsonc(const std::string& in) {
+    std::string out; out.reserve(in.size());
+    bool str=false, esc=false, line=false, block=false;
+    for (size_t i=0;i<in.size();++i) {
+        char c=in[i], n=i+1<in.size()?in[i+1]:0;
+        if (line) { if (c=='\n'){line=false; out.push_back(c);} continue; }
+        if (block) { if (c=='*'&&n=='/'){block=false;++i;} continue; }
+        if (str) { out.push_back(c); if (esc) esc=false; else if (c=='\\') esc=true; else if (c=='"') str=false; continue; }
+        if (c=='/'&&n=='/') { line=true; ++i; continue; }
+        if (c=='/'&&n=='*') { block=true; ++i; continue; }
+        if (c=='"') str=true; out.push_back(c);
+    }
+    return out;
+}
+
+std::optional<nlohmann::json> leerJsonFlexible(const std::filesystem::path& p) {
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(p, ec)) return std::nullopt;
+    std::ifstream f(p); if (!f.is_open()) return std::nullopt;
+    std::string contenido((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    try { return nlohmann::json::parse(contenido); } catch (...) {}
+    try { return nlohmann::json::parse(quitarComentariosJsonc(contenido)); } catch (...) {}
+    return std::nullopt;
+}
+
+void aplicarConfigCompat(LlmConfig& cfg, const nlohmann::json& j, bool soloFaltantes) {
+    auto setStr = [&](const char* k, std::string& dst) {
+        if (j.contains(k) && j[k].is_string() && (!soloFaltantes || dst.empty())) dst = j[k].get<std::string>();
+    };
+    setStr("provider", cfg.provider);
+    if (j.contains("model") && j["model"].is_string() && (!soloFaltantes || cfg.modelName.empty() || cfg.modelName == "phi-4-mini")) {
+        std::string err; if (!cfg.aplicarModelRef(j["model"].get<std::string>(), err)) cfg.modelName = j["model"].get<std::string>();
+    }
+    setStr("modelName", cfg.modelName);
+    if (j.contains("baseURL") && j["baseURL"].is_string() && (!soloFaltantes || cfg.remoteBaseUrl.empty())) cfg.remoteBaseUrl = j["baseURL"].get<std::string>();
+    if (j.contains("remoteBaseUrl") && j["remoteBaseUrl"].is_string() && (!soloFaltantes || cfg.remoteBaseUrl.empty())) cfg.remoteBaseUrl = j["remoteBaseUrl"].get<std::string>();
+    if (j.contains("apiKey") && j["apiKey"].is_string() && (!soloFaltantes || cfg.apiKey.empty())) cfg.apiKey = j["apiKey"].get<std::string>();
+    auto aplicarKey = [&](const std::string& prov, const std::string& key){
+        if (prov=="google") { if (!soloFaltantes || cfg.googleApiKey.empty()) cfg.googleApiKey=key; }
+        else if (prov=="nvidia") { if (!soloFaltantes || cfg.nvidiaApiKey.empty()) cfg.nvidiaApiKey=key; }
+        else { if (!soloFaltantes || cfg.apiKey.empty()) cfg.apiKey=key; }
+    };
+    const std::string prov = cfg.providerEfectivo();
+    if (j.contains("providers") && j["providers"].is_object()) {
+        auto it = j["providers"].find(prov);
+        if (it != j["providers"].end() && it->is_object()) {
+            const auto& p = *it;
+            if (p.contains("options") && p["options"].is_object()) {
+                const auto& o = p["options"];
+                if (o.contains("apiKey") && o["apiKey"].is_string()) aplicarKey(prov, o["apiKey"].get<std::string>());
+                if (o.contains("baseURL") && o["baseURL"].is_string() && (!soloFaltantes || cfg.remoteBaseUrl.empty())) cfg.remoteBaseUrl = o["baseURL"].get<std::string>();
+            }
+            if (p.contains("apiKey") && p["apiKey"].is_string()) aplicarKey(prov, p["apiKey"].get<std::string>());
+            // providers.<prov>.models: si hay modelo configurado, conservar; si no, tomar el primero/default.
+            if (p.contains("models") && p["models"].is_object() && (cfg.modelName.empty() || cfg.modelName == "phi-4-mini")) {
+                for (auto m = p["models"].begin(); m != p["models"].end(); ++m) { cfg.modelName = m.key(); break; }
+            }
+        }
+    }
+}
+
+}  // namespace
+
 LlmConfig LlmConfig::load() {
     const auto path = configPath();
     std::error_code ec;
-    if (!std::filesystem::is_regular_file(path, ec)) return defaults();
-    const auto modificado = std::filesystem::last_write_time(path, ec);
-    const auto tamano = std::filesystem::file_size(path, ec);
-    {
-        std::lock_guard<std::mutex> lock(mutexConfig());
-        const CacheConfig& c = cacheConfig();
-        if (c.valida && c.ruta == path && c.modificado == modificado && c.tamano == tamano) {
-            return c.config;
+    LlmConfig cfg = defaults();
+    if (std::filesystem::is_regular_file(path, ec)) {
+        const auto modificado = std::filesystem::last_write_time(path, ec);
+        const auto tamano = std::filesystem::file_size(path, ec);
+        bool desdeCache = false;
+        {
+            std::lock_guard<std::mutex> lock(mutexConfig());
+            const CacheConfig& c = cacheConfig();
+            if (c.valida && c.ruta == path && c.modificado == modificado && c.tamano == tamano) {
+                cfg = c.config; desdeCache = true;
+            }
+        }
+        if (!desdeCache) {
+            try { std::ifstream f(path); nlohmann::json j = nlohmann::json::parse(f); cfg = fromJson(j); }
+            catch (...) { cfg = defaults(); }
+            std::lock_guard<std::mutex> lock(mutexConfig());
+            cacheConfig() = CacheConfig{path, modificado, tamano, cfg, true};
         }
     }
-    try {
-        std::ifstream f(path);
-        nlohmann::json j = nlohmann::json::parse(f);
-        LlmConfig cfg = fromJson(j);
-        std::lock_guard<std::mutex> lock(mutexConfig());
-        cacheConfig() = CacheConfig{path, modificado, tamano, cfg, true};
-        return cfg;
-    } catch (...) {
-        // Si falla, config por defecto
-    }
-    return defaults();
+    const std::vector<std::filesystem::path> candidatos = {
+        directorioBaseConfig() / "opencode.json",
+        directorioBaseConfig() / "opencode.jsonc",
+        std::filesystem::current_path() / "opencode.json",
+        std::filesystem::current_path() / "opencode.jsonc",
+    };
+    const bool tieneConfigNativa = std::filesystem::is_regular_file(path, ec);
+    for (const auto& c : candidatos) if (auto j = leerJsonFlexible(c)) aplicarConfigCompat(cfg, *j, tieneConfigNativa);
+    return cfg;
 }
 
 void LlmConfig::save() const {
@@ -158,7 +230,12 @@ LlmConfig LlmConfig::defaults() {
          "unsloth/Llama-3.2-3B-Instruct-GGUF", "Llama-3.2-3B-Instruct-Q4_K_M.gguf", 2.0,
          "El más liviano del catálogo."}
     };
-    cfg.apiPresets = {};
+    cfg.apiPresets = {
+        {"google", "Google Gemini (OpenAI compatible)",
+         "https://generativelanguage.googleapis.com/v1beta/openai/", "", ""},
+        {"nvidia", "NVIDIA NIM (OpenAI compatible)",
+         "https://integrate.api.nvidia.com/v1", "", ""},
+    };
     return cfg;
 }
 
@@ -264,19 +341,93 @@ void LlmConfig::aplicarRutasEntorno() const {
 int LlmConfig::effectiveMaxTokens() const {
     if (power == "low") return 256;
     if (power == "high") return std::max(maxTokens, 4096);
+    if (power == "xhigh") return std::max(maxTokens, 8192);
     return maxTokens;
 }
 
+std::string LlmConfig::providerEfectivo() const {
+    if (!provider.empty()) return provider;
+    if (isLocalhostUrl()) return "local";
+    const std::string url = remoteBaseUrlEfectiva();
+    if (url.find("generativelanguage.googleapis.com") != std::string::npos) return "google";
+    if (url.find("integrate.api.nvidia.com") != std::string::npos) return "nvidia";
+    if (!remoteBaseUrl.empty()) return "custom";
+    return "";
+}
+
+std::string LlmConfig::apiKeyEfectiva() const {
+    const std::string prov = providerEfectivo();
+    auto res = [](const std::string& v){ return LlmConfig::resolverValorConfig(v); };
+    if (prov == "google" && !googleApiKey.empty()) return res(googleApiKey);
+    if (prov == "nvidia" && !nvidiaApiKey.empty()) return res(nvidiaApiKey);
+    if (prov == "local" && apiKey.empty()) return "local";
+    return res(apiKey);
+}
+
+std::string LlmConfig::remoteBaseUrlEfectiva() const {
+    return resolverValorConfig(remoteBaseUrl);
+}
+
+std::string LlmConfig::varianteEfectiva() const {
+    if (thinking.empty() || thinking == "off") return {};
+    return thinking;
+}
+
+std::string LlmConfig::modelRefEfectivo() const {
+    const std::string prov = providerEfectivo();
+    if (prov.empty() || modelName.empty()) return {};
+    std::string ref = prov + "/" + modelName;
+    const std::string var = varianteEfectiva();
+    if (!var.empty()) ref += "#" + var;
+    return ref;
+}
+
+bool LlmConfig::aplicarModelRef(const std::string& ref, std::string& error) {
+    if (ref.empty()) { modelRef.clear(); return true; }
+    const auto hash = ref.find('#');
+    const std::string base = hash == std::string::npos ? ref : ref.substr(0, hash);
+    const std::string var = hash == std::string::npos ? std::string() : ref.substr(hash + 1);
+    const auto slash = base.find('/');
+    if (slash == std::string::npos || slash == 0 || slash + 1 >= base.size()) {
+        error = "modelRef debe tener formato provider/model o provider/model#variant";
+        return false;
+    }
+    const std::string prov = base.substr(0, slash);
+    const std::string model = base.substr(slash + 1);
+    if (prov.find('/') != std::string::npos || prov.find('#') != std::string::npos ||
+        model.find('#') != std::string::npos) {
+        error = "modelRef inválido";
+        return false;
+    }
+    static const std::vector<std::string> variantesOk = {"", "off", "low", "medium", "high", "xhigh"};
+    if (std::find(variantesOk.begin(), variantesOk.end(), var) == variantesOk.end()) {
+        error = "variante de modelRef debe ser low, medium, high, xhigh u off";
+        return false;
+    }
+    provider = prov;
+    modelName = model;
+    if (!var.empty()) thinking = var;
+    modelRef = ref;
+    // Ajustar URL por defecto para providers conocidos.
+    if (prov == "google" && remoteBaseUrl.empty()) remoteBaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai/";
+    if (prov == "nvidia" && remoteBaseUrl.empty()) remoteBaseUrl = "https://integrate.api.nvidia.com/v1";
+    if ((prov == "google" || prov == "nvidia" || prov == "openai" || prov == "custom") && !remoteBaseUrl.empty()) {
+        mode = LlmMode::REMOTE;
+    }
+    return true;
+}
+
 bool LlmConfig::isLocalhostUrl() const {
-    if (remoteBaseUrl.empty()) return false;
+    const std::string url = remoteBaseUrlEfectiva();
+    if (url.empty()) return false;
     try {
         std::string host;
         size_t proto = remoteBaseUrl.find("://");
         size_t start = (proto == std::string::npos) ? 0 : proto + 3;
-        size_t end = remoteBaseUrl.find(':', start);
-        if (end == std::string::npos) end = remoteBaseUrl.find('/', start);
-        if (end == std::string::npos) end = remoteBaseUrl.size();
-        host = remoteBaseUrl.substr(start, end - start);
+        size_t end = url.find(':', start);
+        if (end == std::string::npos) end = url.find('/', start);
+        if (end == std::string::npos) end = url.size();
+        host = url.substr(start, end - start);
         std::transform(host.begin(), host.end(), host.begin(),
                        [](unsigned char c){ return std::tolower(c); });
         return host == "localhost" || host == "127.0.0.1" || host == "::1" ||

@@ -56,9 +56,17 @@ struct LlmConfig {
     LlmMode mode = LlmMode::REMOTE;
 
     // ---- REMOTE ----
+    // provider: "", "local", "openai", "google", "nvidia", "custom".
+    // Vacío mantiene compatibilidad con configuraciones anteriores.
+    std::string provider = "";
     std::string remoteBaseUrl = "";
     std::string apiKey = "";
+    std::string googleApiKey = "";
+    std::string nvidiaApiKey = "";
     std::string modelName = "phi-4-mini";
+    // Referencia canónica opcional: provider/model#variant. Si está vacía se
+    // deriva de provider/modelName/thinking.
+    std::string modelRef = "";
 
     // Parámetros de generación
     double temperature = 0.7;
@@ -126,6 +134,17 @@ struct LlmConfig {
     // Utilidades
     int effectiveMaxTokens() const;
     bool isLocalhostUrl() const;
+    // Clave efectiva para el provider/baseUrl configurado. No expone secretos
+    // fuera de la capa de configuración: la CLI/TUI deben mostrar solo presencia.
+    std::string apiKeyEfectiva() const;
+    std::string remoteBaseUrlEfectiva() const;
+    std::string providerEfectivo() const;
+    std::string modelRefEfectivo() const;
+    std::string varianteEfectiva() const;
+    // Aplica modelRef/provider/model#variant si el formato es válido.
+    bool aplicarModelRef(const std::string& ref, std::string& error);
+    // Resuelve {env:VAR} y {file:ruta} en valores de configuración.
+    static std::string resolverValorConfig(const std::string& v);
     std::vector<std::string> validate() const;
 
     // Rutas efectivas de inferencia local/modelos/cache (resueltas con defaults).

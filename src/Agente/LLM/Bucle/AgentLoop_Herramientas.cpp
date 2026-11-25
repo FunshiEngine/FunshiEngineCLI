@@ -17,6 +17,7 @@
 // AgentLoop — herramientas: ejecución, alias, nombres mal escritos y
 // llamadas sin nombre.
 #include "Agente/LLM/Bucle/AgentLoop.h"
+#include "Util/LogCrash.h"
 
 #include <cstring>
 
@@ -183,6 +184,7 @@ std::size_t distancia(const std::string& a, const std::string& b) {
 }  // namespace
 
 ToolResult AgentLoop::executeTool(const std::string& name, const nlohmann::json& args, const std::string& callId) {
+    util::anotarCrash("tool start: " + name);
     auto tool = registry_->byName(name);
     nlohmann::json argsReales = args;
     if (!tool && alias_) {
@@ -191,8 +193,47 @@ ToolResult AgentLoop::executeTool(const std::string& name, const nlohmann::json&
     }
     if (!tool) tool = registry_->byName(nombreParecido(name));
     if (!tool) {
-        return ToolResult::error("Herramienta desconocida: " + name +
-                                 ". Usa solo las herramientas de la lista (o ejecutar_comando).");
+        // Corrección segura: el modelo usó el nombre del objeto como herramienta
+        // ("Suelo" {project}) en lugar de scene.object.create. Solo se aplica al
+        // patrón inequívoco para no ejecutar comandos por error.
+        if (args.is_object() && name.find('.') == std::string::npos && name.find('_') == std::string::npos &&
+            args.contains("project") && !args.contains("name") && !args.contains("command") &&
+            !args.contains("comando") && !args.contains("tool")) {
+            auto crear = registry_->byName("scene.object.create");
+            if (crear) {
+                nlohmann::json corregido = args;
+                corregido["name"] = name;
+                util::anotarCrash("tool auto-correct: " + name + " -> scene.object.create");
+                ToolResult r = executeTool("scene.object.create", corregido, callId);
+                const std::string nota = "[Corrección automática: \"" + name +
+                                         "\" interpretado como scene.object.create con name=\"" + name + "\".]\n";
+                if (r.ok()) {
+                    r.text = nota + r.text;
+                    return r;
+                }
+                r.errorMessage = nota + r.errorMessage;
+                return r;
+            }
+        }
+        std::string sugerencia = nombreParecido(name);
+        std::string msg = "Herramienta desconocida: \"" + name + "\". El nombre de la herramienta debe ser un comando/herramienta registrada, no un valor de argumento.";
+        if (!sugerencia.empty()) msg += " ¿Quisiste decir \"" + sugerencia + "\"?";
+        if (args.is_object() && name.find('.') == std::string::npos && name.find('_') == std::string::npos) {
+            if (args.contains("project") && !args.contains("name")) {
+                nlohmann::json sugerido = args;
+                sugerido["name"] = name;
+                msg += " Si querías crear un objeto llamado \"" + name + "\", usa scene.object.create con argumentos: " + sugerido.dump() + ".";
+            } else if (!args.empty()) {
+                msg += " Parece que pasaste \"" + name + "\" como nombre de herramienta, pero es un valor. Revisa los argumentos y la herramienta correcta.";
+            }
+        }
+        msg += " Revisa qué querías hacer y elige una herramienta existente.";
+        msg += " Usa buscar_comandos para encontrar el comando correcto, o ejecutar_comando para correr un comando CLI.";
+        msg += "\nHerramientas disponibles:";
+        for (const auto& spec : registry_->specs()) {
+            msg += "\n- " + spec.name + ": " + spec.description;
+        }
+        return ToolResult::error(msg);
     }
     ToolContext ctx; ctx.chatId = callId; ctx.outputsDir = ".agentes/outputs/" + callId;
     ctx.onEvent = onEventActual_;

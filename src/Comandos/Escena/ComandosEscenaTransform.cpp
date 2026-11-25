@@ -46,7 +46,8 @@
 #include "Comandos/Escena/ComandosEscenaInterno.h"
 namespace funshi {
 
-ResultadoComando escenaObjetoSetTransform(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoSetTransform(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -54,12 +55,19 @@ ResultadoComando escenaObjetoSetTransform(const nlohmann::json& argumentos) {
     ContextoEscena contexto(nombreProyecto);
 
     GameObject* obj = nullptr;
-    if (argumentos.contains("id") && argumentos["id"].is_number_integer()) {
-        obj = findObjectById(&contexto.registro(), argumentos["id"].get<int>());
+    if (argumentos.contains("id") && (argumentos["id"].is_number_integer() || argumentos["id"].is_number_unsigned() || argumentos["id"].is_string())) {
+        try {
+            int id = argumentos["id"].is_string() ? std::stoi(argumentos["id"].get<std::string>()) : argumentos["id"].get<int>();
+            obj = findObjectById(&contexto.registro(), id);
+        } catch (...) {
+            const std::string mensaje = "args.id debe ser un entero";
+            registrarErrorUso("invalid_request", mensaje);
+            return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
+        }
     } else if (argumentos.contains("tag") && argumentos["tag"].is_string()) {
         obj = findObjectByTag(&contexto.registro(), argumentos["tag"].get<std::string>());
     } else {
-        const std::string mensaje = "args.id (int) o args.tag (string) es requerido";
+        const std::string mensaje = "args.id (entero) o args.tag (string) es requerido";
         registrarErrorUso("invalid_request", mensaje);
         return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
     }
@@ -126,7 +134,8 @@ ResultadoComando escenaObjetoSetTransform(const nlohmann::json& argumentos) {
     });
 }
 
-ResultadoComando escenaObjetoSetComponente(const nlohmann::json& argumentos) {
+ResultadoComando escenaObjetoSetComponente(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     ResultadoComando resultado;
     if (!resolverProyectoDesdeArgs(argumentos, nombreProyecto, resultado)) return resultado;
@@ -147,12 +156,19 @@ ResultadoComando escenaObjetoSetComponente(const nlohmann::json& argumentos) {
     ContextoEscena contexto(nombreProyecto);
 
     GameObject* obj = nullptr;
-    if (argumentos.contains("id") && argumentos["id"].is_number_integer()) {
-        obj = findObjectById(&contexto.registro(), argumentos["id"].get<int>());
+    if (argumentos.contains("id") && (argumentos["id"].is_number_integer() || argumentos["id"].is_number_unsigned() || argumentos["id"].is_string())) {
+        try {
+            int id = argumentos["id"].is_string() ? std::stoi(argumentos["id"].get<std::string>()) : argumentos["id"].get<int>();
+            obj = findObjectById(&contexto.registro(), id);
+        } catch (...) {
+            const std::string mensaje = "args.id debe ser un entero";
+            registrarErrorUso("invalid_request", mensaje);
+            return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
+        }
     } else if (argumentos.contains("tag") && argumentos["tag"].is_string()) {
         obj = findObjectByTag(&contexto.registro(), argumentos["tag"].get<std::string>());
     } else {
-        const std::string mensaje = "args.id (int) o args.tag (string) es requerido";
+        const std::string mensaje = "args.id (entero) o args.tag (string) es requerido";
         registrarErrorUso("invalid_request", mensaje);
         return ResultadoComando::fallo("invalid_request", mensaje, codigosSalida::kErrorUso);
     }
@@ -238,6 +254,101 @@ ResultadoComando escenaObjetoSetComponente(const nlohmann::json& argumentos) {
                     s->setDllPath(pathValue);
                     modificado = true;
                 }
+            }
+        }
+    } else if (componentType == "Collider") {
+        if (auto* col = obj->getComponent<Collider>()) {
+            auto leerFloat = [&](float& out) -> bool {
+                if (!argumentos.contains("value")) return false;
+                const auto& v = argumentos["value"];
+                if (v.is_number()) { out = static_cast<float>(v.get<double>()); return true; }
+                if (v.is_string()) {
+                    try { out = std::stof(v.get<std::string>()); return true; } catch (...) {}
+                }
+                return false;
+            };
+            if (field == "radio") {
+                float r = 1.0f;
+                if (leerFloat(r)) { col->setRadio(r); modificado = true; }
+            } else if (field == "tipo") {
+                if (argumentos.contains("value") && argumentos["value"].is_string()) {
+                    std::string tipo = argumentos["value"].get<std::string>();
+                    Transform* t = obj->getComponent<Transform>();
+                    if (t) {
+                        Collider* nuevo = nullptr;
+                        if (tipo == "cubo") nuevo = new CubeCollider(col->getRadio(), t, obj);
+                        else nuevo = new EsfereCollider(col->getRadio(), t, obj);
+                        obj->addComponent(std::unique_ptr<Component>(nuevo));
+                        modificado = true;
+                    }
+                }
+            }
+        }
+    } else if (componentType == "RigidBody") {
+        if (auto* rb = obj->getComponent<RigidBody>()) {
+            auto leerFloat = [&](float& out) -> bool {
+                if (!argumentos.contains("value")) return false;
+                const auto& v = argumentos["value"];
+                if (v.is_number()) { out = static_cast<float>(v.get<double>()); return true; }
+                if (v.is_string()) {
+                    try { out = std::stof(v.get<std::string>()); return true; } catch (...) {}
+                }
+                return false;
+            };
+            if (field == "masa") {
+                float masa = 1.0f;
+                if (leerFloat(masa)) { rb->fijarMasa(masa); modificado = true; }
+            } else if (field == "gravedad") {
+                if (argumentos.contains("value") && argumentos["value"].is_boolean()) {
+                    rb->fijarUsoGravedad(argumentos["value"].get<bool>());
+                    modificado = true;
+                } else if (argumentos.contains("value") && argumentos["value"].is_string()) {
+                    const auto sv = argumentos["value"].get<std::string>();
+                    rb->fijarUsoGravedad(sv == "true" || sv == "1");
+                    modificado = true;
+                }
+            }
+        }
+    } else if (componentType == "Color") {
+        if (auto* c = obj->getComponent<Color>()) {
+            if (field == "value" && argumentos.contains("value") && argumentos["value"].is_array()) {
+                const auto& arr = argumentos["value"];
+                if (arr.size() >= 4) {
+                    c->setColor(static_cast<float>(arr[0].get<double>()),
+                                static_cast<float>(arr[1].get<double>()),
+                                static_cast<float>(arr[2].get<double>()));
+                    // Alpha: Color no expone setAlpha; se ignora si no hay API.
+                    modificado = true;
+                }
+            }
+        }
+    } else if (componentType == "AudioSource") {
+        if (auto* a = obj->getComponent<AudioSource>()) {
+            auto leerFloat = [&](float& out) -> bool {
+                if (!argumentos.contains("value")) return false;
+                const auto& v = argumentos["value"];
+                if (v.is_number()) { out = static_cast<float>(v.get<double>()); return true; }
+                if (v.is_string()) {
+                    try { out = std::stof(v.get<std::string>()); return true; } catch (...) {}
+                }
+                return false;
+            };
+            if (field == "clip" && argumentos.contains("value") && argumentos["value"].is_string()) {
+                a->setRutaClip(argumentos["value"].get<std::string>()); modificado = true;
+            } else if (field == "volume") {
+                float vol = 1.0f; if (leerFloat(vol)) { a->setVolume(vol); modificado = true; }
+            } else if (field == "loop" && argumentos.contains("value")) {
+                const auto& v = argumentos["value"];
+                bool b = v.is_boolean() ? v.get<bool>() : (v.is_string() && v.get<std::string>() == "true");
+                a->setLoop(b); modificado = true;
+            } else if (field == "autoplay" && argumentos.contains("value")) {
+                const auto& v = argumentos["value"];
+                bool b = v.is_boolean() ? v.get<bool>() : (v.is_string() && v.get<std::string>() == "true");
+                a->setReproduccionAutomatica(b); modificado = true;
+            } else if (field == "espacial" && argumentos.contains("value")) {
+                const auto& v = argumentos["value"];
+                bool b = v.is_boolean() ? v.get<bool>() : (v.is_string() && v.get<std::string>() == "true");
+                a->setEspacial(b); modificado = true;
             }
         }
     } else {

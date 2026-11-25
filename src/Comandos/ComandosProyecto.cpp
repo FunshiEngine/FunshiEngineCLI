@@ -31,7 +31,8 @@
 
 namespace funshi {
 
-ResultadoComando proyectoCrear(const nlohmann::json& argumentos) {
+ResultadoComando proyectoCrear(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     if (argumentos.contains("name") && !argumentos["name"].is_string()) {
         registrarErrorUso("invalid_request", "args.name debe ser un string");
         return ResultadoComando::fallo("invalid_request", "args.name debe ser un string",
@@ -97,7 +98,8 @@ ResultadoComando proyectoListar(const nlohmann::json&) {
         {{"projects", std::move(resultado)}, {"count", proyectos.size()}});
 }
 
-ResultadoComando proyectoConfigLeer(const nlohmann::json& argumentos) {
+ResultadoComando proyectoConfigLeer(const nlohmann::json& argumentosIn) {
+    nlohmann::json argumentos = argumentosIn;
     std::string nombreProyecto;
     std::string error;
     if (!argumentoProyecto(argumentos, nombreProyecto, error)) {

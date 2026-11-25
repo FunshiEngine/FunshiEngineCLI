@@ -35,6 +35,8 @@ const std::unordered_map<std::string, ComandoCLI>& mapaComandos() {
         {"project.config.get", ComandoCLI::ProyectoConfigLeer},
         {"project.src.create", ComandoCLI::ProyectoSrcCrear},
         {"project.src.list", ComandoCLI::ProyectoSrcListar},
+        {"project.src.read", ComandoCLI::ProyectoSrcLeer},
+        {"project.src.write", ComandoCLI::ProyectoSrcEscribir},
         {"project.src.delete", ComandoCLI::ProyectoSrcBorrar},
         {"project.src.rename", ComandoCLI::ProyectoSrcRenombrar},
         {"project.dir.import", ComandoCLI::ProyectoDirImportar},
@@ -65,6 +67,7 @@ const std::unordered_map<std::string, ComandoCLI>& mapaComandos() {
         {"asset.delete", ComandoCLI::AssetBorrar},
         {"script.delete", ComandoCLI::ScriptBorrar},
         {"scene.object.delete", ComandoCLI::EscenaObjetoBorrar},
+        {"scene.objects.delete", ComandoCLI::EscenaObjetosBorrar},
         {"trash.list", ComandoCLI::PapeleraListar},
         {"trash.restore", ComandoCLI::PapeleraRestaurar},
         {"trash.empty", ComandoCLI::PapeleraVaciar},
@@ -82,6 +85,7 @@ const std::unordered_map<std::string, ComandoCLI>& mapaComandos() {
         {"diagnostics.clear", ComandoCLI::DiagnosticoLimpiar},
         {"cli.config.get", ComandoCLI::CliConfigLeer},
         {"cli.config.set", ComandoCLI::CliConfigEscribir},
+        {"cli.models.list", ComandoCLI::CliModelosListar},
         {"agente.procesar", ComandoCLI::AgenteProcesar},
     };
     return mapa;
@@ -104,6 +108,8 @@ std::string textoDesdeComando(ComandoCLI comando) {
         case ComandoCLI::ProyectoConfigLeer: return "project.config.get";
         case ComandoCLI::ProyectoSrcCrear: return "project.src.create";
         case ComandoCLI::ProyectoSrcListar: return "project.src.list";
+        case ComandoCLI::ProyectoSrcLeer: return "project.src.read";
+        case ComandoCLI::ProyectoSrcEscribir: return "project.src.write";
         case ComandoCLI::ProyectoSrcBorrar: return "project.src.delete";
         case ComandoCLI::ProyectoSrcRenombrar: return "project.src.rename";
         case ComandoCLI::ProyectoDirImportar: return "project.dir.import";
@@ -134,6 +140,7 @@ std::string textoDesdeComando(ComandoCLI comando) {
         case ComandoCLI::AssetBorrar: return "asset.delete";
         case ComandoCLI::ScriptBorrar: return "script.delete";
         case ComandoCLI::EscenaObjetoBorrar: return "scene.object.delete";
+        case ComandoCLI::EscenaObjetosBorrar: return "scene.objects.delete";
         case ComandoCLI::PapeleraListar: return "trash.list";
         case ComandoCLI::PapeleraRestaurar: return "trash.restore";
         case ComandoCLI::PapeleraVaciar: return "trash.empty";
@@ -151,6 +158,7 @@ std::string textoDesdeComando(ComandoCLI comando) {
         case ComandoCLI::DiagnosticoLimpiar: return "diagnostics.clear";
         case ComandoCLI::CliConfigLeer: return "cli.config.get";
         case ComandoCLI::CliConfigEscribir: return "cli.config.set";
+        case ComandoCLI::CliModelosListar: return "cli.models.list";
         case ComandoCLI::AgenteProcesar: return "agente.procesar";
         case ComandoCLI::Desconocido: return std::string();
     }
@@ -166,6 +174,8 @@ const std::vector<ComandoCLI>& todosLosComandos() {
         ComandoCLI::ProyectoConfigLeer,
         ComandoCLI::ProyectoSrcCrear,
         ComandoCLI::ProyectoSrcListar,
+        ComandoCLI::ProyectoSrcLeer,
+        ComandoCLI::ProyectoSrcEscribir,
         ComandoCLI::ProyectoSrcBorrar,
         ComandoCLI::ProyectoSrcRenombrar,
         ComandoCLI::ProyectoDirImportar,
@@ -196,6 +206,7 @@ const std::vector<ComandoCLI>& todosLosComandos() {
         ComandoCLI::AssetBorrar,
         ComandoCLI::ScriptBorrar,
         ComandoCLI::EscenaObjetoBorrar,
+        ComandoCLI::EscenaObjetosBorrar,
         ComandoCLI::PapeleraListar,
         ComandoCLI::PapeleraRestaurar,
         ComandoCLI::PapeleraVaciar,
@@ -213,6 +224,7 @@ const std::vector<ComandoCLI>& todosLosComandos() {
         ComandoCLI::DiagnosticoLimpiar,
         ComandoCLI::CliConfigLeer,
         ComandoCLI::CliConfigEscribir,
+        ComandoCLI::CliModelosListar,
         ComandoCLI::AgenteProcesar,
     };
     return lista;

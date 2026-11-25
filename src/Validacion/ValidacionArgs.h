@@ -39,6 +39,12 @@ struct RequisitoArg {
 
 // Valida los argumentos de un comando contra su tabla de requisitos. Si algo
 // falta o tiene tipo incorrecto, `error` recibe el mensaje y devuelve false.
+// Acepta coerciones seguras (p. ej. "5" -> 5) para tolerar salidas de LLM;
+// cuando aplica, normaliza el valor en `argumentos`.
+bool validarArgumentos(nlohmann::json& argumentos,
+                       const std::vector<RequisitoArg>& requisitos,
+                       std::string& error);
+
 bool validarArgumentos(const nlohmann::json& argumentos,
                        const std::vector<RequisitoArg>& requisitos,
                        std::string& error);
