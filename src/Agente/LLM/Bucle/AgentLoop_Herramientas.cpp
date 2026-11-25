@@ -194,10 +194,20 @@ ToolResult AgentLoop::executeTool(const std::string& name, const nlohmann::json&
     if (!tool) tool = registry_->byName(nombreParecido(name));
     if (!tool) {
         std::string sugerencia = nombreParecido(name);
-        std::string msg = "Herramienta desconocida: " + name + ".";
+        std::string msg = "Herramienta desconocida: \"" + name + "\". El nombre de la herramienta debe ser un comando/herramienta registrada, no un valor de argumento.";
         if (!sugerencia.empty()) msg += " ¿Quisiste decir \"" + sugerencia + "\"?";
-        msg += " Revisa qué querías hacer y usa una herramienta existente.";
-        msg += " Puedes usar buscar_comandos para encontrar el comando correcto, o ejecutar_comando para correr un comando CLI.";
+        // Heurística: el modelo puso el nombre del objeto como herramienta.
+        if (args.is_object() && name.find('.') == std::string::npos && name.find('_') == std::string::npos) {
+            if (args.contains("project") && !args.contains("name")) {
+                nlohmann::json sugerido = args;
+                sugerido["name"] = name;
+                msg += " Si querías crear un objeto llamado \"" + name + "\", usa scene.object.create con argumentos: " + sugerido.dump() + ".";
+            } else if (!args.empty()) {
+                msg += " Parece que pasaste \"" + name + "\" como nombre de herramienta, pero es un valor. Revisa los argumentos y la herramienta correcta.";
+            }
+        }
+        msg += " Revisa qué querías hacer y elige una herramienta existente.";
+        msg += " Usa buscar_comandos para encontrar el comando correcto, o ejecutar_comando para correr un comando CLI.";
         msg += "\nHerramientas disponibles:";
         for (const auto& spec : registry_->specs()) {
             msg += "\n- " + spec.name + ": " + spec.description;
