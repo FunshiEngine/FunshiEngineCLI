@@ -118,6 +118,16 @@ class AplicacionTui : public ftxui::ComponentBase {
     bool eventoSelectorModelos(ftxui::Event evento);
     ftxui::Element capaSelectorModelos();
 
+    // Proveedores (pestaña Proveedores).
+    std::string proveedorExpandido_;
+    struct CacheModelosProveedor {
+        std::string provider;
+        std::vector<nlohmann::json> modelos;
+        std::string error;
+    } proveedorModelos_;
+    void cargarModelosProveedor(const std::string& provider);
+    void aplicarModeloProveedor(const std::string& modelRef);
+
     void enfocarChat();
     void desenfocarChat();
     bool eventoEnChat(ftxui::Event evento);

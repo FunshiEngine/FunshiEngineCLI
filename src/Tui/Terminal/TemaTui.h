@@ -42,10 +42,10 @@ inline ftxui::Color kAdvertencia = ftxui::Color::RGB(229, 192, 123);
 inline ftxui::Color kError = ftxui::Color::RGB(224, 108, 117);
 
 // Dominios de la TUI, en el orden del panel lateral.
-enum class SeccionTui { Proyectos = 0, Escena, Scripts, Diagnosticos, Chat, ModelosHF, Configuracion };
+enum class SeccionTui { Proyectos = 0, Escena, Scripts, Diagnosticos, Chat, ModelosHF, Proveedores, Configuracion };
 
 // Cantidad de dominios del panel lateral.
-constexpr int kCantidadSecciones = 7;
+constexpr int kCantidadSecciones = 8;
 
 // Ancho del panel lateral, en columnas.
 constexpr int kAnchoPanelLateral = 30;
@@ -87,6 +87,7 @@ inline const char* nombreSeccion(SeccionTui seccion) {
         case SeccionTui::Diagnosticos: return "Diagnósticos";
         case SeccionTui::Chat: return "Chat Silvy";
         case SeccionTui::ModelosHF: return "Modelos HF";
+        case SeccionTui::Proveedores: return "Proveedores";
         case SeccionTui::Configuracion: return "Configuración";
     }
     return "";
@@ -101,6 +102,7 @@ inline const char* comandoDeSeccion(SeccionTui seccion) {
         case SeccionTui::Diagnosticos: return "diagnostics.list";
         case SeccionTui::Chat: return "";
         case SeccionTui::ModelosHF: return "";
+        case SeccionTui::Proveedores: return "cli.config.get";
         case SeccionTui::Configuracion: return "cli.config.get";
     }
     return "";
@@ -115,6 +117,7 @@ inline const char* campoItemsDeSeccion(SeccionTui seccion) {
         case SeccionTui::Diagnosticos: return "items";
         case SeccionTui::Chat: return "";
         case SeccionTui::ModelosHF: return "";
+        case SeccionTui::Proveedores: return "";
         case SeccionTui::Configuracion: return "";
     }
     return "";

@@ -195,7 +195,14 @@ ResultadoComando cliConfigEscribir(const nlohmann::json& argumentosIn) {
             std::string err;
             if (!cfg.aplicarModelRef(mv, err)) { registrarErrorUso("invalid_request", err); return ResultadoComando::fallo("invalid_request", err, codigosSalida::kErrorUso); }
         } else {
-            cfg.modelName = mv;
+            // Si hay proveedor activo, permitir "model" solo con nombre usando el proveedor activo.
+            const std::string prov = cfg.providerEfectivo();
+            if (!prov.empty() && prov != "local" && prov != "custom") {
+                cfg.modelName = mv;
+                cfg.modelRef.clear();
+            } else {
+                cfg.modelName = mv;
+            }
         }
         cambios = true;
     }

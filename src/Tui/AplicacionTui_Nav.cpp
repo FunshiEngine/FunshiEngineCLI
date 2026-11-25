@@ -105,8 +105,8 @@ void AplicacionTui::recargarSeccionActual(bool informar) {
         return;
     }
 
-    // La sección Configuración muestra las rutas persistidas de la CLI.
-    if (seccion == SeccionTui::Configuracion) {
+    // Las secciones Configuración y Proveedores muestran cli.config.get.
+    if (seccion == SeccionTui::Configuracion || seccion == SeccionTui::Proveedores) {
         cargarSeccionConfiguracion(estado, informar);
         return;
     }
@@ -233,6 +233,7 @@ void AplicacionTui::accionar() {
         case SeccionTui::ModelosHF:
             break;
         case SeccionTui::Configuracion:
+        case SeccionTui::Proveedores:
             accionConfiguracion(item);
             break;
     }

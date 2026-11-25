@@ -195,27 +195,27 @@ std::vector<std::string> OpenAiCompatibleGateway::listModels() {
 }
 
 std::vector<LlmGateway::ModelInfo> OpenAiCompatibleGateway::listModelsInfo() {
-    if (!curl_) initCurl();
-
+    CURL* c = curl_easy_init();
+    if (!c) throw LlmException(LlmException::Code::TRANSPORT, "No se pudo inicializar libcurl");
     std::string url = baseUrl_ + "/models";
     std::string responseBuffer;
-
-    curl_easy_setopt(curl_, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl_, CURLOPT_HTTPGET, 1L);
-    curl_easy_setopt(curl_, CURLOPT_POSTFIELDS, nullptr);
-    curl_easy_setopt(curl_, CURLOPT_WRITEFUNCTION,
-        [](char* ptr, size_t size, size_t nmemb, void* userdata) -> size_t {
-            auto* buf = static_cast<std::string*>(userdata);
-            buf->append(ptr, size * nmemb);
-            return size * nmemb;
-        });
-    curl_easy_setopt(curl_, CURLOPT_WRITEDATA, &responseBuffer);
-
-    CURLcode res = curl_easy_perform(curl_);
-    if (res != CURLE_OK) throw transportError(curl_easy_strerror(res));
-
+    struct curl_slist* hdrs = nullptr;
+    hdrs = curl_slist_append(hdrs, "Accept: application/json");
+    if (!apiKey_.empty()) hdrs = curl_slist_append(hdrs, ("Authorization: Bearer " + apiKey_).c_str());
+    curl_easy_setopt(c, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(c, CURLOPT_HTTPGET, 1L);
+    curl_easy_setopt(c, CURLOPT_HTTPHEADER, hdrs);
+    curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, writeCallback);
+    curl_easy_setopt(c, CURLOPT_WRITEDATA, &responseBuffer);
+    curl_easy_setopt(c, CURLOPT_TIMEOUT_MS, 30000L);
+    curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
+    CURLcode res = curl_easy_perform(c);
     long httpCode = 0;
-    curl_easy_getinfo(curl_, CURLINFO_RESPONSE_CODE, &httpCode);
+    curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &httpCode);
+    curl_slist_free_all(hdrs);
+    curl_easy_cleanup(c);
+    if (res != CURLE_OK) throw transportError(curl_easy_strerror(res));
     if (httpCode != 200) {
         throw LlmException::fromHttp(static_cast<int>(httpCode), responseBuffer, isLocalhostUrl());
     }

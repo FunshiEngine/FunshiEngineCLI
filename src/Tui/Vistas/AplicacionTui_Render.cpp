@@ -234,6 +234,7 @@ ftxui::Element AplicacionTui::filaDeItem(SeccionTui seccion, const nlohmann::jso
             return ftxui::text(recortar(linea, ancho)) | ftxui::color(colorNivel);
         }
         case SeccionTui::Configuracion:
+        case SeccionTui::Proveedores:
             return filaConfiguracion(item, ancho);
         case SeccionTui::Chat:
         case SeccionTui::ModelosHF:

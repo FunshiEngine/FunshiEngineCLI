@@ -57,26 +57,13 @@ void AplicacionTui::agregarItemsApariencia(nlohmann::json& items) {
 }
 
 void AplicacionTui::cargarSeccionConfiguracion(EstadoSeccion& estado, bool informar) {
-    // Rutas editables, en el orden en que se muestran.
-    static const std::pair<const char*, const char*> kRutas[] = {
-        {"projectsDataDir", "Datos/proyectos del motor"},
-        {"localInferenceDir", "Inferencia local (base)"},
-        {"modelsDir", "Modelos GGUF"},
-        {"hfCacheDir", "Cache de Hugging Face"},
-        {"llamaServerPath", "Binario llama-server"},
-        {"contextSize", "Contexto (tokens)"},
-    };
-
+    const bool esProveedores = seccionActual() == SeccionTui::Proveedores;
     const int seleccionPrevia = estado.seleccion;
     const ResultadoComando resultado = llamar("cli.config.get", nlohmann::json::object());
     if (!resultado.respuesta.correcta) {
         estado.items = nlohmann::json::array();
-        estado.error = resultado.respuesta.codigoError + ": " +
-                       resultado.respuesta.mensajeError;
-        if (informar) {
-            mensaje_ = estado.error;
-            mensajeEsError_ = true;
-        }
+        estado.error = resultado.respuesta.codigoError + ": " + resultado.respuesta.mensajeError;
+        if (informar) { mensaje_ = estado.error; mensajeEsError_ = true; }
         return;
     }
 
@@ -85,7 +72,6 @@ void AplicacionTui::cargarSeccionConfiguracion(EstadoSeccion& estado, bool infor
     const nlohmann::json efectivas = r.value("effectivePaths", nlohmann::json::object());
     const nlohmann::json ajustes = r.value("settings", nlohmann::json::object());
     const nlohmann::json llm = r.value("llm", nlohmann::json::object());
-
     auto comoTexto = [](const nlohmann::json& obj, const char* clave) -> std::string {
         if (!obj.contains(clave)) return {};
         const auto& v = obj[clave];
@@ -95,49 +81,82 @@ void AplicacionTui::cargarSeccionConfiguracion(EstadoSeccion& estado, bool infor
     };
 
     estado.items = nlohmann::json::array();
-    estado.items.push_back({{"kind", "titulo"}, {"label", "Rutas y modelo"}});
-    for (const auto& [clave, etiqueta] : kRutas) {
-        const bool numerico = ajustes.contains(clave);
-        const std::string valor = numerico ? comoTexto(ajustes, clave) : comoTexto(paths, clave);
-        estado.items.push_back({
-            {"key", clave},
-            {"label", etiqueta},
-            {"value", numerico && valor == std::to_string(funshi::agente::llm::kContextoPorDefecto)
-                          ? std::string{} : valor},
-            {"effective", numerico ? valor : comoTexto(efectivas, clave)},
-            {"numeric", numerico},
-            {"kind", "ruta"},
-        });
+    if (!esProveedores) {
+        static const std::pair<const char*, const char*> kRutas[] = {
+            {"projectsDataDir", "Datos/proyectos del motor"},
+            {"localInferenceDir", "Inferencia local (base)"},
+            {"modelsDir", "Modelos GGUF"},
+            {"hfCacheDir", "Cache de Hugging Face"},
+            {"llamaServerPath", "Binario llama-server"},
+            {"contextSize", "Contexto (tokens)"},
+        };
+        estado.items.push_back({{"kind", "titulo"}, {"label", "Rutas y modelo"}});
+        for (const auto& [clave, etiqueta] : kRutas) {
+            const bool numerico = ajustes.contains(clave);
+            const std::string valor = numerico ? comoTexto(ajustes, clave) : comoTexto(paths, clave);
+            estado.items.push_back({
+                {"key", clave}, {"label", etiqueta},
+                {"value", numerico && valor == std::to_string(funshi::agente::llm::kContextoPorDefecto) ? std::string{} : valor},
+                {"effective", numerico ? valor : comoTexto(efectivas, clave)},
+                {"numeric", numerico}, {"kind", "ruta"},
+            });
+        }
+        agregarItemsApariencia(estado.items);
+    } else {
+        const std::string providerActual = llm.value("provider", std::string{});
+        const std::string modelRef = llm.value("modelRef", std::string{});
+        estado.items.push_back({{"kind", "titulo"}, {"label", "Proveedor activo"}});
+        estado.items.push_back({{"kind","info"},{"label","Proveedor"},{"value",providerActual.empty()?"(ninguno)":providerActual}});
+        estado.items.push_back({{"kind","info"},{"label","Modelo activo"},{"value",modelRef.empty()?llm.value("modelName",std::string{}):modelRef}});
+        estado.items.push_back({{"kind","info"},{"label","Pensamiento"},{"value",llm.value("thinking",std::string("off"))}});
+        estado.items.push_back({{"kind","info"},{"label","Calidad/power"},{"value",llm.value("power",std::string("medium"))}});
+        estado.items.push_back({{"kind","titulo"},{"label","Proveedores (Enter selecciona/expande)"}});
+        struct Prov { const char* id; const char* nombre; const char* keyField; bool hasKey; };
+        std::vector<Prov> provs = {
+            {"google","Google Gemini (OpenAI compatible)","googleApiKey", llm.value("hasGoogleApiKey",false)},
+            {"nvidia","NVIDIA NIM (OpenAI compatible)","nvidiaApiKey", llm.value("hasNvidiaApiKey",false)},
+            {"openai","OpenAI compatible / custom","apiKey", llm.value("hasApiKey",false)},
+        };
+        for (const auto& p : provs) {
+            const bool activo = providerActual == p.id;
+            const bool expandido = proveedorExpandido_ == p.id;
+            estado.items.push_back({{"kind","proveedor"},{"id",p.id},{"label",p.nombre},{"keyField",p.keyField},
+                {"hasKey",p.hasKey},{"active",activo},{"expanded",expandido}});
+            if (expandido) {
+                estado.items.push_back({{"kind","prov-accion"},{"accion","apiKey"},{"provider",p.id},{"keyField",p.keyField},
+                    {"label", p.hasKey ? "Cambiar API key" : "Cargar API key"}});
+                if (p.hasKey) {
+                    estado.items.push_back({{"kind","prov-accion"},{"accion","modelos"},{"provider",p.id},{"label","Ver/cargar modelos del proveedor"}});
+                    estado.items.push_back({{"kind","prov-accion"},{"accion","thinking"},{"provider",p.id},{"label","Configurar pensamiento (off/low/medium/high/xhigh)"}});
+                    estado.items.push_back({{"kind","prov-accion"},{"accion","power"},{"provider",p.id},{"label","Configurar calidad/power (low/medium/high/xhigh)"}});
+                }
+                // Mostrar modelos cacheados si corresponden a este provider
+                if (p.hasKey && proveedorModelos_.provider == p.id) {
+                    if (!proveedorModelos_.error.empty()) {
+                        estado.items.push_back({{"kind","info"},{"label","Modelos"},{"value",proveedorModelos_.error}});
+                    }
+                    for (size_t i=0; i<proveedorModelos_.modelos.size() && i<60; ++i) {
+                        const auto& m = proveedorModelos_.modelos[i];
+                        estado.items.push_back({{"kind","prov-modelo"},{"provider",p.id},
+                            {"id", m.value("id", std::string{})},
+                            {"modelRef", m.value("modelRef", std::string{})},
+                            {"reasoning", m.value("reasoning", false)},
+                            {"variants", m.value("variants", nlohmann::json::array())}});
+                    }
+                }
+            }
+        }
+        estado.items.push_back({{"kind","titulo"},{"label","Comandos rápidos"}});
+        estado.items.push_back({{"kind","info"},{"label","Cambiar modelo"},{"value","cli.config.set modelRef=\"provider/modelo\""}});
+        estado.items.push_back({{"kind","info"},{"label","Cambiar pensamiento"},{"value","cli.config.set thinking=medium (usa proveedor activo)"}});
     }
-    estado.items.push_back({{"kind", "titulo"}, {"label", "Modelo remoto / API"}});
-    auto itemLlm = [&](const char* clave, const char* etiqueta, const std::string& valor,
-                       const std::string& efectivo, bool secreto) {
-        estado.items.push_back({
-            {"kind", "llm"},
-            {"key", clave},
-            {"label", etiqueta},
-            {"value", valor},
-            {"effective", efectivo},
-            {"secret", secreto},
-        });
-    };
-    itemLlm("provider", "Proveedor", llm.value("provider", std::string{}), llm.value("provider", std::string{}), false);
-    itemLlm("remoteBaseUrl", "URL base remota", llm.value("remoteBaseUrl", std::string{}), llm.value("remoteBaseUrl", std::string{}), false);
-    itemLlm("modelName", "Modelo remoto", llm.value("modelName", std::string{}), llm.value("modelName", std::string{}), false);
-    itemLlm("modelRef", "Modelo (provider/model#variant)", llm.value("modelRef", std::string{}), llm.value("modelRef", std::string{}), false);
-    itemLlm("thinking", "Pensamiento", llm.value("thinking", std::string("off")), llm.value("thinking", std::string("off")), false);
-    itemLlm("power", "Calidad/power", llm.value("power", std::string("medium")), llm.value("power", std::string("medium")), false);
-    itemLlm("googleApiKey", "API key Google", llm.value("hasGoogleApiKey", false) ? "configurada" : "", "configurada / no configurada", true);
-    itemLlm("nvidiaApiKey", "API key NVIDIA", llm.value("hasNvidiaApiKey", false) ? "configurada" : "", "configurada / no configurada", true);
-    itemLlm("apiKey", "API key genérica", llm.value("hasApiKey", false) ? "configurada" : "", "configurada / no configurada", true);
-    estado.items.push_back({{"kind", "llm-modelos-listar"}, {"label", "Listar modelos remotos del proveedor configurado"}});
-    agregarItemsApariencia(estado.items);
     estado.error.clear();
     const int tope = static_cast<int>(estado.items.size()) - 1;
     estado.seleccion = std::max(0, std::min(tope, seleccionPrevia));
     if (informar) {
-        mensaje_ = "Config: " + r.value("configPath", std::string{}) +
-                   " · Enter edita la ruta, el idioma o el color seleccionado";
+        mensaje_ = esProveedores
+            ? "Proveedores: Enter selecciona proveedor/modelo, cambia API key o pensamiento"
+            : "Config: " + r.value("configPath", std::string{}) + " · Enter edita la ruta, el idioma o el color seleccionado";
         mensajeEsError_ = false;
     }
 }
@@ -208,6 +227,57 @@ void AplicacionTui::accionConfiguracion(const nlohmann::json& item) {
         editarRutaConfiguracion(item);
     } else if (tipo == "llm-modelos-listar") {
         abrirSelectorModelos();
+    } else if (tipo == "proveedor") {
+        const std::string id = item.value("id", std::string{});
+        proveedorExpandido_ = (proveedorExpandido_ == id) ? std::string{} : id;
+        // Seleccionar proveedor activo al expandir; no pisa modelName si ya hay key.
+        auto r = llamar("cli.config.set", nlohmann::json{{"provider", id}});
+        if (r.respuesta.correcta) {
+            auto cfg = agente::llm::LlmConfig::load();
+            if (cfg.mode == agente::llm::LlmMode::REMOTE && cfg.validate().empty()) silvy_.configurarLlm(cfg, true);
+        }
+        mensaje_ = "Proveedor: " + id + (proveedorExpandido_.empty() ? " (plegado)" : " (expandido)");
+        mensajeEsError_ = false;
+        recargarSeccionActual(false);
+    } else if (tipo == "prov-accion") {
+        const std::string accion = item.value("accion", std::string{});
+        const std::string prov = item.value("provider", std::string{});
+        if (accion == "apiKey") {
+            const std::string keyField = item.value("keyField", std::string{"apiKey"});
+            textoComando_ = "cli.config.set provider=\"" + prov + "\" " + keyField + "=\"\"";
+            cursorComando_ = static_cast<int>(textoComando_.size()) - 1;
+            focoEnEntrada_ = true;
+            mensaje_ = "Pega la API key de " + prov + " y pulsa Enter";
+            mensajeEsError_ = false;
+        } else if (accion == "modelos") {
+            cargarModelosProveedor(prov);
+            recargarSeccionActual(false);
+        } else if (accion == "thinking") {
+            textoComando_ = "cli.config.set thinking=\"medium\"";
+            cursorComando_ = static_cast<int>(textoComando_.size()) - 1;
+            focoEnEntrada_ = true;
+            mensaje_ = "Pensamiento para proveedor activo (" + prov + "): off, low, medium, high, xhigh";
+            mensajeEsError_ = false;
+        } else if (accion == "power") {
+            textoComando_ = "cli.config.set power=\"medium\"";
+            cursorComando_ = static_cast<int>(textoComando_.size()) - 1;
+            focoEnEntrada_ = true;
+            mensaje_ = "Calidad/power para proveedor activo: low, medium, high, xhigh";
+            mensajeEsError_ = false;
+        }
+    } else if (tipo == "prov-modelo") {
+        const std::string modelRef = item.value("modelRef", item.value("id", std::string{}));
+        aplicarModeloProveedor(modelRef);
+        if (item.value("reasoning", false)) {
+            const auto vars = item.value("variants", nlohmann::json::array());
+            std::string sugerido = "medium";
+            if (vars.is_array() && !vars.empty() && vars[0].is_string()) sugerido = vars[0].get<std::string>();
+            textoComando_ = "cli.config.set modelRef=\"" + modelRef + "#" + sugerido + "\"";
+            cursorComando_ = static_cast<int>(textoComando_.size()) - 1;
+            focoEnEntrada_ = true;
+            mensaje_ = "Modelo con razonamiento: ajusta variant/thinking (off/low/medium/high/xhigh) y Enter";
+            mensajeEsError_ = false;
+        }
     } else if (tipo == "idioma") {
         tui::fijarIdioma(tui::siguienteIdioma());
         tui::guardarPreferencias();
@@ -284,6 +354,30 @@ ftxui::Element AplicacionTui::filaConfiguracion(const nlohmann::json& item, std:
     if (tipo == "restablecer" || tipo == "docs-actualizar" || tipo == "llm-modelos-listar") {
         return ftxui::text("  " + recortar(etiqueta, ancho)) | ftxui::color(kTexto);
     }
+    if (tipo == "proveedor") {
+        const bool active = item.value("active", false);
+        const bool expanded = item.value("expanded", false);
+        const bool hasKey = item.value("hasKey", false);
+        std::string marca = expanded ? "▾ " : "▸ ";
+        std::string estado = active ? " [activo]" : "";
+        estado += hasKey ? " [API key]" : " [sin API key]";
+        return ftxui::hbox({
+            ftxui::text("  " + marca + recortar(etiqueta, ancho > 40 ? ancho - 40 : 10)),
+            ftxui::text(estado) | ftxui::color(active ? kExito : kTextoTenue),
+        });
+    }
+    if (tipo == "prov-accion") {
+        return ftxui::text("      • " + recortar(etiqueta, ancho > 8 ? ancho - 8 : ancho)) | ftxui::color(kAcento);
+    }
+    if (tipo == "prov-modelo") {
+        const std::string id = item.value("id", std::string{});
+        const bool razon = item.value("reasoning", false);
+        const std::string suf = razon ? " [razonamiento]" : "";
+        return ftxui::hbox({
+            ftxui::text("      - " + recortar(id, ancho > 24 ? ancho - 24 : 8)),
+            ftxui::text(suf) | ftxui::color(kTextoTenue),
+        });
+    }
     if (tipo == "info") {
         return ftxui::hbox({ftxui::text(columna("  " + etiqueta, 30)),
                             ftxui::text(recortar(item.value("value", std::string{}), ancho > 32 ? ancho - 32 : 8)) |
@@ -343,6 +437,33 @@ void AplicacionTui::abrirSelectorModelos() {
     const auto& modelos = res.respuesta.resultado.value("models", nlohmann::json::array());
     if (modelos.is_array()) for (const auto& m : modelos) selectorModelos_.modelos.push_back(m);
     if (selectorModelos_.modelos.empty()) selectorModelos_.error = "No se recibieron modelos del proveedor.";
+}
+
+void AplicacionTui::cargarModelosProveedor(const std::string& provider) {
+    auto res = llamar("cli.models.list", nlohmann::json{{"provider", provider}});
+    proveedorModelos_ = CacheModelosProveedor{};
+    proveedorModelos_.provider = provider;
+    if (!res.respuesta.correcta) {
+        proveedorModelos_.error = res.respuesta.codigoError + ": " + res.respuesta.mensajeError;
+        return;
+    }
+    const auto& modelos = res.respuesta.resultado.value("models", nlohmann::json::array());
+    if (modelos.is_array()) for (const auto& m : modelos) proveedorModelos_.modelos.push_back(m);
+    if (proveedorModelos_.modelos.empty()) proveedorModelos_.error = "No se recibieron modelos.";
+}
+
+void AplicacionTui::aplicarModeloProveedor(const std::string& modelRef) {
+    auto r = llamar("cli.config.set", nlohmann::json{{"modelRef", modelRef}});
+    if (r.respuesta.correcta) {
+        auto cfg = agente::llm::LlmConfig::load();
+        if (cfg.mode == agente::llm::LlmMode::REMOTE && cfg.validate().empty()) silvy_.configurarLlm(cfg, true);
+        mensaje_ = "Modelo configurado: " + modelRef + " · Enter sobre el modelo para aplicar; usa cli.config.set thinking=... para razonamiento";
+        mensajeEsError_ = false;
+        recargarSeccionActual(false);
+    } else {
+        mensaje_ = r.respuesta.codigoError + ": " + r.respuesta.mensajeError;
+        mensajeEsError_ = true;
+    }
 }
 
 bool AplicacionTui::eventoSelectorModelos(ftxui::Event evento) {
