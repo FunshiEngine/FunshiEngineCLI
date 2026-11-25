@@ -188,26 +188,29 @@ ResultadoComando escenaScriptRecargar(const nlohmann::json& argumentosIn) {
                                       codigosSalida::kRecursoNoEncontrado);
     }
 
-    if (!script->estaCargado()) {
-        return ResultadoComando::exito({
-            {"project", nombreProyecto},
-            {"id", idObjeto},
-            {"reloaded", false},
-            {"message", "El script no estaba cargado; no hay nada que recargar"}
-        });
-    }
-
+    // Carga/recompila aunque no estuviera cargado (p. ej. tras addcomponent en CLI).
     script->recargar(obj);
     obj->setDirty(true);
     guardarEscena(contexto, nombreProyecto);
 
-    return ResultadoComando::exito({
+    const bool cargado = script->estaCargado();
+    nlohmann::json resp = {
         {"project", nombreProyecto},
         {"id", idObjeto},
         {"scriptPath", script->getPath()},
-        {"reloaded", true},
-        {"message", "Script recargado correctamente"}
-    });
+        {"reloaded", cargado},
+        {"loaded", cargado},
+        {"message", cargado ? "Script recargado correctamente" : "El script no se pudo cargar"},
+    };
+    if (!cargado) {
+        resp["error"] = script->ultimoError();
+        resp["fields"] = nlohmann::json::array();
+        return ResultadoComando::exito(resp);
+    }
+    nlohmann::json campos = nlohmann::json::array();
+    for (const auto& c : script->obtenerCampos()) campos.push_back(c.nombre);
+    resp["fields"] = std::move(campos);
+    return ResultadoComando::exito(resp);
 }
 // ---------------------------------------------------------------------------
 // scene.object.setfield
