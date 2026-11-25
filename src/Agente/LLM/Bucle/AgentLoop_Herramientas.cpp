@@ -193,10 +193,31 @@ ToolResult AgentLoop::executeTool(const std::string& name, const nlohmann::json&
     }
     if (!tool) tool = registry_->byName(nombreParecido(name));
     if (!tool) {
+        // Corrección segura: el modelo usó el nombre del objeto como herramienta
+        // ("Suelo" {project}) en lugar de scene.object.create. Solo se aplica al
+        // patrón inequívoco para no ejecutar comandos por error.
+        if (args.is_object() && name.find('.') == std::string::npos && name.find('_') == std::string::npos &&
+            args.contains("project") && !args.contains("name") && !args.contains("command") &&
+            !args.contains("comando") && !args.contains("tool")) {
+            auto crear = registry_->byName("scene.object.create");
+            if (crear) {
+                nlohmann::json corregido = args;
+                corregido["name"] = name;
+                util::anotarCrash("tool auto-correct: " + name + " -> scene.object.create");
+                ToolResult r = executeTool("scene.object.create", corregido, callId);
+                const std::string nota = "[Corrección automática: \"" + name +
+                                         "\" interpretado como scene.object.create con name=\"" + name + "\".]\n";
+                if (r.ok()) {
+                    r.text = nota + r.text;
+                    return r;
+                }
+                r.errorMessage = nota + r.errorMessage;
+                return r;
+            }
+        }
         std::string sugerencia = nombreParecido(name);
         std::string msg = "Herramienta desconocida: \"" + name + "\". El nombre de la herramienta debe ser un comando/herramienta registrada, no un valor de argumento.";
         if (!sugerencia.empty()) msg += " ¿Quisiste decir \"" + sugerencia + "\"?";
-        // Heurística: el modelo puso el nombre del objeto como herramienta.
         if (args.is_object() && name.find('.') == std::string::npos && name.find('_') == std::string::npos) {
             if (args.contains("project") && !args.contains("name")) {
                 nlohmann::json sugerido = args;
